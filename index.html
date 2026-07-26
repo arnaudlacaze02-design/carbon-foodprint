@@ -334,6 +334,9 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 /* ---------------- jeux ---------------- */
 .rank{background:var(--card-2-bg); color:var(--card-2-on); border:0}
 .rank .kicker{font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--straw)}
+.detaillink{font-family:var(--serif); font-style:italic; font-size:11px; letter-spacing:0;
+  text-transform:none; color:var(--straw); margin-left:8px; text-decoration:underline;
+  text-underline-offset:2px; vertical-align:baseline}
 .rank .pts{font-family:var(--serif); font-size:46px; line-height:1; margin:6px 0 0; font-variant-numeric:tabular-nums}
 .rank .pts small{font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:var(--on-forest-mute); text-transform:uppercase}
 .rank .name{font-family:var(--serif); font-size:19px; margin-top:9px}
@@ -397,10 +400,21 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .cell.today{outline:1.5px solid var(--forest); outline-offset:-1.5px}
 .cell .dn{font-family:var(--serif); font-size:12.5px; font-variant-numeric:tabular-nums; line-height:1}
 .dots{display:flex; gap:4px}
-.dots i{width:8px; height:8px; border-radius:50%; box-sizing:border-box;
-  border:1.5px solid var(--mute); display:block}
-.dots i.veg{background:#5BC8F5; border-color:#5BC8F5}
-.dots i.bud{background:#FF7A1A; border-color:#FF7A1A}
+.dots i{width:7px; height:7px; border-radius:50%; box-sizing:border-box;
+  border:1.4px solid var(--line); display:block}
+.dots i.on{border-width:0}
+.calwrap.mini{max-width:284px; margin:0 auto}
+.calwrap.mini .cell{min-height:0; aspect-ratio:1; gap:2px; padding:0; border-radius:7px}
+.calwrap.mini .cell .dn{font-size:10px}
+.calwrap.mini .dots i{width:5px; height:5px; border-width:1.2px}
+.calwrap.mini .calhead span{font-size:7.5px; padding-bottom:2px}
+.calmini{text-align:left; cursor:pointer}
+.calmini:active{background:var(--active)}
+.mininav{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:9px}
+.mininav span{font-family:var(--serif); font-size:15px}
+.mininav .op{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--forest)}
+.backlink{font-family:var(--mono); font-size:10px; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--forest); margin-bottom:8px; display:block}
 .callegend{display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:12px}
 .callegend span{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:9.5px;
   letter-spacing:.03em; text-transform:uppercase; color:var(--ink-soft)}
@@ -1142,6 +1156,11 @@ function tvRepas(a){
     return {...m, n:es.length, sum:s, avg: es.length ? s/es.length : 0};
   });
   const mx = Math.max(...perMeal.map(p => p.avg), .001);
+  const perDay = MEALS.map(m => {
+    const sum = S.hist.filter(e => e.m === m.k).reduce((x,e) => x + kgOf(e.l), 0);
+    return {...m, perDay: a.nd ? sum / a.nd : 0};
+  });
+  const mxd = Math.max(...perDay.map(p => p.perDay), .001);
   const last = [...S.hist].reverse().slice(0, 14);
   $('#tv').innerHTML = `
     <h2 class="sec">La journée en cours</h2>
@@ -1162,25 +1181,28 @@ function tvRepas(a){
       })()}
     </div>
 
-    <h2 class="sec">Poids moyen d’un repas</h2>
-    <div class="card bars">
-      ${perMeal.map(p => `<div class="row">
-        <div class="lab">${p.l} <span class="mute small">· ${p.n} enregistré${p.n>1?'s':''}</span></div>
-        <div class="val">${n2(p.avg)}</div>
-        <div class="tr"><i style="width:${(p.avg/mx*100).toFixed(1)}%;background:${p.c}"></i></div>
-      </div>`).join('')}
-      <div class="src">Moyenne en kg CO₂e par repas, sur l’ensemble de l’historique.</div>
+    <h2 class="sec">Moyenne / jour</h2>
+    <div class="card">
+      <div class="total" style="margin-top:0">
+        <div><div class="unit">Sur ${a.nd} jour${a.nd>1?'s':''} renseigné${a.nd>1?'s':''}</div>
+          <div class="small mute">Budget cible : ${n2(BUDGET_J)} kg/j</div></div>
+        <div class="v" style="color:${a.avg > BUDGET_J ? 'var(--brick)' : 'var(--forest)'}">${n2(a.avg)} <span class="unit">kg/j</span></div>
+      </div>
+      <div class="hr"></div>
+      <div class="bars">
+        ${perDay.map(p => `<div class="row">
+          <div class="lab">${p.l}</div>
+          <div class="val">${n2(p.perDay)}</div>
+          <div class="tr"><i style="width:${(p.perDay/mxd*100).toFixed(1)}%;background:${p.c}"></i></div>
+        </div>`).join('')}
+      </div>
+      <div class="src">Contribution moyenne de chaque repas à une journée, en kg CO₂e. Le total des
+        quatre barres fait la moyenne quotidienne ci-dessus.</div>
     </div>
 
-    <h2 class="sec">Derniers repas</h2>
-    <div class="card journal">
-      ${last.length ? last.map(e => `<button class="j jrow" data-entry="${esc(e.id)}" style="width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line-soft)">
-        <div class="dt"><b>${new Date(e.d+'T12:00').getDate()}</b>${new Date(e.d+'T12:00').toLocaleDateString('fr-FR',{month:'short'})}</div>
-        <div class="nm">${esc(e.n)}<i>${MEAL[e.m].l} · ${e.l.length} aliment${e.l.length>1?'s':''}</i></div>
-        <div class="kg">${n2(kgOf(e.l))} ›</div>
-      </button>`).join('') : `<div class="empty">Aucun repas enregistré. Passez par l’onglet Saisie.</div>`}
-    </div>`;
-  bindEntryRows();
+    <h2 class="sec">Le mois</h2>
+    ${calMini()}`;
+  $('#calMiniBtn').onclick = () => calendarSheet();
 }
 
 function bindEntryRows(){
@@ -1238,11 +1260,9 @@ function tvAn(a){
     <div class="kpis">
       <div class="kpi"><div class="v">${n0(proj)} <small>kg</small></div>
         <div class="l">Projection sur 12 mois</div></div>
-      <div class="kpi"><div class="v">${n2(a.avg)} <small>kg/j</small></div>
-        <div class="l">Moyenne sur ${a.nd} jour${a.nd>1?'s':''}</div></div>
-      <div class="kpi wide">
+      <div class="kpi">
         <div class="v">${proj>0 ? n0(proj/f.target2050*100) : 0} <small>%</small></div>
-        <div class="l">Part du budget total 2050 (2 t) que votre seule alimentation consommerait</div></div>
+        <div class="l">Part du budget total 2050 (2 t) consommée par votre seule alimentation</div></div>
     </div>
 
     <h2 class="sec">Où vous situez-vous</h2>
@@ -1430,11 +1450,12 @@ const CHALS = [
 function scoring(){
   const days = {};
   S.hist.forEach(e => {
-    const d = days[e.d] = days[e.d] || {kg:0, main:new Set(), veg:true, red:false};
+    const d = days[e.d] = days[e.d] || {kg:0, main:new Set(), veg:true, red:false, vegMeal:false};
     d.kg += kgOf(e.l);
     if(e.m !== 'encas') d.main.add(e.m);
     if(!isVeg(e)) d.veg = false;
     if(hasRed(e)) d.red = true;
+    if((e.m === 'dej' || e.m === 'din') && isVeg(e)) d.vegMeal = true;
   });
   const dk = Object.keys(days).sort();
   const ev = [];
@@ -1496,24 +1517,107 @@ function shiftMonth(m, n){
   d.setMonth(d.getMonth() + n);
   return iso(d).slice(0,7);
 }
-function calCells(sc, month){
+function dayFlags(x){
+  const complete = x && x.main.size >= 2;
+  return {
+    vegm: !!(x && x.vegMeal),                       // au moins un repas végé
+    veg:  !!(complete && x.veg),                    // journée entière sans viande
+    bud:  !!(complete && x.kg <= BUDGET_J),         // journée dans le budget
+  };
+}
+const DOTS = [
+  {k:'veg',  c:'#5BC8F5', l:'Journée sans viande'},
+  {k:'bud',  c:'#FF7A1A', l:'Journée dans le budget'},
+  {k:'vegm', c:'#46C87C', l:'Repas végétarien'},
+];
+function calCells(sc, month, clickable){
   const first = new Date(month + '-01T12:00');
-  const lead = (first.getDay() + 6) % 7;                     // lundi = 0
+  const lead = (first.getDay() + 6) % 7;
   const ndays = new Date(first.getFullYear(), first.getMonth()+1, 0).getDate();
   const out = [];
   for(let i = 0; i < lead; i++) out.push('<div class="cell void"></div>');
   for(let day = 1; day <= ndays; day++){
     const k = `${month}-${String(day).padStart(2,'0')}`;
-    const x = sc.days[k];
-    const complete = x && x.main.size >= 2;
-    const veg = complete && x.veg;
-    const bud = complete && x.kg <= BUDGET_J;
-    out.push(`<div class="cell${k === today() ? ' today' : ''}" title="${dLabel(k)}${x ? ' · ' + n2(x.kg) + ' kg' : ''}">
+    const x = sc.days[k], f = dayFlags(x);
+    const tag = clickable && x ? 'button' : 'div';
+    const attr = clickable && x ? ` data-day="${k}"` : '';
+    out.push(`<${tag} class="cell${k === today() ? ' today' : ''}"${attr}
+        title="${dLabel(k)}${x ? ' · ' + n2(x.kg) + ' kg' : ' · aucune saisie'}">
         <span class="dn">${day}</span>
-        <span class="dots"><i class="${veg?'veg':''}"></i><i class="${bud?'bud':''}"></i></span>
-      </div>`);
+        <span class="dots">${DOTS.map(d => `<i class="${f[d.k] ? 'on' : ''}"
+          style="${f[d.k] ? `background:${d.c};border-color:${d.c}` : ''}"></i>`).join('')}</span>
+      </${tag}>`);
   }
   return out.join('');
+}
+function calLegend(){
+  return `<div class="callegend">${DOTS.map(d =>
+    `<span><i class="dot" style="background:${d.c}"></i>${d.l}</span>`).join('')}</div>`;
+}
+
+/* bloc carré du Tracker : aperçu réduit, ouvre le calendrier en grand */
+function calMini(){
+  const sc = scoring(), m = today().slice(0,7);
+  return `<button class="card calmini" id="calMiniBtn" style="width:100%;border:1px solid var(--line)">
+      <div class="mininav"><span>${calTitle(m)}</span><span class="op">Agrandir ›</span></div>
+      <div class="calwrap mini">
+        <div class="calhead">${['L','M','M','J','V','S','D'].map(d => `<span>${d}</span>`).join('')}</div>
+        <div class="calgrid">${calCells(sc, m, false)}</div>
+      </div>
+    </button>`;
+}
+
+/* calendrier plein écran, en feuille : navigation par mois, jours cliquables */
+function calendarSheet(month){
+  const sc = scoring();
+  const m = month || S.calMonth || today().slice(0,7);
+  S.calMonth = m;
+  openSheet(`
+    <div class="calnav">
+      <button id="csPrev" aria-label="Mois précédent">‹</button>
+      <span class="m">${calTitle(m)}</span>
+      <button id="csNext" aria-label="Mois suivant" ${m >= today().slice(0,7) ? 'disabled' : ''}>›</button>
+    </div>
+    <div class="calwrap">
+      <div class="calhead">${['L','M','M','J','V','S','D'].map(d => `<span>${d}</span>`).join('')}</div>
+      <div class="calgrid">${calCells(sc, m, true)}</div>
+    </div>
+    ${calLegend()}
+    <div class="src" style="margin-top:10px">Touchez un jour renseigné pour voir ses repas. Une journée
+      ne compte comme sans viande ou dans le budget que si deux repas principaux au moins y figurent.</div>`);
+  $('#csPrev').onclick = () => calendarSheet(shiftMonth(m, -1));
+  const nx = $('#csNext');
+  if(nx && !nx.disabled) nx.onclick = () => calendarSheet(shiftMonth(m, 1));
+  $('#sheet').querySelectorAll('[data-day]').forEach(b => b.onclick = () => daySheet(b.dataset.day));
+}
+
+/* repas d'une journée donnée */
+function daySheet(k){
+  const es = S.hist.filter(e => e.d === k);
+  const tot = es.reduce((a,e) => a + kgOf(e.l), 0);
+  const f = dayFlags(scoring().days[k]);
+  const rest = BUDGET_J - tot;
+  openSheet(`
+    <button id="dsBack" class="backlink">‹ Calendrier</button>
+    <div class="unit">${dLabel(k)}</div>
+    <h3>${n2(tot)} kg CO₂e</h3>
+    <div class="small mute">${rest >= 0
+      ? `${n0(rest*1000)} g sous le budget du jour`
+      : `${n0(-rest*1000)} g au-dessus du budget du jour`}</div>
+    <div class="callegend" style="margin-top:10px">${DOTS.map(d =>
+      `<span style="${f[d.k] ? '' : 'opacity:.35'}"><i class="dot" style="background:${f[d.k] ? d.c : 'var(--line)'}"></i>${d.l}</span>`).join('')}</div>
+    <div class="hr"></div>
+    <div class="journal">
+      ${es.length ? es.map(e => `<button class="j jrow" data-entry="${esc(e.id)}"
+          style="width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line-soft)">
+          <div class="dt">${MEAL[e.m].s}</div>
+          <div class="nm">${esc(e.n)}<i>${MEAL[e.m].l} · ${e.l.length} aliment${e.l.length>1?'s':''}</i></div>
+          <div class="kg">${n2(kgOf(e.l))} ›</div>
+        </button>`).join('')
+        : '<div class="empty">Aucun repas ce jour-là.</div>'}
+    </div>`);
+  $('#dsBack').onclick = () => calendarSheet(k.slice(0,7));
+  $('#sheet').querySelectorAll('[data-entry]').forEach(b => b.onclick = () => entrySheet(b.dataset.entry));
 }
 
 /* ---- badges : trois paliers pour la famille « journée sans viande » ----
@@ -1582,9 +1686,26 @@ function badgeBlock(sc){
     </div>`;
 }
 
+function pointsSheet(){
+  const sc = scoring();
+  const evs = [...sc.ev].sort((a,b) => b.d.localeCompare(a.d) || b.p - a.p).slice(0, 40);
+  openSheet(`
+    <div class="unit">Derniers points</div>
+    <h3>${n0(sc.total)} points au total</h3>
+    <div class="small mute" style="margin-bottom:4px">${sc.ev.length} validation${sc.ev.length>1?'s':''}
+      depuis le début, les 40 dernières ci-dessous.</div>
+    <div class="hr"></div>
+    <div class="journal">
+      ${evs.length ? evs.map(e => `<div class="j">
+        <div class="dt"><b>${new Date(e.d+'T12:00').getDate()}</b>${new Date(e.d+'T12:00').toLocaleDateString('fr-FR',{month:'short'})}</div>
+        <div class="nm">${esc(e.t)}<i>${esc(e.n || '—')}</i></div>
+        <div class="kg">+${e.p}</div>
+      </div>`).join('') : `<div class="empty">Aucun point pour l’instant. Un déjeuner végétarien en rapporte cinq.</div>`}
+    </div>`);
+}
+
 function renderJeux(){
   topbar();
-  if(!S.calMonth) S.calMonth = today().slice(0,7);
   const sc = scoring();
   const ri = RANKS.reduce((a,r,i) => sc.total >= r[0] ? i : a, 0);
   const next = RANKS[ri+1];
@@ -1593,11 +1714,10 @@ function renderJeux(){
   const cw = sc.weeks[w] || {days:[], kg:0, full:0, noRed:true, noMeat:true};
   const wBud = 7 * BUDGET_J;
   const td = sc.days[today()] || {kg:0, main:new Set(), veg:true, red:false};
-  const evs = [...sc.ev].sort((a,b) => b.d.localeCompare(a.d) || b.p - a.p).slice(0, 12);
 
   view.innerHTML = `
   <div class="card rank">
-    <div class="kicker">Score</div>
+    <div class="kicker">Score<button id="ptsDetail" class="detaillink">Détail</button></div>
     <div class="pts">${n0(sc.total)} <small>points</small></div>
     <div class="name">${RANKS[ri][1]}</div>
     <div class="prog"><i style="width:${(prog*100).toFixed(1)}%"></i></div>
@@ -1636,21 +1756,19 @@ function renderJeux(){
       ne compte que si deux repas principaux au moins y sont enregistrés.</div>
   </div>
 
-  <h2 class="sec">Le mois</h2>
+  <h2 class="sec">La règle du jeu</h2>
   <div class="card">
-    <div class="calnav">
-      <button id="calPrev" aria-label="Mois précédent">‹</button>
-      <span class="m">${calTitle(S.calMonth)}</span>
-      <button id="calNext" aria-label="Mois suivant" ${S.calMonth >= today().slice(0,7) ? 'disabled' : ''}>›</button>
-    </div>
-    <div class="calhead">${['L','M','M','J','V','S','D'].map(d => `<span>${d}</span>`).join('')}</div>
-    <div class="calgrid">${calCells(sc, S.calMonth)}</div>
-    <div class="callegend">
-      <span><i class="dots" style="display:inline-flex"><i class="veg"></i></i>Journée sans viande</span>
-      <span><i class="dots" style="display:inline-flex"><i class="bud"></i></i>Journée dans le budget</span>
-    </div>
-    <div class="src" style="margin-top:9px">Une journée compte dès que deux repas principaux au moins
-      sont enregistrés — sinon un seul fruit suffirait à la valider.</div>
+    <p class="small">Les points d’un repas sont acquis à la saisie. Les bonus de journée, de semaine et de
+    mois ne se déclenchent qu’à la clôture de la période : le score ne peut donc jamais reculer parce que
+    vous avez enregistré un repas de plus.</p>
+    <div class="hr"></div>
+    <p class="small">Chaque palier vaut au moins le double de la somme de ce qu’il contient : une journée
+    sans viande rapporte 25 points avec ses repas, une semaine sans viande 100 de plus. Aucun point n’est
+    jamais retiré, et une série interrompue laisse sa meilleure valeur affichée.</p>
+    <div class="hr"></div>
+    <div class="src">Référence des kg évités : le repas moyen français à ${n2(REF)} kg CO₂e, calculé sur les
+    ${DB.dishes.length} plats types pondérés par leur fréquence. Budget retenu : ${n0(DB.facts.budget)} kg CO₂e
+    par an, soit ${n2(BUDGET_J)} kg par jour.</div>
   </div>
 
   <h2 class="sec">Le barème</h2>
@@ -1665,35 +1783,9 @@ function renderJeux(){
       </div>`; }).join('')}
     <div class="count">Les points récompensent la régularité, pas le carbone : un même geste peut valider
       plusieurs épreuves. La colonne carbone reste le tracker.</div>
-  </div>
-
-  <h2 class="sec">Derniers points</h2>
-  <div class="card journal">
-    ${evs.length ? evs.map(e => `<div class="j">
-      <div class="dt"><b>${new Date(e.d+'T12:00').getDate()}</b>${new Date(e.d+'T12:00').toLocaleDateString('fr-FR',{month:'short'})}</div>
-      <div class="nm">${esc(e.t)}<i>${esc(e.n || '—')}</i></div>
-      <div class="kg">+${e.p}</div>
-    </div>`).join('') : `<div class="empty">Aucun point pour l’instant. Un déjeuner végétarien en rapporte cinq.</div>`}
-  </div>
-
-  <h2 class="sec">La règle du jeu</h2>
-  <div class="card">
-    <p class="small">Les points d’un repas sont acquis à la saisie. Les bonus de journée, de semaine et de
-    mois ne se déclenchent qu’à la clôture de la période : le score ne peut donc jamais reculer parce que
-    vous avez enregistré un repas de plus.</p>
-    <div class="hr"></div>
-    <p class="small">Chaque palier vaut au moins le double de la somme de ce qu’il contient : une journée
-    sans viande rapporte 25 points avec ses repas, une semaine sans viande 100 de plus. Aucun point n’est
-    jamais retiré, et une série interrompue laisse sa meilleure valeur affichée.</p>
-    <div class="hr"></div>
-    <div class="src">Référence des kg évités : le repas moyen français à ${n2(REF)} kg CO₂e, calculé sur les
-    ${DB.dishes.length} plats types pondérés par leur fréquence. Budget retenu : ${n0(DB.facts.budget)} kg CO₂e
-    par an, soit ${n2(BUDGET_J)} kg par jour.</div>
   </div>`;
 
-  $('#calPrev').onclick = () => { S.calMonth = shiftMonth(S.calMonth, -1); renderJeux(); };
-  const cn = $('#calNext');
-  if(cn && !cn.disabled) cn.onclick = () => { S.calMonth = shiftMonth(S.calMonth, 1); renderJeux(); };
+  $('#ptsDetail').onclick = pointsSheet;
 }
 
 /* ============================ navigation ============================ */
