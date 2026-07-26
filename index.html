@@ -5,7 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#0E4D45">
+<meta name="theme-color" content="#0E4D45" id="metaTheme">
+<script>
+/* appliqué avant le rendu : pas de flash au chargement */
+(function(){
+  var m; try{ m = localStorage.getItem('carbone.theme'); }catch(e){}
+  m = m || 'system';
+  var dark = m === 'dark' || (m === 'system' &&
+    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+})();
+</script>
 <title>Carbon FOODprint — l’empreinte carbone de vos repas</title>
 <meta name="description" content="Comptabilité carbone alimentaire personnelle, à partir des données ADEME / AGRIBALYSE 3.2.">
 <meta name="apple-mobile-web-app-title" content="FOODprint">
@@ -14,19 +24,46 @@
 <link rel="manifest" href="./manifest.json">
 <style>
 :root{
-  --ink:#16211E; --ink-soft:#42544D; --mute:#7C8C84;
-  --paper:#F1F3EF; --card:#FFFFFF; --line:#DCE2D9; --line-soft:#EAEEE7;
+  /* palette de marque, invariante */
   --forest:#0E4D45; --forest-2:#3A6E5C; --straw:#D9C05B; --brick:#A32E2B;
   --s1:#0E4D45; --s2:#3A6E5C; --s3:#6E9075; --s4:#A8B37A; --s5:#D9C05B; --s6:#E7DCA8;
   --serif:ui-serif,"New York",Iowan Old Style,Georgia,serif;
   --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --r:14px;
+
+  /* surfaces et textes — thème CLAIR (défaut) */
+  --ink:#16211E; --ink-soft:#42544D; --mute:#7C8C84;
+  --paper:#F1F3EF; --card:#FFFFFF; --line:#DCE2D9; --line-soft:#EAEEE7;
+  --field:#FFFFFF; --track:#E9EDE7; --seg-bg:#E4E9E1; --active:#F6F8F5;
+  --on-forest:#EEF3EE; --on-forest-soft:#CBD9D1; --on-forest-mute:#9FBAAE;
+  --topbar:var(--forest); --on-topbar:#F3F6F1; --on-topbar-strong:#fff; --on-topbar-mute:#AFC6BC;
+  --note-bg:#FBF4DC; --note-line:#EBDDA6; --note-ink:#6B5B1E; --note-line-2:#E8D89A;
+  --kpi-good:#E2EFDA;
+  --shell:#20302B;
+  --tabbar:rgba(255,255,255,.94);
+  --card-2-bg:var(--ink); --card-2-on:#EDF1EE;
+  --sheet-scrim:rgba(15,25,21,.42);
+  --shadow:0 12px 28px rgba(16,33,28,.16);
+}
+:root[data-theme="dark"]{
+  --ink:#E7ECE8; --ink-soft:#AEBCB4; --mute:#7E8F86;
+  --paper:#141A18; --card:#1D2523; --line:#313B37; --line-soft:#28312E;
+  --field:#232C29; --track:#2C3733; --seg-bg:#262F2C; --active:#232C29;
+  --on-forest:#EAF1EC; --on-forest-soft:#C4D4CB; --on-forest-mute:#8FA79B;
+  --topbar:#0B3B35; --on-topbar:#EAF1EC; --on-topbar-strong:#fff; --on-topbar-mute:#7FA398;
+  --note-bg:#2E2A16; --note-line:#524A26; --note-ink:#D8C88A; --note-line-2:#4A4322;
+  --kpi-good:#223324;
+  --shell:#0A0E0D;
+  --tabbar:rgba(20,26,24,.92);
+  --card-2-bg:#0B3B35; --card-2-on:#EAF1EC;
+  --sheet-scrim:rgba(0,0,0,.58);
+  --shadow:0 12px 28px rgba(0,0,0,.5);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 body{
-  background:#20302B; font-family:var(--sans); color:var(--ink);
+  background:var(--shell); font-family:var(--sans); color:var(--ink);
   font-size:15px; line-height:1.45; -webkit-font-smoothing:antialiased;
 }
 .phone{
@@ -44,14 +81,14 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 
 /* ---------------- topbar ---------------- */
 .topbar{
-  position:sticky; top:0; z-index:20; background:var(--forest); color:#F3F6F1;
+  position:sticky; top:0; z-index:20; background:var(--topbar); color:var(--on-topbar);
   padding:14px 18px 12px; display:flex; align-items:baseline; justify-content:space-between;
 }
 .brand{font-family:var(--serif); font-size:20px; letter-spacing:.005em; line-height:1.1}
 .brand em{font-style:normal; font-family:var(--sans); font-weight:700; font-size:17px; letter-spacing:.02em; color:var(--straw)}
 .brand .sp{letter-spacing:-.04em}
-.today{font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#AFC6BC; text-align:right}
-.today b{display:block; font-family:var(--serif); font-size:17px; color:#fff; letter-spacing:0; text-transform:none; font-variant-numeric:tabular-nums}
+.today{font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--on-topbar-mute); text-align:right}
+.today b{display:block; font-family:var(--serif); font-size:17px; color:var(--on-topbar-strong); letter-spacing:0; text-transform:none; font-variant-numeric:tabular-nums}
 
 main{flex:1; padding:16px 16px 96px}
 
@@ -73,7 +110,7 @@ p{margin:0 0 9px}
 .hr{height:1px; background:var(--line-soft); margin:13px 0}
 
 /* ---------------- gauge : élément signature ---------------- */
-.gauge{position:relative; height:22px; background:#E4E9E1; border-radius:3px; overflow:hidden; display:flex}
+.gauge{position:relative; height:22px; background:var(--track); border-radius:3px; overflow:hidden; display:flex}
 .gauge .seg{height:100%}
 .gauge .over-zone{position:absolute; top:0; bottom:0; z-index:2; opacity:.62;
   background:repeating-linear-gradient(118deg,var(--brick) 0 4px,rgba(163,46,43,0) 4px 9px)}
@@ -88,19 +125,19 @@ p{margin:0 0 9px}
 .dot{width:8px;height:8px;border-radius:2px;display:inline-block}
 
 /* ---------------- « tout savoir » ---------------- */
-.know{background:var(--forest); color:#EEF3EE; border:0}
+.know{background:var(--forest); color:var(--on-forest); border:0}
 .know .kicker{font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--straw)}
 .know .big{font-family:var(--serif); font-size:44px; line-height:1; margin:8px 0 2px; font-variant-numeric:tabular-nums}
-.know .big small{font-size:17px; color:#AFC6BC}
-.know p{color:#CBD9D1; font-size:13px}
+.know .big small{font-size:17px; color:var(--on-forest-mute)}
+.know p{color:var(--on-forest-soft); font-size:13px}
 .know .split{display:flex; gap:14px; margin-top:14px; border-top:1px solid rgba(255,255,255,.16); padding-top:13px}
 .know .split div{flex:1}
 .know .split .v{font-family:var(--serif); font-size:24px; font-variant-numeric:tabular-nums}
-.know .split .l{font-family:var(--mono); font-size:9.5px; letter-spacing:.07em; text-transform:uppercase; color:#9FBAAE; line-height:1.4}
+.know .split .l{font-family:var(--mono); font-size:9.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--on-forest-mute); line-height:1.4}
 .contrib{margin-top:16px; border-top:1px solid rgba(255,255,255,.16); padding-top:13px}
 .contrib .row{display:grid; grid-template-columns:1fr 42px; gap:8px; align-items:center; margin-bottom:9px}
 .contrib .lab{font-size:13px}
-.contrib .lab i{font-style:normal; color:#9FBAAE; font-size:11.5px}
+.contrib .lab i{font-style:normal; color:var(--on-forest-mute); font-size:11.5px}
 .contrib .pct{font-family:var(--serif); font-size:16px; text-align:right; font-variant-numeric:tabular-nums}
 .contrib .bar{grid-column:1/-1; height:6px; background:rgba(255,255,255,.14); border-radius:2px; overflow:hidden; margin-top:-4px}
 .contrib .bar i{display:block; height:100%; background:var(--straw)}
@@ -110,57 +147,57 @@ p{margin:0 0 9px}
 }
 .know .more{display:none; margin-top:11px}
 .know.open .more{display:block}
-.know .more li{font-size:12.5px; color:#CBD9D1; margin-bottom:7px}
+.know .more li{font-size:12.5px; color:var(--on-forest-soft); margin-bottom:7px}
 .know .more ul{padding-left:18px; margin:0}
 
 /* ---------------- chips / segmented ---------------- */
 .chips{display:flex; gap:6px; overflow-x:auto; padding:2px 0 4px; scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{
-  flex:0 0 auto; padding:6px 11px; border:1px solid var(--line); border-radius:999px; background:#fff;
+  flex:0 0 auto; padding:6px 11px; border:1px solid var(--line); border-radius:999px; background:var(--card);
   font-size:12.5px; color:var(--ink-soft); white-space:nowrap;
 }
 .chip[aria-pressed="true"]{background:var(--forest); border-color:var(--forest); color:#fff}
-.seg{display:flex; background:#E4E9E1; border-radius:10px; padding:3px; gap:3px}
+.seg{display:flex; background:var(--seg-bg); border-radius:10px; padding:3px; gap:3px}
 .seg button{
   flex:1; padding:8px 4px; border-radius:8px; font-size:13px; color:var(--ink-soft);
   display:flex; flex-direction:column; align-items:center; gap:2px; line-height:1.15;
 }
 .seg button b{font-weight:600}
 .seg button small{font-family:var(--mono); font-size:9px; color:var(--mute)}
-.seg button[aria-pressed="true"]{background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.seg button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .seg button[aria-pressed="true"] small{color:var(--forest)}
 
 /* ---------------- listes ---------------- */
 .search{
-  width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:#fff;
+  width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:var(--field);
   font-size:15px; margin:2px 0 10px;
 }
-.list{background:#fff; border:1px solid var(--line); border-radius:var(--r); overflow:hidden}
+.list{background:var(--card); border:1px solid var(--line); border-radius:var(--r); overflow:hidden}
 .item{
   display:grid; grid-template-columns:1fr auto; gap:2px 10px; padding:11px 13px; width:100%;
   text-align:left; border-bottom:1px solid var(--line-soft); align-items:center;
 }
 .item:last-child{border-bottom:0}
-.item:active{background:#F6F8F5}
+.item:active{background:var(--active)}
 .item .nm{font-size:14.5px; line-height:1.25}
 .tag{display:inline-block; font-family:var(--mono); font-size:8.5px; letter-spacing:.06em;
-  text-transform:uppercase; background:#FBF4DC; color:#6B5B1E; border:1px solid #EBDDA6;
+  text-transform:uppercase; background:var(--note-bg); color:var(--note-ink); border:1px solid var(--note-line);
   border-radius:3px; padding:0 4px; vertical-align:1px; margin-left:5px}
-.note{background:#FBF4DC; border:1px solid #EBDDA6; border-radius:10px; padding:11px 12px;
-  font-size:12.5px; color:#6B5B1E; margin-top:12px}
+.note{background:var(--note-bg); border:1px solid var(--note-line); border-radius:10px; padding:11px 12px;
+  font-size:12.5px; color:var(--note-ink); margin-top:12px}
 .item .gp{font-family:var(--mono); font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--mute)}
 .item .fe{font-family:var(--serif); font-size:17px; font-variant-numeric:tabular-nums; text-align:right}
 .item .fe small{font-family:var(--mono); font-size:9px; color:var(--mute); display:block; letter-spacing:.04em}
-.item .track{grid-column:1/-1; height:4px; background:#E9EDE7; border-radius:2px; overflow:hidden; margin-top:3px}
+.item .track{grid-column:1/-1; height:4px; background:var(--track); border-radius:2px; overflow:hidden; margin-top:3px}
 .item .track i{display:block;height:100%;background:var(--forest-2)}
 .empty{padding:26px 16px; text-align:center; color:var(--mute); font-size:13px}
-.count{font-family:var(--mono); font-size:10px; color:var(--mute); letter-spacing:.06em; padding:9px 13px; background:#F6F8F5; border-top:1px solid var(--line-soft)}
+.count{font-family:var(--mono); font-size:10px; color:var(--mute); letter-spacing:.06em; padding:9px 13px; background:var(--active); border-top:1px solid var(--line-soft)}
 
 /* ---------------- saisie ---------------- */
 .paths{display:flex; gap:6px; margin:10px 0 12px}
 .paths button{
-  flex:1; padding:9px 6px; border:1px solid var(--line); border-radius:10px; background:#fff;
+  flex:1; padding:9px 6px; border:1px solid var(--line); border-radius:10px; background:var(--card);
   font-size:12.5px; color:var(--ink-soft);
 }
 .paths button[aria-pressed="true"]{background:var(--ink); border-color:var(--ink); color:#fff}
@@ -174,24 +211,24 @@ p{margin:0 0 9px}
   font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase;
 }
 .dish .comp{font-family:var(--mono); font-size:10.5px; color:var(--mute); margin-top:5px; letter-spacing:.01em}
-.dish .bar{height:4px; background:#E9EDE7; border-radius:2px; overflow:hidden; margin-top:7px}
+.dish .bar{height:4px; background:var(--track); border-radius:2px; overflow:hidden; margin-top:7px}
 .dish .bar i{display:block;height:100%}
 .pick{position:relative}
-.pick input{width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:#fff; font-size:15px}
-.sugg{position:absolute; top:calc(100% + 5px); left:0; right:0; z-index:25; background:#fff;
+.pick input{width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:var(--field); font-size:15px}
+.sugg{position:absolute; top:calc(100% + 5px); left:0; right:0; z-index:25; background:var(--card);
   border:1px solid var(--line); border-radius:11px; overflow:hidden auto; max-height:264px;
-  box-shadow:0 12px 28px rgba(16,33,28,.16)}
+  box-shadow:var(--shadow)}
 .sugg button{display:grid; grid-template-columns:1fr auto; gap:10px; width:100%; text-align:left;
   padding:9px 12px; border-bottom:1px solid var(--line-soft); align-items:center}
 .sugg button:last-child{border-bottom:0}
-.sugg button:hover,.sugg button:focus-visible{background:#F2F6F1}
+.sugg button:hover,.sugg button:focus-visible{background:var(--active)}
 .sugg .nm{font-size:14px; line-height:1.2}
 .sugg i{font-style:normal; display:block; font-family:var(--mono); font-size:9px; letter-spacing:.05em;
   text-transform:uppercase; color:var(--mute); margin-top:1px}
 .sugg b{font-family:var(--serif); font-size:15px; font-variant-numeric:tabular-nums; font-weight:400}
 .compose{display:grid; grid-template-columns:1fr 74px auto; gap:7px; align-items:center; margin-top:9px}
 .chint{font-size:11.5px; color:var(--mute); line-height:1.3}
-.compose input[type=number]{width:100%; padding:10px; border:1px solid var(--line); border-radius:10px; background:#fff; text-align:right}
+.compose input[type=number]{width:100%; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--field); text-align:right}
 .compose .go{padding:10px 13px; border-radius:10px; background:var(--ink); color:#fff; font-size:13px}
 .draft-line{display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line-soft)}
 .draft-line .nm{flex:1; font-size:14px}
@@ -203,7 +240,7 @@ p{margin:0 0 9px}
 .actions{display:flex; gap:8px; margin-top:12px}
 .btn{flex:1; padding:13px; border-radius:11px; text-align:center; font-size:14px; font-weight:600}
 .btn-1{background:var(--forest); color:#fff}
-.btn-2{background:#fff; border:1px solid var(--line); color:var(--ink)}
+.btn-2{background:var(--card); border:1px solid var(--line); color:var(--ink)}
 .btn[disabled]{opacity:.4}
 .toast{
   position:fixed; left:50%; bottom:104px; transform:translate(-50%,14px); z-index:60;
@@ -214,7 +251,7 @@ p{margin:0 0 9px}
 
 /* ---------------- tracker ---------------- */
 .kpis{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-.kpi{background:#fff; border:1px solid var(--line); border-radius:var(--r); padding:13px}
+.kpi{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:13px}
 .kpi .v{font-family:var(--serif); font-size:27px; line-height:1.05; font-variant-numeric:tabular-nums}
 .kpi .v small{font-family:var(--mono); font-size:10px; color:var(--mute); letter-spacing:.04em}
 .kpi .l{font-family:var(--mono); font-size:9.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--mute); margin-top:4px; line-height:1.35}
@@ -222,12 +259,12 @@ p{margin:0 0 9px}
 .bars .row{display:grid; grid-template-columns:1fr auto; gap:3px 10px; margin-bottom:11px}
 .bars .lab{font-size:13.5px}
 .bars .val{font-family:var(--serif); font-variant-numeric:tabular-nums; font-size:15px; text-align:right}
-.bars .tr{grid-column:1/-1; height:9px; background:#E9EDE7; border-radius:2px; overflow:hidden}
+.bars .tr{grid-column:1/-1; height:9px; background:var(--track); border-radius:2px; overflow:hidden}
 .bars .tr i{display:block; height:100%}
 .days{display:flex; align-items:flex-end; gap:2px; height:78px; margin-top:4px}
 .days .d{flex:1; display:flex; flex-direction:column; justify-content:flex-end; gap:1px; min-width:0}
 .days .d i{display:block; width:100%}
-.days .d.empty{background:#E9EDE7; height:2px}
+.days .d.empty{background:var(--track); height:2px}
 .axis{display:flex; justify-content:space-between; font-family:var(--mono); font-size:9px; color:var(--mute); margin-top:5px}
 .journal .j{display:grid; grid-template-columns:auto 1fr auto; gap:3px 10px; padding:10px 0; border-bottom:1px solid var(--line-soft); align-items:center}
 .journal .j:last-child{border-bottom:0}
@@ -237,11 +274,13 @@ p{margin:0 0 9px}
 .journal .nm i{font-style:normal; display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--mute)}
 .journal .kg{font-family:var(--serif); font-size:16px; font-variant-numeric:tabular-nums}
 svg.spark{width:100%; height:96px; display:block; overflow:visible}
-.demo{display:flex; align-items:center; gap:10px; background:#FBF4DC; border:1px solid #E8D89A; border-radius:10px; padding:10px 12px; font-size:12.5px; color:#6B5B1E}
-.demo button{margin-left:auto; font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:#6B5B1E; text-decoration:underline; white-space:nowrap}
+.demo{display:flex; align-items:center; gap:10px; background:var(--note-bg); border:1px solid var(--note-line-2); border-radius:10px; padding:10px 12px; font-size:12.5px; color:var(--note-ink)}
+.demo.edit{background:var(--kpi-good); border-color:var(--forest-2); color:var(--forest)}
+.demo.edit button{color:var(--forest)}
+.demo button{margin-left:auto; font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--note-ink); text-decoration:underline; white-space:nowrap}
 
 /* ---------------- sheet ---------------- */
-.scrim{position:fixed; inset:0; background:rgba(15,25,21,.42); z-index:40; opacity:0; pointer-events:none; transition:opacity .2s}
+.scrim{position:fixed; inset:0; background:var(--sheet-scrim); z-index:40; opacity:0; pointer-events:none; transition:opacity .2s}
 .scrim.on{opacity:1; pointer-events:auto}
 .sheet{
   position:fixed; left:50%; bottom:0; width:100%; max-width:430px; transform:translate(-50%,102%);
@@ -256,12 +295,12 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .stagelist{display:grid; grid-template-columns:auto 1fr auto; gap:6px 9px; align-items:center; font-size:12.5px}
 .stagelist .sv{font-family:var(--serif); font-variant-numeric:tabular-nums; text-align:right}
 .months{display:flex; gap:3px; margin-top:4px}
-.months i{flex:1; height:18px; border-radius:2px; background:#E4E9E1; font-family:var(--mono); font-size:8px; color:var(--mute); display:flex; align-items:center; justify-content:center; font-style:normal}
+.months i{flex:1; height:18px; border-radius:2px; background:var(--seg-bg); font-family:var(--mono); font-size:8px; color:var(--mute); display:flex; align-items:center; justify-content:center; font-style:normal}
 .months i.on{background:var(--forest); color:#fff}
 
 /* ---------------- tabbar ---------------- */
 .tabbar{
-  position:sticky; bottom:0; z-index:30; display:flex; background:rgba(255,255,255,.94);
+  position:sticky; bottom:0; z-index:30; display:flex; background:var(--tabbar);
   border-top:1px solid var(--line); padding:7px 6px calc(7px + env(safe-area-inset-bottom));
   backdrop-filter:blur(12px);
 }
@@ -271,18 +310,18 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .tabbar button[aria-current="page"]{color:var(--forest)}
 
 /* ---------------- jeux ---------------- */
-.rank{background:var(--ink); color:#EDF1EE; border:0}
+.rank{background:var(--card-2-bg); color:var(--card-2-on); border:0}
 .rank .kicker{font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--straw)}
 .rank .pts{font-family:var(--serif); font-size:46px; line-height:1; margin:6px 0 0; font-variant-numeric:tabular-nums}
-.rank .pts small{font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:#9FBAAE; text-transform:uppercase}
+.rank .pts small{font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:var(--on-forest-mute); text-transform:uppercase}
 .rank .name{font-family:var(--serif); font-size:19px; margin-top:9px}
 .rank .prog{height:7px; background:rgba(255,255,255,.16); border-radius:2px; overflow:hidden; margin:9px 0 6px}
 .rank .prog i{display:block; height:100%; background:var(--straw)}
-.rank .next{font-family:var(--mono); font-size:10px; color:#9FBAAE; letter-spacing:.04em}
+.rank .next{font-family:var(--mono); font-size:10px; color:var(--on-forest-mute); letter-spacing:.04em}
 .rank .aside{display:flex; gap:14px; border-top:1px solid rgba(255,255,255,.16); margin-top:14px; padding-top:12px}
 .rank .aside div{flex:1}
 .rank .aside .v{font-family:var(--serif); font-size:22px; font-variant-numeric:tabular-nums}
-.rank .aside .l{font-family:var(--mono); font-size:9px; letter-spacing:.07em; text-transform:uppercase; color:#9FBAAE; line-height:1.4}
+.rank .aside .l{font-family:var(--mono); font-size:9px; letter-spacing:.07em; text-transform:uppercase; color:var(--on-forest-mute); line-height:1.4}
 .chal{display:grid; grid-template-columns:26px 1fr auto; gap:3px 10px; padding:12px 13px; border-bottom:1px solid var(--line-soft); align-items:baseline}
 .chal:last-of-type{border-bottom:0}
 .chal .st{font-family:var(--mono); font-size:14px; text-align:center; line-height:1.2}
@@ -295,8 +334,20 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .wnow{display:grid; grid-template-columns:1fr auto; gap:4px 10px}
 .wnow .l{font-size:13.5px}
 .wnow .v{font-family:var(--serif); font-variant-numeric:tabular-nums; font-size:15px; text-align:right}
-.wnow .tr{grid-column:1/-1; height:8px; background:#E9EDE7; border-radius:2px; overflow:hidden; margin-bottom:6px}
+.wnow .tr{grid-column:1/-1; height:8px; background:var(--track); border-radius:2px; overflow:hidden; margin-bottom:6px}
 .wnow .tr i{display:block; height:100%}
+/* ---------------- réglages / thème ---------------- */
+.setrow{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 0; border-bottom:1px solid var(--line-soft)}
+.setrow:last-child{border-bottom:0}
+.setrow .l{font-size:14px}
+.setrow .l i{font-style:normal; display:block; font-size:11.5px; color:var(--mute); margin-top:2px}
+.themeseg{display:flex; background:var(--seg-bg); border-radius:9px; padding:3px; gap:3px; flex:0 0 auto}
+.themeseg button{padding:7px 12px; border-radius:7px; font-size:12.5px; color:var(--ink-soft); display:flex; align-items:center; gap:5px}
+.themeseg button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.themeseg svg{width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.7}
+.gear{background:none; border:0; color:var(--on-topbar-mute); padding:4px; margin-right:-2px; display:flex; align-items:center}
+.gear svg{width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:1.6}
+.gear:active{color:var(--on-topbar-strong)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
 </style>
 </head>
@@ -304,25 +355,30 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 <div class="phone">
   <header class="topbar">
     <div class="brand">Carbon<span class="sp"> </span><em>FOOD</em>print</div>
-    <div class="today" id="topToday"></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="today" id="topToday"></div>
+      <button class="gear" id="gear" aria-label="Réglages">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
+      </button>
+    </div>
   </header>
   <main id="view"></main>
   <nav class="tabbar" id="tabbar">
-    <button data-tab="biblio" aria-current="page">
-      <svg viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M10 4h8.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H10"/><path d="M13 9h4M13 13h4"/></svg>
-      <span>Bibliothèque</span>
+    <button data-tab="tracker">
+      <svg viewBox="0 0 24 24"><path d="M4 19V9M9.5 19V5M15 19v-7M20.5 19v-4"/><path d="M3 21h18"/></svg>
+      <span>Tracker</span>
     </button>
     <button data-tab="saisie">
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><circle cx="12" cy="12" r="9"/></svg>
       <span>Saisie</span>
     </button>
-    <button data-tab="tracker">
-      <svg viewBox="0 0 24 24"><path d="M4 19V9M9.5 19V5M15 19v-7M20.5 19v-4"/><path d="M3 21h18"/></svg>
-      <span>Tracker</span>
-    </button>
     <button data-tab="jeux">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
       <span>Jeux</span>
+    </button>
+    <button data-tab="biblio">
+      <svg viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M10 4h8.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H10"/><path d="M13 9h4M13 13h4"/></svg>
+      <span>Bibliothèque</span>
     </button>
   </nav>
 </div>
@@ -331,7 +387,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 <div class="toast" id="toast"></div>
 <script>
 "use strict";
-const DB = {"foods":[{"s":"boeuf","n":"Bœuf","g":"Viandes","t":28.009,"p":130,"e":[27.3167,0.0889,0.217,0.3083,0.044,0.0343],"v":0,"r":1},{"s":"veau","n":"Veau","g":"Viandes","t":22.505,"p":130,"e":[21.8333,0.074,0.217,0.302,0.044,0.0343],"v":0,"r":1},{"s":"crevettes","n":"Crevettes","g":"Poissons & fruits de mer","t":20.345,"p":100,"e":[17.9,0.0001,0.685,1.26,0.0901,0.41],"v":0},{"s":"cheeseburger","n":"Cheeseburger","g":"Plats préparés","t":18.833,"p":110,"e":[17.4,0.318,0.676,0.303,0.0417,0.0947],"v":0,"r":1},{"s":"kebab","n":"Kebab","g":"Plats préparés","t":12.807,"p":350,"e":[11.2,0.217,0.964,0.377,0.0417,0.0068],"v":0,"r":1},{"s":"cabillaud","n":"Cabillaud (cru)","g":"Poissons & fruits de mer","t":12.086,"p":130,"e":[10.3,0.0001,0.469,1.27,0.0406,0.0068],"v":0},{"s":"lieu","n":"Lieu jaune ou colin (cru)","g":"Poissons & fruits de mer","t":12.086,"p":130,"e":[10.3,0.0001,0.469,1.27,0.0406,0.0068],"v":0},{"s":"mangue","n":"Mangue (importée par avion)","g":"Fruits & légumes","t":11.656,"p":200,"e":[0.15,0.0001,0.0,0.472,0.0248,0.0806],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"dorade","n":"Dorade royale","g":"Poissons & fruits de mer","t":11.191,"p":130,"e":[9.585,0.0001,0.469,1.09,0.0406,0.0068],"v":0},{"s":"boucheechocolat","n":"Rocher au chocolat","g":"En-cas & boulangerie","t":10.522,"p":20,"e":[9.01,0.283,0.957,0.251,0.0209,0.0]},{"s":"pateatartiner","n":"Pâte à tartiner à la noisette","g":"En-cas & boulangerie","t":9.117,"p":20,"e":[8.05,0.261,0.49,0.295,0.0209,0.0]},{"s":"brownie","n":"Brownie au chocolat","g":"En-cas & boulangerie","t":8.357,"p":60,"e":[6.67,0.247,1.16,0.253,0.0269,0.0]},{"s":"canard","n":"Canard","g":"Viandes","t":8.061,"p":130,"e":[6.05,1.04,0.472,0.359,0.0507,0.0892],"v":0},{"s":"beurre","n":"Beurre","g":"Laitiers & œufs","t":7.913,"p":10,"e":[7.285,0.0502,0.124,0.407,0.0403,0.0068]},{"s":"porc","n":"Porc","g":"Viandes","t":6.671,"p":130,"e":[6.065,0.0001,0.2255,0.2875,0.0456,0.0476],"v":0},{"s":"feta","n":"Fêta (brebis)","g":"Laitiers & œufs","t":6.306,"p":30,"e":[5.11,0.246,0.648,0.258,0.0368,0.0068]},{"s":"fromagedure","n":"Fromage à pâte dure","g":"Laitiers & œufs","t":6.278,"p":30,"e":[5.2225,0.3563,0.4098,0.2462,0.0368,0.0068]},{"s":"cookie","n":"Cookie au pépites de chocolat","g":"En-cas & boulangerie","t":6.273,"p":30,"e":[4.84,0.296,0.88,0.23,0.0269,0.0]},{"s":"champignonmorille","n":"Champignon (morille crue)","g":"Fruits & légumes","t":6.175,"p":150,"e":[5.74,0.0004,0.0,0.298,0.056,0.0806],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"fromagebleu","n":"Fromage bleu","g":"Laitiers & œufs","t":6.165,"p":30,"e":[4.9433,0.224,0.69,0.264,0.0368,0.0068]},{"s":"lapin","n":"Lapin","g":"Viandes","t":5.783,"p":130,"e":[3.75,1.04,0.472,0.381,0.0507,0.0892],"v":0},{"s":"painauchocolat","n":"Pain au chocolat ou chocolatine","g":"En-cas & boulangerie","t":5.729,"p":70,"e":[4.75,0.212,0.536,0.219,0.0121,0.0]},{"s":"saumon","n":"Saumon ou truite d'élevage (cru)","g":"Poissons & fruits de mer","t":5.557,"p":130,"e":[4.16,0.0275,0.469,0.853,0.0406,0.0068],"v":0},{"s":"huitres","n":"Huitres","g":"Poissons & fruits de mer","t":5.328,"p":200,"e":[1.98,0.0002,1.23,0.961,0.162,0.995],"v":0},{"s":"moules","n":"Moules","g":"Poissons & fruits de mer","t":5.328,"p":300,"e":[1.98,0.0002,1.23,0.961,0.162,0.995],"v":0},{"s":"fromagemolle","n":"Fromage à pâte molle","g":"Laitiers & œufs","t":5.144,"p":30,"e":[4.4375,0.2335,0.1733,0.2565,0.0368,0.0068]},{"s":"thon","n":"Thon (cru)","g":"Poissons & fruits de mer","t":4.983,"p":100,"e":[3.61,0.0,0.469,0.857,0.0406,0.0068],"v":0},{"s":"noisette","n":"Noisette","g":"Fruits & légumes","t":4.811,"p":30,"e":[4.31,0.196,0.0,0.281,0.0242,0.0],"m":[8,9,10]},{"s":"mozarella","n":"Mozarella","g":"Laitiers & œufs","t":4.715,"p":60,"e":[3.82,0.249,0.35,0.252,0.0368,0.0068]},{"s":"poulet","n":"Poulet","g":"Viandes","t":4.56,"p":150,"e":[3,0.83,0.378,0.305,0.0406,0.0068],"v":0},{"s":"burgerpoulet","n":"Burger au poulet","g":"Plats préparés","t":4.361,"p":160,"e":[2.53,0.705,0.676,0.314,0.0417,0.0947],"v":0},{"s":"noix","n":"Noix","g":"Fruits & légumes","t":4.114,"p":30,"e":[3.07,0.0,0.376,0.296,0.049,0.323],"m":[8,9]},{"s":"cacahuetes","n":"Cacahuètes","g":"Céréales & légumineuses","t":4.114,"p":30,"x":1,"xn":"valeur de la noix ADEME, majorante : la cacahuète est une légumineuse de plein champ","xs":"Noix","e":[3.07,0.0,0.376,0.296,0.049,0.323]},{"s":"pizza","n":"Pizza quatre fromages","g":"Plats préparés","t":3.599,"p":400,"e":[2.67,0.28,0.254,0.259,0.0417,0.0947]},{"s":"croissant","n":"Croissant au beurre","g":"En-cas & boulangerie","t":2.943,"p":60,"e":[2.02,0.182,0.536,0.193,0.0121,0.0]},{"s":"datte","n":"Datte","g":"Fruits & légumes","t":2.893,"p":30,"e":[2.32,0.0002,0.346,0.199,0.0276,0.0],"m":[0,9,10,11]},{"s":"burgervegetarien","n":"Burger végétarien","g":"Plats préparés","t":2.708,"p":160,"e":[1.23,0.394,0.676,0.271,0.0418,0.0947]},{"s":"sushis","n":"Sushis ou makis","g":"Plats préparés","t":2.669,"p":250,"e":[1.65,0.0281,0.543,0.388,0.0418,0.0181],"v":0},{"s":"matieregrasse","n":"Matière grasse végétale","g":"Laitiers & œufs","t":2.585,"p":10,"e":[1.7,0.251,0.281,0.307,0.0388,0.0068]},{"s":"painauxraisins","n":"Pain aux raisins","g":"En-cas & boulangerie","t":2.564,"p":90,"e":[2.05,0.181,0.135,0.186,0.0121,0.0]},{"s":"brioche","n":"Brioche","g":"En-cas & boulangerie","t":2.564,"p":80,"x":1,"xn":"valeur du pain aux raisins ADEME : même famille de viennoiserie beurre-œuf-sucre","xs":"Pain aux raisins","e":[2.05,0.181,0.135,0.186,0.0121,0.0]},{"s":"artichaut","n":"Artichaut","g":"Fruits & légumes","t":2.556,"p":150,"e":[0.615,0.0003,0.0,0.596,0.0549,1.29],"m":[4,5,6,7,8]},{"s":"noixdecoco","n":"Noix de coco","g":"Fruits & légumes","t":2.411,"p":40,"e":[1.14,0.0004,0.376,0.523,0.0485,0.323],"m":[0,1,10,11]},{"s":"boulettesvegetales","n":"Boulettes végétales","g":"Alternatives végétales","t":2.278,"p":100,"e":[1.09,0.468,0.223,0.334,0.0513,0.112]},{"s":"sardines","n":"Sardines","g":"Poissons & fruits de mer","t":2.276,"p":100,"e":[0.776,0.0001,0.469,0.984,0.0406,0.0068],"v":0},{"s":"madeleine","n":"Madeleine","g":"En-cas & boulangerie","t":2.243,"p":25,"e":[1.72,0.2025,0.113,0.181,0.0269,0.0]},{"s":"saucissevegetale","n":"Saucisse végétale","g":"Alternatives végétales","t":2.213,"p":100,"e":[1.05,0.365,0.401,0.268,0.0406,0.0888]},{"s":"galettefromage","n":"Galette au fromage","g":"Alternatives végétales","t":2.171,"p":100,"e":[0.621,0.757,0.505,0.17,0.0362,0.0821]},{"s":"hachevegetal","n":"Haché végétal","g":"Alternatives végétales","t":2.052,"p":100,"e":[0.405,0.638,0.507,0.36,0.0513,0.0907]},{"s":"chaussonauxpommes","n":"Chausson aux pommes","g":"En-cas & boulangerie","t":2.044,"p":90,"e":[1.53,0.181,0.135,0.186,0.0121,0.0]},{"s":"riz","n":"Riz","g":"Céréales & légumineuses","t":2.015,"p":80,"e":[1.61,0.0001,0.0381,0.346,0.0204,0.0]},{"s":"nouillesderiz","n":"Nouilles de riz","g":"Céréales & légumineuses","t":2.015,"p":120,"x":1,"xn":"valeur du riz ADEME : même matière première, même état sec","xs":"Riz","e":[1.61,0.0001,0.0381,0.346,0.0204,0.0]},{"s":"pates","n":"Pâtes (sèches)","g":"Céréales & légumineuses","t":1.98,"p":100,"e":[0.752,0.989,0.0556,0.156,0.0269,0.0]},{"s":"chataigne","n":"Châtaigne","g":"Fruits & légumes","t":1.944,"p":60,"e":[1.71,0.0002,0.0,0.171,0.0269,0.0358],"m":[9,10]},{"s":"cassis","n":"Cassis","g":"Fruits & légumes","t":1.904,"p":150,"e":[1.5,0.0001,0.0,0.298,0.0248,0.0806],"m":[5,6,7]},{"s":"yaourt","n":"Yaourt nature ou yaourt à la grecque","g":"Laitiers & œufs","t":1.895,"p":125,"e":[1.03,0.152,0.422,0.247,0.0369,0.0068]},{"s":"groseille","n":"Groseille","g":"Fruits & légumes","t":1.895,"p":150,"e":[1.5,0.0,0.0,0.298,0.0159,0.0806],"m":[5,6,7]},{"s":"oeuf","n":"Œufs","g":"Laitiers & œufs","t":1.878,"p":60,"e":[1.49,0.0001,0.109,0.189,0.0093,0.0806]},{"s":"fromageblanc","n":"Fromage blanc 0%","g":"Laitiers & œufs","t":1.81,"p":100,"e":[1.07,0.221,0.241,0.234,0.0368,0.0068]},{"s":"nuggetsvegetaux","n":"Nuggets végétaux","g":"Alternatives végétales","t":1.77,"p":100,"e":[0.555,0.399,0.401,0.286,0.0406,0.0889]},{"s":"cerise","n":"Cerise","g":"Fruits & légumes","t":1.745,"p":150,"e":[0.64,0.0001,0.657,0.342,0.0248,0.0806],"m":[5,6]},{"s":"galettevegetale","n":"Galette végétale","g":"Alternatives végétales","t":1.659,"p":100,"e":[0.507,0.337,0.505,0.192,0.0362,0.0821]},{"s":"asperge","n":"Asperge","g":"Fruits & légumes","t":1.639,"p":150,"e":[0.97,0.0002,0.0,0.417,0.0367,0.215],"m":[3,4,5]},{"s":"paindemie","n":"Pain de mie","g":"En-cas & boulangerie","t":1.559,"p":60,"e":[1.09,0.184,0.11,0.163,0.0121,0.0]},{"s":"avocat","n":"Avocat","g":"Fruits & légumes","t":1.553,"p":100,"e":[0.878,0.0001,0.0,0.508,0.0284,0.138],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"framboise","n":"Framboise","g":"Fruits & légumes","t":1.543,"p":150,"e":[1.04,0.0,0.0,0.48,0.0131,0.01],"m":[5,6,7]},{"s":"bonbons","n":"Bonbons gélifiés","g":"En-cas & boulangerie","t":1.487,"p":30,"e":[0.721,0.303,0.231,0.211,0.0209,0.0]},{"s":"confiture","n":"Confiture","g":"En-cas & boulangerie","t":1.487,"p":25,"x":1,"xn":"valeur du bonbon gélifié ADEME, produit à dominante sucre comme la confiture","xs":"Bonbons gélifiés","e":[0.721,0.303,0.231,0.211,0.0209,0.0]},{"s":"frites","n":"Frites (friteuse)","g":"Plats préparés","t":1.457,"p":150,"e":[0.398,0.137,0.247,0.389,0.166,0.12]},{"s":"abricot","n":"Abricot","g":"Fruits & légumes","t":1.452,"p":150,"e":[0.347,0.0001,0.657,0.342,0.0248,0.0806],"m":[5,6,7]},{"s":"ananas","n":"Ananas","g":"Fruits & légumes","t":1.361,"p":150,"e":[0.368,0.0,0.0,0.645,0.0254,0.323],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"biere","n":"Bière","g":"Boissons","t":1.347,"p":250,"e":[0.0799,0.273,0.621,0.33,0.0363,0.0068]},{"s":"clementine","n":"Clémentine","g":"Fruits & légumes","t":1.302,"p":150,"e":[0.583,0.0001,0.0,0.474,0.0298,0.215],"m":[0,1,10,11]},{"s":"vin","n":"Vin","g":"Boissons","t":1.269,"p":125,"e":[0.301,0.0331,0.679,0.233,0.0157,0.0068]},{"s":"mure","n":"Mûre","g":"Fruits & légumes","t":1.248,"p":150,"e":[0.844,0.0001,0.0,0.298,0.0248,0.0806],"m":[7,8]},{"s":"ble","n":"Blé","g":"Céréales & légumineuses","t":1.226,"p":80,"e":[0.6655,0.151,0.2405,0.1515,0.0177,0.0]},{"s":"laitdevache","n":"Lait de vache","g":"Laitiers & œufs","t":1.151,"p":200,"e":[0.812,0.0124,0.0959,0.214,0.0162,0.0]},{"s":"reineclaude","n":"Reine claude","g":"Fruits & légumes","t":1.044,"p":150,"e":[0.64,0.0001,0.0,0.298,0.0248,0.0806],"m":[8]},{"s":"prune","n":"Prune","g":"Fruits & légumes","t":1.035,"p":150,"e":[0.64,0.0,0.0,0.298,0.0159,0.0806],"m":[6,7,8]},{"s":"fenouil","n":"Fenouil","g":"Fruits & légumes","t":1.018,"p":150,"e":[0.499,0.0001,0.0,0.411,0.0275,0.0806],"m":[3,5,6,7,8,9,10]},{"s":"tofu","n":"Tofu nature","g":"Alternatives végétales","t":1.004,"p":100,"e":[0.0864,0.146,0.482,0.23,0.0418,0.0181]},{"s":"kiwi","n":"Kiwi","g":"Fruits & légumes","t":1.002,"p":150,"e":[0.479,0.0142,0.0,0.414,0.0137,0.0806],"m":[0,1,2,10,11]},{"s":"melon","n":"Melon","g":"Fruits & légumes","t":0.978,"p":250,"e":[0.318,0.0001,0.0,0.416,0.0292,0.215],"m":[5,6,7,8]},{"s":"brocoli","n":"Brocoli","g":"Fruits & légumes","t":0.951,"p":150,"e":[0.537,0.0002,0.0,0.298,0.0349,0.0806],"m":[8,9,10]},{"s":"boulgour","n":"Boulgour","g":"Céréales & légumineuses","t":0.95,"p":80,"e":[0.748,0.0,0.0381,0.146,0.0178,0.0]},{"s":"kaki","n":"Kaki","g":"Fruits & légumes","t":0.95,"p":150,"e":[0.498,0.0,0.0,0.355,0.0159,0.0806],"m":[0,9,10,11]},{"s":"fruitdelapassion","n":"Fruit de la passion","g":"Fruits & légumes","t":0.938,"p":150,"e":[0.537,0.0001,0.0,0.298,0.0219,0.0806],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"pamplemousse","n":"Pamplemousse","g":"Fruits & légumes","t":0.926,"p":150,"e":[0.257,0.0001,0.0,0.505,0.0255,0.138],"m":[1,2,3,4,5]},{"s":"myrtille","n":"Myrtille","g":"Fruits & légumes","t":0.922,"p":150,"e":[0.645,0.0001,0.0,0.246,0.0205,0.01],"m":[6,7,8]},{"s":"banane","n":"Banane","g":"Fruits & légumes","t":0.909,"p":120,"e":[0.295,0.0001,0.0,0.447,0.0284,0.138],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"poischiches","n":"Pois chiches","g":"Céréales & légumineuses","t":0.899,"p":80,"e":[0.4,0.0006,0.129,0.302,0.0669,0.0]},{"s":"cresson","n":"Cresson","g":"Fruits & légumes","t":0.868,"p":150,"e":[0.181,0.0005,0.0,0.397,0.0746,0.215],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"laitue","n":"Laitue","g":"Fruits & légumes","t":0.868,"p":150,"e":[0.181,0.0005,0.0,0.397,0.0746,0.215],"m":[4,5,6,7,8]},{"s":"mache","n":"Mâche","g":"Fruits & légumes","t":0.868,"p":150,"e":[0.181,0.0005,0.0,0.397,0.0746,0.215],"m":[0,1,9,10,11]},{"s":"endive","n":"Endive","g":"Fruits & légumes","t":0.861,"p":150,"e":[0.426,0.0004,0.0,0.298,0.056,0.0806],"m":[0,1,2,3,4,9]},{"s":"haricotsrouges","n":"Haricots rouges","g":"Céréales & légumineuses","t":0.859,"p":80,"e":[0.508,0.0006,0.129,0.154,0.0669,0.0]},{"s":"chou","n":"Chou","g":"Fruits & légumes","t":0.848,"p":150,"e":[0.307,0.0001,0.0,0.298,0.0275,0.215],"m":[0,1,2,9,10,11]},{"s":"germesdesoja","n":"Germes de soja","g":"Fruits & légumes","t":0.848,"p":100,"x":1,"xn":"valeur du chou ADEME, retenue comme légume frais générique","xs":"Chou","e":[0.307,0.0001,0.0,0.298,0.0275,0.215]},{"s":"baguette","n":"Baguette tradition","g":"En-cas & boulangerie","t":0.777,"p":60,"e":[0.387,0.181,0.0486,0.148,0.0121,0.0]},{"s":"citron","n":"Citron","g":"Fruits & légumes","t":0.764,"p":20,"e":[0.194,0.0001,0.0,0.406,0.0255,0.138],"m":[0,1]},{"s":"manguebateau","n":"Mangue (importée par bateau)","g":"Fruits & légumes","t":0.728,"p":200},{"s":"choufleur","n":"Chou-fleur","g":"Fruits & légumes","t":0.721,"p":150,"e":[0.307,0.0002,0.0,0.298,0.0349,0.0806],"m":[0,1,2,8,9,10,11]},{"s":"celeri","n":"Céleri","g":"Fruits & légumes","t":0.716,"p":150,"e":[0.442,0.0001,0.0,0.246,0.0177,0.01],"m":[0,1,2,9,10,11]},{"s":"poivron","n":"Poivron","g":"Fruits & légumes","t":0.715,"p":150,"e":[0.247,0.0,0.0,0.357,0.0308,0.0806],"m":[5,6,7,8]},{"s":"pommedeterre","n":"Pomme de terre nouvelle","g":"Céréales & légumineuses","t":0.706,"p":200,"e":[0.102,0.0001,0.412,0.175,0.0172,0.0]},{"s":"petitpois","n":"Petit pois","g":"Fruits & légumes","t":0.702,"p":150,"e":[0.436,0.0002,0.0,0.238,0.0276,0.0],"m":[4,5,6]},{"s":"rhubarbe","n":"Rhubarbe","g":"Fruits & légumes","t":0.702,"p":150,"e":[0.307,0.0,0.0,0.298,0.0159,0.0806],"m":[3,4,5]},{"s":"pasteque","n":"Pastèque","g":"Fruits & légumes","t":0.68,"p":300,"e":[0.239,0.0,0.0,0.345,0.0159,0.0806],"m":[5,6,7,8]},{"s":"orange","n":"Orange","g":"Fruits & légumes","t":0.678,"p":150,"e":[0.198,0.0001,0.0,0.378,0.021,0.0806],"m":[0,1,2]},{"s":"courge","n":"Courge","g":"Fruits & légumes","t":0.638,"p":150,"e":[0.205,0.0,0.0,0.325,0.0276,0.0806],"m":[0,8,9,10,11]},{"s":"potiron","n":"Potiron","g":"Fruits & légumes","t":0.638,"p":150,"e":[0.205,0.0001,0.0,0.325,0.0275,0.0806],"m":[0,8,9,10,11]},{"s":"cafe","n":"Café","g":"Boissons","t":0.635,"p":120,"e":[0.436,0.0181,0.129,0.0402,0.001,0.0112]},{"s":"tomate","n":"Tomate","g":"Fruits & légumes","t":0.626,"p":150,"e":[0.222,0.0,0.0,0.298,0.025,0.0806],"m":[5,6,7,8]},{"s":"nectarine","n":"Nectarine","g":"Fruits & légumes","t":0.614,"p":150,"e":[0.213,0.0001,0.0,0.298,0.0219,0.0806],"m":[7,8]},{"s":"figue","n":"Figue","g":"Fruits & légumes","t":0.612,"p":150,"e":[0.179,0.0001,0.0,0.327,0.0248,0.0806],"m":[6,7,8,9]},{"s":"poireau","n":"Poireau","g":"Fruits & légumes","t":0.611,"p":150,"e":[0.211,0.0001,0.0,0.298,0.0217,0.0806],"m":[0,1,2,3,8,9,10,11]},{"s":"peche","n":"Pêche","g":"Fruits & légumes","t":0.591,"p":150,"e":[0.18,0.0,0.0,0.314,0.0159,0.0806],"m":[5,6,7,8]},{"s":"lentilles","n":"Lentilles (blondes, vertes, corail)","g":"Céréales & légumineuses","t":0.582,"p":80,"e":[0.141,0.0006,0.129,0.244,0.0669,0.0]},{"s":"blette","n":"Blette","g":"Fruits & légumes","t":0.581,"p":150,"e":[0.146,0.0,0.0,0.298,0.0565,0.0806],"m":[5,6,7,8,9,10]},{"s":"mais","n":"Maïs","g":"Fruits & légumes","t":0.569,"p":150,"e":[0.363,0.0002,0.0381,0.146,0.0215,0.0],"m":[6,7,8]},{"s":"choudebruxelles","n":"Chou de Bruxelles","g":"Fruits & légumes","t":0.562,"p":150,"e":[0.27,0.0001,0.0,0.262,0.0242,0.0058],"m":[0,1,2,9,10,11]},{"s":"coing","n":"Coing","g":"Fruits & légumes","t":0.562,"p":150,"e":[0.104,0.0,0.0,0.361,0.0159,0.0806],"m":[9]},{"s":"carambole","n":"Carambole","g":"Fruits & légumes","t":0.554,"p":150,"e":[0.15,0.0001,0.0,0.298,0.0248,0.0806],"m":[0,10,11]},{"s":"concombre","n":"Concombre","g":"Fruits & légumes","t":0.512,"p":150,"e":[0.196,0.0001,0.0,0.262,0.0219,0.0323],"m":[4,5,6,7,8,9]},{"s":"fraise","n":"Fraise","g":"Fruits & légumes","t":0.511,"p":125,"e":[0.227,0.0,0.0,0.261,0.0131,0.01],"m":[4,5,6]},{"s":"raisin","n":"Raisin","g":"Fruits & légumes","t":0.509,"p":150,"e":[0.17,0.0001,0.0,0.285,0.0219,0.0323],"m":[8,9]},{"s":"courgette","n":"Courgette","g":"Fruits & légumes","t":0.499,"p":150,"e":[0.181,0.0001,0.0,0.262,0.0231,0.0323],"m":[4,5,6,7,8,9]},{"s":"grenade","n":"Grenade","g":"Fruits & légumes","t":0.499,"p":150,"e":[0.104,0.0,0.0,0.298,0.0159,0.0806],"m":[0,1,10,11]},{"s":"panais","n":"Panais","g":"Fruits & légumes","t":0.494,"p":150,"e":[0.0941,0.0001,0.0,0.298,0.0215,0.0806],"m":[0,1,2,9,10,11]},{"s":"salsifis","n":"Salsifis","g":"Fruits & légumes","t":0.494,"p":150,"e":[0.0941,0.0001,0.0,0.298,0.0215,0.0806],"m":[0,1,2,10,11]},{"s":"soda","n":"Soda","g":"Boissons","t":0.493,"p":330,"e":[0.0902,0.013,0.138,0.209,0.0363,0.0068]},{"s":"topinambour","n":"Topinambour","g":"Fruits & légumes","t":0.491,"p":150,"e":[0.27,0.0001,0.0,0.17,0.0189,0.0323],"m":[0,1,10,11]},{"s":"aubergine","n":"Aubergine","g":"Fruits & légumes","t":0.472,"p":150,"e":[0.181,0.0001,0.0,0.262,0.0231,0.0058],"m":[5,6,7,8]},{"s":"mandarine","n":"Mandarine","g":"Fruits & légumes","t":0.468,"p":150,"e":[0.0094,0.0001,0.0,0.356,0.0223,0.0806],"m":[0,1,10,11]},{"s":"haricotvert","n":"Haricot vert (cru)","g":"Fruits & légumes","t":0.446,"p":150,"e":[0.117,0.0002,0.0,0.262,0.0282,0.0391],"m":[5,6,7,8,9]},{"s":"soja","n":"Boisson au soja","g":"Boissons","t":0.427,"p":200},{"s":"epinard","n":"Épinard","g":"Fruits & légumes","t":0.423,"p":150,"e":[0.12,0.0,0.0,0.246,0.0466,0.01],"m":[0,1,2,3,4,8,9,10,11]},{"s":"oignon","n":"Oignon","g":"Fruits & légumes","t":0.42,"p":50,"e":[0.101,0.0001,0.0,0.268,0.0191,0.0323],"m":[0,1,2,3,8,9,10,11]},{"s":"pomme","n":"Pomme","g":"Fruits & légumes","t":0.408,"p":150,"e":[0.0919,0.0001,0.0,0.262,0.0219,0.0323],"m":[0,1,2,3,7,8,9,10,11]},{"s":"betterave","n":"Betterave","g":"Fruits & légumes","t":0.407,"p":150,"e":[0.0941,0.0001,0.0,0.262,0.0189,0.0323],"m":[0,1,2,9,10,11]},{"s":"carotte","n":"Carotte","g":"Fruits & légumes","t":0.396,"p":150,"e":[0.0828,0.0001,0.0,0.262,0.0189,0.0323],"m":[0,1,2,8,9,10,11]},{"s":"navet","n":"Navet","g":"Fruits & légumes","t":0.396,"p":150,"e":[0.0828,0.0,0.0,0.262,0.019,0.0323],"m":[0,1,2,3,4,9,10,11]},{"s":"echalote","n":"Échalote","g":"Fruits & légumes","t":0.394,"p":20,"e":[0.0814,0.0001,0.0,0.262,0.0178,0.0323],"m":[9,10,11]},{"s":"poire","n":"Poire","g":"Fruits & légumes","t":0.387,"p":150,"e":[0.069,0.0,0.0,0.272,0.014,0.0323],"m":[0,1,2,7,8,9,10,11]},{"s":"radis","n":"Radis","g":"Fruits & légumes","t":0.385,"p":150,"e":[0.111,0.0001,0.0,0.246,0.0177,0.01],"m":[2,3,4,5]},{"s":"ail","n":"Ail","g":"Fruits & légumes","t":0.383,"p":5,"e":[0.0841,0.0002,0.0,0.198,0.0206,0.0806],"m":[6,7,8,9,10,11]},{"s":"eauenbouteille","n":"Eau en bouteille","g":"Boissons","t":0.321,"p":500,"e":[0.0011,0.0,0.187,0.116,0.0157,0.001]},{"s":"the","n":"Thé","g":"Boissons","t":0.044,"p":200,"e":[0.0224,0.0,0.0064,0.0031,0.0002,0.0115]},{"s":"eaudurobinet","n":"Eau du robinet","g":"Boissons","t":0.0,"p":250}],"dishes":[{"n":"Brioche et confiture","m":["pdj"],"w":2,"l":[["brioche",80],["confiture",25],["cafe",120]]},{"n":"Tartine de confiture","m":["pdj"],"w":2,"l":[["baguette",60],["confiture",30]]},{"n":"Pad thaï au tofu","m":["dej","din"],"w":1,"l":[["nouillesderiz",120],["tofu",100],["oeuf",60],["cacahuetes",20],["germesdesoja",80],["echalote",30],["matieregrasse",10],["citron",20]]},{"n":"Pad thaï végétalien","m":["dej","din"],"w":1,"l":[["nouillesderiz",120],["tofu",120],["germesdesoja",100],["carotte",60],["poivron",60],["cacahuetes",20],["echalote",30],["matieregrasse",10],["citron",20]]},{"n":"Taboulé (entrée)","m":["dej","din"],"w":1,"l":[["boulgour",40],["tomate",60],["concombre",50],["echalote",15],["citron",10],["matieregrasse",5]]},{"n":"Taboulé (plat)","m":["dej","din"],"w":2,"l":[["boulgour",90],["tomate",120],["concombre",100],["echalote",25],["citron",15],["matieregrasse",10]]},{"n":"Salade de crudités (entrée)","m":["dej","din"],"w":2,"l":[["laitue",40],["carotte",50],["tomate",60],["concombre",50],["matieregrasse",5]]},{"n":"Pâtes carbonara","m":["dej","din"],"w":3,"l":[["pates",110],["porc",60],["oeuf",60],["fromagedure",30]]},{"n":"Pad thaï aux crevettes","m":["dej","din"],"w":1,"l":[["nouillesderiz",120],["crevettes",120],["oeuf",60],["cacahuetes",20],["germesdesoja",80],["echalote",30],["matieregrasse",10],["citron",20]]},{"n":"Café et tartines beurrées","m":["pdj"],"w":4,"l":[["cafe",120],["baguette",60],["beurre",15]]},{"n":"Thé et pain de mie beurré","m":["pdj"],"w":2,"l":[["the",200],["paindemie",60],["beurre",10]]},{"n":"Yaourt, banane, café","m":["pdj"],"w":2,"l":[["yaourt",125],["banane",120],["cafe",120]]},{"n":"Fromage blanc et fruits rouges","m":["pdj"],"w":1,"l":[["fromageblanc",150],["fraise",125]]},{"n":"Œufs brouillés et pain","m":["pdj"],"w":2,"l":[["oeuf",120],["paindemie",60],["beurre",10]]},{"n":"Croissant et café","m":["pdj"],"w":2,"l":[["croissant",60],["cafe",120]]},{"n":"Pain au chocolat et café","m":["pdj"],"w":2,"l":[["painauchocolat",70],["cafe",120]]},{"n":"Bol de lait et pain","m":["pdj"],"w":1,"l":[["laitdevache",250],["baguette",60]]},{"n":"Steak et frites","m":["dej"],"w":3,"l":[["boeuf",150],["frites",200]]},{"n":"Poulet, riz, courgettes","m":["dej"],"w":4,"l":[["poulet",150],["riz",80],["courgette",150]]},{"n":"Pâtes à la tomate et parmesan","m":["dej","din"],"w":3,"l":[["pates",100],["tomate",200],["fromagedure",25]]},{"n":"Salade de lentilles et féta","m":["dej","din"],"w":1,"l":[["lentilles",80],["feta",40],["tomate",100],["laitue",50]]},{"n":"Sandwich au porc et beurre","m":["dej"],"w":3,"l":[["baguette",80],["porc",50],["beurre",15]]},{"n":"Cheeseburger et frites","m":["dej"],"w":2,"l":[["cheeseburger",110],["frites",150]]},{"n":"Pizza quatre fromages","m":["dej","din"],"w":3,"l":[["pizza",400]]},{"n":"Sushis","m":["dej","din"],"w":1,"l":[["sushis",250]]},{"n":"Kebab","m":["dej"],"w":2,"l":[["kebab",350]]},{"n":"Curry de pois chiches et riz","m":["dej","din"],"w":1,"l":[["poischiches",80],["riz",80],["tomate",150],["oignon",50]]},{"n":"Saumon, pommes de terre, brocoli","m":["dej","din"],"w":2,"l":[["saumon",130],["pommedeterre",200],["brocoli",150]]},{"n":"Cabillaud, riz, épinards","m":["dej","din"],"w":1,"l":[["cabillaud",130],["riz",80],["epinard",150]]},{"n":"Omelette et salade","m":["dej","din"],"w":2,"l":[["oeuf",120],["laitue",80],["tomate",100]]},{"n":"Chili sin carne","m":["dej","din"],"w":1,"l":[["haricotsrouges",150],["riz",80],["tomate",150],["oignon",50]]},{"n":"Tofu sauté et boulgour","m":["dej","din"],"w":1,"l":[["tofu",120],["boulgour",80],["poivron",100],["oignon",50]]},{"n":"Bœuf carottes","m":["dej","din"],"w":3,"l":[["boeuf",150],["carotte",120],["oignon",80],["vin",100]]},{"n":"Poulet rôti et pommes de terre","m":["dej","din"],"w":3,"l":[["poulet",180],["pommedeterre",200]]},{"n":"Burger végétarien et frites","m":["dej"],"w":1,"l":[["burgervegetarien",160],["frites",150]]},{"n":"Crevettes sautées et riz","m":["dej","din"],"w":1,"l":[["crevettes",120],["riz",80],["poivron",80]]},{"n":"Soupe de légumes, pain, fromage","m":["din"],"w":3,"l":[["courgette",150],["carotte",100],["poireau",100],["baguette",60],["fromagedure",30]]},{"n":"Salade de riz au thon","m":["din"],"w":2,"l":[["riz",80],["thon",80],["tomate",100],["mais",60]]},{"n":"Gratin de courgettes","m":["din"],"w":2,"l":[["courgette",300],["laitdevache",100],["fromagedure",40],["oeuf",60]]},{"n":"Croque-monsieur","m":["din"],"w":3,"l":[["paindemie",80],["fromagedure",40],["porc",40],["beurre",10]]},{"n":"Assiette de crudités et œufs","m":["din"],"w":2,"l":[["laitue",80],["tomate",100],["carotte",80],["oeuf",120]]},{"n":"Moules et frites","m":["din"],"w":1,"l":[["moules",400],["frites",150]]},{"n":"Galette végétale et salade","m":["din"],"w":1,"l":[["galettevegetale",120],["laitue",80],["tomate",100]]},{"n":"Carré de chocolat","m":["encas"],"w":1,"l":[["boucheechocolat",20]]},{"n":"Pomme","m":["encas"],"w":1,"l":[["pomme",150]]},{"n":"Poignée de noix","m":["encas"],"w":1,"l":[["noix",30]]},{"n":"Cookie et café","m":["encas"],"w":1,"l":[["cookie",30],["cafe",120]]},{"n":"Verre de vin","m":["encas"],"w":1,"l":[["vin",125]]},{"n":"Bière","m":["encas"],"w":1,"l":[["biere",250]]},{"n":"Yaourt","m":["encas"],"w":1,"l":[["yaourt",125]]},{"n":"Bonbons","m":["encas"],"w":1,"l":[["bonbons",30]]}],"standards":[{"n":"Standard poulet · normal","l":[["poulet",130],["riz",80],["courgette",150]]},{"n":"Standard poulet · large","l":[["poulet",200],["riz",120],["courgette",180]]},{"n":"Standard poisson · normal","l":[["saumon",130],["riz",80],["courgette",150]]},{"n":"Standard poisson · large","l":[["saumon",200],["riz",120],["courgette",180]]},{"n":"Standard viande rouge · normal","l":[["boeuf",130],["riz",80],["courgette",150]]},{"n":"Standard viande rouge · large","l":[["boeuf",200],["riz",120],["courgette",180]]}],"facts":{"footprint":9200,"foodShare":0.22,"foodAbs":2000,"target2050":2000,"budget":700,"beefKg":28.009,"refMeal":1.41,"refPdj":0.32,"contrib":[{"n":"Viande","d":"bovins avant tout","p":39},{"n":"Boissons","d":"café, alcools, sodas","p":19},{"n":"Produits laitiers et fromages","d":"","p":17}]}};
+const DB = {"foods":[{"s":"boeuf","n":"Bœuf","g":"Viandes","t":28.009,"p":130,"e":[27.3167,0.0889,0.217,0.3083,0.044,0.0343],"v":0,"r":1},{"s":"veau","n":"Veau","g":"Viandes","t":22.505,"p":130,"e":[21.8333,0.074,0.217,0.302,0.044,0.0343],"v":0,"r":1},{"s":"crevettes","n":"Crevettes","g":"Poissons & fruits de mer","t":20.345,"p":100,"e":[17.9,0.0001,0.685,1.26,0.0901,0.41],"v":0},{"s":"merguez","n":"Merguez","g":"Viandes","t":20.0,"p":100,"x":1,"xn":"moyenne bœuf-mouton retenue au niveau du bœuf ADEME, majorante : la merguez mêle bœuf et mouton, deux viandes rouges intenses","xs":"Boeuf","v":0,"r":1},{"s":"cheeseburger","n":"Cheeseburger","g":"Plats préparés","t":18.833,"p":110,"e":[17.4,0.318,0.676,0.303,0.0417,0.0947],"v":0,"r":1},{"s":"kebab","n":"Kebab","g":"Plats préparés","t":12.807,"p":350,"e":[11.2,0.217,0.964,0.377,0.0417,0.0068],"v":0,"r":1},{"s":"cabillaud","n":"Cabillaud (cru)","g":"Poissons & fruits de mer","t":12.086,"p":130,"e":[10.3,0.0001,0.469,1.27,0.0406,0.0068],"v":0},{"s":"lieu","n":"Lieu jaune ou colin (cru)","g":"Poissons & fruits de mer","t":12.086,"p":130,"e":[10.3,0.0001,0.469,1.27,0.0406,0.0068],"v":0},{"s":"mangue","n":"Mangue (importée par avion)","g":"Fruits & légumes","t":11.656,"p":200,"e":[0.15,0.0001,0.0,0.472,0.0248,0.0806],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"dorade","n":"Dorade royale","g":"Poissons & fruits de mer","t":11.191,"p":130,"e":[9.585,0.0001,0.469,1.09,0.0406,0.0068],"v":0},{"s":"boucheechocolat","n":"Rocher au chocolat","g":"En-cas & boulangerie","t":10.522,"p":20,"e":[9.01,0.283,0.957,0.251,0.0209,0.0]},{"s":"pateatartiner","n":"Pâte à tartiner à la noisette","g":"En-cas & boulangerie","t":9.117,"p":20,"e":[8.05,0.261,0.49,0.295,0.0209,0.0]},{"s":"brownie","n":"Brownie au chocolat","g":"En-cas & boulangerie","t":8.357,"p":60,"e":[6.67,0.247,1.16,0.253,0.0269,0.0]},{"s":"canard","n":"Canard","g":"Viandes","t":8.061,"p":130,"e":[6.05,1.04,0.472,0.359,0.0507,0.0892],"v":0},{"s":"beurre","n":"Beurre","g":"Laitiers & œufs","t":7.913,"p":10,"e":[7.285,0.0502,0.124,0.407,0.0403,0.0068]},{"s":"porc","n":"Porc","g":"Viandes","t":6.671,"p":130,"e":[6.065,0.0001,0.2255,0.2875,0.0456,0.0476],"v":0},{"s":"saucisse","n":"Saucisse","g":"Viandes","t":6.671,"p":100,"x":1,"xn":"valeur du porc ADEME, base de la saucisse de porc classique","xs":"Porc","e":[6.065,0.0001,0.2255,0.2875,0.0456,0.0476],"v":0,"r":1},{"s":"feta","n":"Fêta (brebis)","g":"Laitiers & œufs","t":6.306,"p":30,"e":[5.11,0.246,0.648,0.258,0.0368,0.0068]},{"s":"fromagedure","n":"Fromage à pâte dure","g":"Laitiers & œufs","t":6.278,"p":30,"e":[5.2225,0.3563,0.4098,0.2462,0.0368,0.0068]},{"s":"cookie","n":"Cookie au pépites de chocolat","g":"En-cas & boulangerie","t":6.273,"p":30,"e":[4.84,0.296,0.88,0.23,0.0269,0.0]},{"s":"champignonmorille","n":"Champignon (morille crue)","g":"Fruits & légumes","t":6.175,"p":150,"e":[5.74,0.0004,0.0,0.298,0.056,0.0806],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"fromagebleu","n":"Fromage bleu","g":"Laitiers & œufs","t":6.165,"p":30,"e":[4.9433,0.224,0.69,0.264,0.0368,0.0068]},{"s":"lapin","n":"Lapin","g":"Viandes","t":5.783,"p":130,"e":[3.75,1.04,0.472,0.381,0.0507,0.0892],"v":0},{"s":"painauchocolat","n":"Pain au chocolat ou chocolatine","g":"En-cas & boulangerie","t":5.729,"p":70,"e":[4.75,0.212,0.536,0.219,0.0121,0.0]},{"s":"saumon","n":"Saumon ou truite d'élevage (cru)","g":"Poissons & fruits de mer","t":5.557,"p":130,"e":[4.16,0.0275,0.469,0.853,0.0406,0.0068],"v":0},{"s":"huitres","n":"Huitres","g":"Poissons & fruits de mer","t":5.328,"p":200,"e":[1.98,0.0002,1.23,0.961,0.162,0.995],"v":0},{"s":"moules","n":"Moules","g":"Poissons & fruits de mer","t":5.328,"p":300,"e":[1.98,0.0002,1.23,0.961,0.162,0.995],"v":0},{"s":"fromagemolle","n":"Fromage à pâte molle","g":"Laitiers & œufs","t":5.144,"p":30,"e":[4.4375,0.2335,0.1733,0.2565,0.0368,0.0068]},{"s":"thon","n":"Thon (cru)","g":"Poissons & fruits de mer","t":4.983,"p":100,"e":[3.61,0.0,0.469,0.857,0.0406,0.0068],"v":0},{"s":"noisette","n":"Noisette","g":"Fruits & légumes","t":4.811,"p":30,"e":[4.31,0.196,0.0,0.281,0.0242,0.0],"m":[8,9,10]},{"s":"mozarella","n":"Mozarella","g":"Laitiers & œufs","t":4.715,"p":60,"e":[3.82,0.249,0.35,0.252,0.0368,0.0068]},{"s":"poulet","n":"Poulet","g":"Viandes","t":4.56,"p":150,"e":[3,0.83,0.378,0.305,0.0406,0.0068],"v":0},{"s":"burgerpoulet","n":"Burger au poulet","g":"Plats préparés","t":4.361,"p":160,"e":[2.53,0.705,0.676,0.314,0.0417,0.0947],"v":0},{"s":"noix","n":"Noix","g":"Fruits & légumes","t":4.114,"p":30,"e":[3.07,0.0,0.376,0.296,0.049,0.323],"m":[8,9]},{"s":"cacahuetes","n":"Cacahuètes","g":"Céréales & légumineuses","t":4.114,"p":30,"x":1,"xn":"valeur de la noix ADEME, majorante : la cacahuète est une légumineuse de plein champ","xs":"Noix","e":[3.07,0.0,0.376,0.296,0.049,0.323]},{"s":"pizza","n":"Pizza quatre fromages","g":"Plats préparés","t":3.599,"p":400,"e":[2.67,0.28,0.254,0.259,0.0417,0.0947]},{"s":"croissant","n":"Croissant au beurre","g":"En-cas & boulangerie","t":2.943,"p":60,"e":[2.02,0.182,0.536,0.193,0.0121,0.0]},{"s":"datte","n":"Datte","g":"Fruits & légumes","t":2.893,"p":30,"e":[2.32,0.0002,0.346,0.199,0.0276,0.0],"m":[0,9,10,11]},{"s":"burgervegetarien","n":"Burger végétarien","g":"Plats préparés","t":2.708,"p":160,"e":[1.23,0.394,0.676,0.271,0.0418,0.0947]},{"s":"sushis","n":"Sushis ou makis","g":"Plats préparés","t":2.669,"p":250,"e":[1.65,0.0281,0.543,0.388,0.0418,0.0181],"v":0},{"s":"matieregrasse","n":"Matière grasse végétale","g":"Laitiers & œufs","t":2.585,"p":10,"e":[1.7,0.251,0.281,0.307,0.0388,0.0068]},{"s":"painauxraisins","n":"Pain aux raisins","g":"En-cas & boulangerie","t":2.564,"p":90,"e":[2.05,0.181,0.135,0.186,0.0121,0.0]},{"s":"brioche","n":"Brioche","g":"En-cas & boulangerie","t":2.564,"p":80,"x":1,"xn":"valeur du pain aux raisins ADEME : même famille de viennoiserie beurre-œuf-sucre","xs":"Pain aux raisins","e":[2.05,0.181,0.135,0.186,0.0121,0.0]},{"s":"artichaut","n":"Artichaut","g":"Fruits & légumes","t":2.556,"p":150,"e":[0.615,0.0003,0.0,0.596,0.0549,1.29],"m":[4,5,6,7,8]},{"s":"noixdecoco","n":"Noix de coco","g":"Fruits & légumes","t":2.411,"p":40,"e":[1.14,0.0004,0.376,0.523,0.0485,0.323],"m":[0,1,10,11]},{"s":"boulettesvegetales","n":"Boulettes végétales","g":"Alternatives végétales","t":2.278,"p":100,"e":[1.09,0.468,0.223,0.334,0.0513,0.112]},{"s":"sardines","n":"Sardines","g":"Poissons & fruits de mer","t":2.276,"p":100,"e":[0.776,0.0001,0.469,0.984,0.0406,0.0068],"v":0},{"s":"madeleine","n":"Madeleine","g":"En-cas & boulangerie","t":2.243,"p":25,"e":[1.72,0.2025,0.113,0.181,0.0269,0.0]},{"s":"saucissevegetale","n":"Saucisse végétale","g":"Alternatives végétales","t":2.213,"p":100,"e":[1.05,0.365,0.401,0.268,0.0406,0.0888]},{"s":"galettefromage","n":"Galette au fromage","g":"Alternatives végétales","t":2.171,"p":100,"e":[0.621,0.757,0.505,0.17,0.0362,0.0821]},{"s":"hachevegetal","n":"Haché végétal","g":"Alternatives végétales","t":2.052,"p":100,"e":[0.405,0.638,0.507,0.36,0.0513,0.0907]},{"s":"chaussonauxpommes","n":"Chausson aux pommes","g":"En-cas & boulangerie","t":2.044,"p":90,"e":[1.53,0.181,0.135,0.186,0.0121,0.0]},{"s":"riz","n":"Riz","g":"Céréales & légumineuses","t":2.015,"p":80,"e":[1.61,0.0001,0.0381,0.346,0.0204,0.0]},{"s":"nouillesderiz","n":"Nouilles de riz","g":"Céréales & légumineuses","t":2.015,"p":120,"x":1,"xn":"valeur du riz ADEME : même matière première, même état sec","xs":"Riz","e":[1.61,0.0001,0.0381,0.346,0.0204,0.0]},{"s":"pates","n":"Pâtes (sèches)","g":"Céréales & légumineuses","t":1.98,"p":100,"e":[0.752,0.989,0.0556,0.156,0.0269,0.0]},{"s":"chataigne","n":"Châtaigne","g":"Fruits & légumes","t":1.944,"p":60,"e":[1.71,0.0002,0.0,0.171,0.0269,0.0358],"m":[9,10]},{"s":"cassis","n":"Cassis","g":"Fruits & légumes","t":1.904,"p":150,"e":[1.5,0.0001,0.0,0.298,0.0248,0.0806],"m":[5,6,7]},{"s":"yaourt","n":"Yaourt nature ou yaourt à la grecque","g":"Laitiers & œufs","t":1.895,"p":125,"e":[1.03,0.152,0.422,0.247,0.0369,0.0068]},{"s":"groseille","n":"Groseille","g":"Fruits & légumes","t":1.895,"p":150,"e":[1.5,0.0,0.0,0.298,0.0159,0.0806],"m":[5,6,7]},{"s":"oeuf","n":"Œufs","g":"Laitiers & œufs","t":1.878,"p":60,"e":[1.49,0.0001,0.109,0.189,0.0093,0.0806]},{"s":"fromageblanc","n":"Fromage blanc 0%","g":"Laitiers & œufs","t":1.81,"p":100,"e":[1.07,0.221,0.241,0.234,0.0368,0.0068]},{"s":"nuggetsvegetaux","n":"Nuggets végétaux","g":"Alternatives végétales","t":1.77,"p":100,"e":[0.555,0.399,0.401,0.286,0.0406,0.0889]},{"s":"cerise","n":"Cerise","g":"Fruits & légumes","t":1.745,"p":150,"e":[0.64,0.0001,0.657,0.342,0.0248,0.0806],"m":[5,6]},{"s":"galettevegetale","n":"Galette végétale","g":"Alternatives végétales","t":1.659,"p":100,"e":[0.507,0.337,0.505,0.192,0.0362,0.0821]},{"s":"asperge","n":"Asperge","g":"Fruits & légumes","t":1.639,"p":150,"e":[0.97,0.0002,0.0,0.417,0.0367,0.215],"m":[3,4,5]},{"s":"paindemie","n":"Pain de mie","g":"En-cas & boulangerie","t":1.559,"p":60,"e":[1.09,0.184,0.11,0.163,0.0121,0.0]},{"s":"avocat","n":"Avocat","g":"Fruits & légumes","t":1.553,"p":100,"e":[0.878,0.0001,0.0,0.508,0.0284,0.138],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"framboise","n":"Framboise","g":"Fruits & légumes","t":1.543,"p":150,"e":[1.04,0.0,0.0,0.48,0.0131,0.01],"m":[5,6,7]},{"s":"bonbons","n":"Bonbons gélifiés","g":"En-cas & boulangerie","t":1.487,"p":30,"e":[0.721,0.303,0.231,0.211,0.0209,0.0]},{"s":"confiture","n":"Confiture","g":"En-cas & boulangerie","t":1.487,"p":25,"x":1,"xn":"valeur du bonbon gélifié ADEME, produit à dominante sucre comme la confiture","xs":"Bonbons gélifiés","e":[0.721,0.303,0.231,0.211,0.0209,0.0]},{"s":"frites","n":"Frites (friteuse)","g":"Plats préparés","t":1.457,"p":150,"e":[0.398,0.137,0.247,0.389,0.166,0.12]},{"s":"abricot","n":"Abricot","g":"Fruits & légumes","t":1.452,"p":150,"e":[0.347,0.0001,0.657,0.342,0.0248,0.0806],"m":[5,6,7]},{"s":"ananas","n":"Ananas","g":"Fruits & légumes","t":1.361,"p":150,"e":[0.368,0.0,0.0,0.645,0.0254,0.323],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"biere","n":"Bière","g":"Boissons","t":1.347,"p":250,"e":[0.0799,0.273,0.621,0.33,0.0363,0.0068]},{"s":"clementine","n":"Clémentine","g":"Fruits & légumes","t":1.302,"p":150,"e":[0.583,0.0001,0.0,0.474,0.0298,0.215],"m":[0,1,10,11]},{"s":"vin","n":"Vin","g":"Boissons","t":1.269,"p":125,"e":[0.301,0.0331,0.679,0.233,0.0157,0.0068]},{"s":"mure","n":"Mûre","g":"Fruits & légumes","t":1.248,"p":150,"e":[0.844,0.0001,0.0,0.298,0.0248,0.0806],"m":[7,8]},{"s":"ble","n":"Blé","g":"Céréales & légumineuses","t":1.226,"p":80,"e":[0.6655,0.151,0.2405,0.1515,0.0177,0.0]},{"s":"semoule","n":"Semoule","g":"Céréales & légumineuses","t":1.226,"p":80,"x":1,"xn":"valeur du blé ADEME : même céréale, semoule = blé dur concassé, même état sec","xs":"Blé","e":[0.6655,0.151,0.2405,0.1515,0.0177,0.0]},{"s":"laitdevache","n":"Lait de vache","g":"Laitiers & œufs","t":1.151,"p":200,"e":[0.812,0.0124,0.0959,0.214,0.0162,0.0]},{"s":"reineclaude","n":"Reine claude","g":"Fruits & légumes","t":1.044,"p":150,"e":[0.64,0.0001,0.0,0.298,0.0248,0.0806],"m":[8]},{"s":"prune","n":"Prune","g":"Fruits & légumes","t":1.035,"p":150,"e":[0.64,0.0,0.0,0.298,0.0159,0.0806],"m":[6,7,8]},{"s":"fenouil","n":"Fenouil","g":"Fruits & légumes","t":1.018,"p":150,"e":[0.499,0.0001,0.0,0.411,0.0275,0.0806],"m":[3,5,6,7,8,9,10]},{"s":"tofu","n":"Tofu nature","g":"Alternatives végétales","t":1.004,"p":100,"e":[0.0864,0.146,0.482,0.23,0.0418,0.0181]},{"s":"kiwi","n":"Kiwi","g":"Fruits & légumes","t":1.002,"p":150,"e":[0.479,0.0142,0.0,0.414,0.0137,0.0806],"m":[0,1,2,10,11]},{"s":"melon","n":"Melon","g":"Fruits & légumes","t":0.978,"p":250,"e":[0.318,0.0001,0.0,0.416,0.0292,0.215],"m":[5,6,7,8]},{"s":"brocoli","n":"Brocoli","g":"Fruits & légumes","t":0.951,"p":150,"e":[0.537,0.0002,0.0,0.298,0.0349,0.0806],"m":[8,9,10]},{"s":"boulgour","n":"Boulgour","g":"Céréales & légumineuses","t":0.95,"p":80,"e":[0.748,0.0,0.0381,0.146,0.0178,0.0]},{"s":"kaki","n":"Kaki","g":"Fruits & légumes","t":0.95,"p":150,"e":[0.498,0.0,0.0,0.355,0.0159,0.0806],"m":[0,9,10,11]},{"s":"fruitdelapassion","n":"Fruit de la passion","g":"Fruits & légumes","t":0.938,"p":150,"e":[0.537,0.0001,0.0,0.298,0.0219,0.0806],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"pamplemousse","n":"Pamplemousse","g":"Fruits & légumes","t":0.926,"p":150,"e":[0.257,0.0001,0.0,0.505,0.0255,0.138],"m":[1,2,3,4,5]},{"s":"myrtille","n":"Myrtille","g":"Fruits & légumes","t":0.922,"p":150,"e":[0.645,0.0001,0.0,0.246,0.0205,0.01],"m":[6,7,8]},{"s":"banane","n":"Banane","g":"Fruits & légumes","t":0.909,"p":120,"e":[0.295,0.0001,0.0,0.447,0.0284,0.138],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"poischiches","n":"Pois chiches","g":"Céréales & légumineuses","t":0.899,"p":80,"e":[0.4,0.0006,0.129,0.302,0.0669,0.0]},{"s":"cresson","n":"Cresson","g":"Fruits & légumes","t":0.868,"p":150,"e":[0.181,0.0005,0.0,0.397,0.0746,0.215],"m":[0,1,2,3,4,5,6,7,8,9,10,11]},{"s":"laitue","n":"Laitue","g":"Fruits & légumes","t":0.868,"p":150,"e":[0.181,0.0005,0.0,0.397,0.0746,0.215],"m":[4,5,6,7,8]},{"s":"mache","n":"Mâche","g":"Fruits & légumes","t":0.868,"p":150,"e":[0.181,0.0005,0.0,0.397,0.0746,0.215],"m":[0,1,9,10,11]},{"s":"endive","n":"Endive","g":"Fruits & légumes","t":0.861,"p":150,"e":[0.426,0.0004,0.0,0.298,0.056,0.0806],"m":[0,1,2,3,4,9]},{"s":"haricotsrouges","n":"Haricots rouges","g":"Céréales & légumineuses","t":0.859,"p":80,"e":[0.508,0.0006,0.129,0.154,0.0669,0.0]},{"s":"chou","n":"Chou","g":"Fruits & légumes","t":0.848,"p":150,"e":[0.307,0.0001,0.0,0.298,0.0275,0.215],"m":[0,1,2,9,10,11]},{"s":"germesdesoja","n":"Germes de soja","g":"Fruits & légumes","t":0.848,"p":100,"x":1,"xn":"valeur du chou ADEME, retenue comme légume frais générique","xs":"Chou","e":[0.307,0.0001,0.0,0.298,0.0275,0.215]},{"s":"baguette","n":"Baguette tradition","g":"En-cas & boulangerie","t":0.777,"p":60,"e":[0.387,0.181,0.0486,0.148,0.0121,0.0]},{"s":"citron","n":"Citron","g":"Fruits & légumes","t":0.764,"p":20,"e":[0.194,0.0001,0.0,0.406,0.0255,0.138],"m":[0,1]},{"s":"manguebateau","n":"Mangue (importée par bateau)","g":"Fruits & légumes","t":0.728,"p":200},{"s":"choufleur","n":"Chou-fleur","g":"Fruits & légumes","t":0.721,"p":150,"e":[0.307,0.0002,0.0,0.298,0.0349,0.0806],"m":[0,1,2,8,9,10,11]},{"s":"celeri","n":"Céleri","g":"Fruits & légumes","t":0.716,"p":150,"e":[0.442,0.0001,0.0,0.246,0.0177,0.01],"m":[0,1,2,9,10,11]},{"s":"poivron","n":"Poivron","g":"Fruits & légumes","t":0.715,"p":150,"e":[0.247,0.0,0.0,0.357,0.0308,0.0806],"m":[5,6,7,8]},{"s":"pommedeterre","n":"Pomme de terre nouvelle","g":"Céréales & légumineuses","t":0.706,"p":200,"e":[0.102,0.0001,0.412,0.175,0.0172,0.0]},{"s":"petitpois","n":"Petit pois","g":"Fruits & légumes","t":0.702,"p":150,"e":[0.436,0.0002,0.0,0.238,0.0276,0.0],"m":[4,5,6]},{"s":"rhubarbe","n":"Rhubarbe","g":"Fruits & légumes","t":0.702,"p":150,"e":[0.307,0.0,0.0,0.298,0.0159,0.0806],"m":[3,4,5]},{"s":"pasteque","n":"Pastèque","g":"Fruits & légumes","t":0.68,"p":300,"e":[0.239,0.0,0.0,0.345,0.0159,0.0806],"m":[5,6,7,8]},{"s":"orange","n":"Orange","g":"Fruits & légumes","t":0.678,"p":150,"e":[0.198,0.0001,0.0,0.378,0.021,0.0806],"m":[0,1,2]},{"s":"courge","n":"Courge","g":"Fruits & légumes","t":0.638,"p":150,"e":[0.205,0.0,0.0,0.325,0.0276,0.0806],"m":[0,8,9,10,11]},{"s":"potiron","n":"Potiron","g":"Fruits & légumes","t":0.638,"p":150,"e":[0.205,0.0001,0.0,0.325,0.0275,0.0806],"m":[0,8,9,10,11]},{"s":"cafe","n":"Café","g":"Boissons","t":0.635,"p":120,"e":[0.436,0.0181,0.129,0.0402,0.001,0.0112]},{"s":"tomate","n":"Tomate","g":"Fruits & légumes","t":0.626,"p":150,"e":[0.222,0.0,0.0,0.298,0.025,0.0806],"m":[5,6,7,8]},{"s":"nectarine","n":"Nectarine","g":"Fruits & légumes","t":0.614,"p":150,"e":[0.213,0.0001,0.0,0.298,0.0219,0.0806],"m":[7,8]},{"s":"figue","n":"Figue","g":"Fruits & légumes","t":0.612,"p":150,"e":[0.179,0.0001,0.0,0.327,0.0248,0.0806],"m":[6,7,8,9]},{"s":"poireau","n":"Poireau","g":"Fruits & légumes","t":0.611,"p":150,"e":[0.211,0.0001,0.0,0.298,0.0217,0.0806],"m":[0,1,2,3,8,9,10,11]},{"s":"peche","n":"Pêche","g":"Fruits & légumes","t":0.591,"p":150,"e":[0.18,0.0,0.0,0.314,0.0159,0.0806],"m":[5,6,7,8]},{"s":"lentilles","n":"Lentilles (blondes, vertes, corail)","g":"Céréales & légumineuses","t":0.582,"p":80,"e":[0.141,0.0006,0.129,0.244,0.0669,0.0]},{"s":"blette","n":"Blette","g":"Fruits & légumes","t":0.581,"p":150,"e":[0.146,0.0,0.0,0.298,0.0565,0.0806],"m":[5,6,7,8,9,10]},{"s":"mais","n":"Maïs","g":"Fruits & légumes","t":0.569,"p":150,"e":[0.363,0.0002,0.0381,0.146,0.0215,0.0],"m":[6,7,8]},{"s":"choudebruxelles","n":"Chou de Bruxelles","g":"Fruits & légumes","t":0.562,"p":150,"e":[0.27,0.0001,0.0,0.262,0.0242,0.0058],"m":[0,1,2,9,10,11]},{"s":"coing","n":"Coing","g":"Fruits & légumes","t":0.562,"p":150,"e":[0.104,0.0,0.0,0.361,0.0159,0.0806],"m":[9]},{"s":"carambole","n":"Carambole","g":"Fruits & légumes","t":0.554,"p":150,"e":[0.15,0.0001,0.0,0.298,0.0248,0.0806],"m":[0,10,11]},{"s":"concombre","n":"Concombre","g":"Fruits & légumes","t":0.512,"p":150,"e":[0.196,0.0001,0.0,0.262,0.0219,0.0323],"m":[4,5,6,7,8,9]},{"s":"fraise","n":"Fraise","g":"Fruits & légumes","t":0.511,"p":125,"e":[0.227,0.0,0.0,0.261,0.0131,0.01],"m":[4,5,6]},{"s":"raisin","n":"Raisin","g":"Fruits & légumes","t":0.509,"p":150,"e":[0.17,0.0001,0.0,0.285,0.0219,0.0323],"m":[8,9]},{"s":"courgette","n":"Courgette","g":"Fruits & légumes","t":0.499,"p":150,"e":[0.181,0.0001,0.0,0.262,0.0231,0.0323],"m":[4,5,6,7,8,9]},{"s":"grenade","n":"Grenade","g":"Fruits & légumes","t":0.499,"p":150,"e":[0.104,0.0,0.0,0.298,0.0159,0.0806],"m":[0,1,10,11]},{"s":"panais","n":"Panais","g":"Fruits & légumes","t":0.494,"p":150,"e":[0.0941,0.0001,0.0,0.298,0.0215,0.0806],"m":[0,1,2,9,10,11]},{"s":"salsifis","n":"Salsifis","g":"Fruits & légumes","t":0.494,"p":150,"e":[0.0941,0.0001,0.0,0.298,0.0215,0.0806],"m":[0,1,2,10,11]},{"s":"soda","n":"Soda","g":"Boissons","t":0.493,"p":330,"e":[0.0902,0.013,0.138,0.209,0.0363,0.0068]},{"s":"topinambour","n":"Topinambour","g":"Fruits & légumes","t":0.491,"p":150,"e":[0.27,0.0001,0.0,0.17,0.0189,0.0323],"m":[0,1,10,11]},{"s":"aubergine","n":"Aubergine","g":"Fruits & légumes","t":0.472,"p":150,"e":[0.181,0.0001,0.0,0.262,0.0231,0.0058],"m":[5,6,7,8]},{"s":"mandarine","n":"Mandarine","g":"Fruits & légumes","t":0.468,"p":150,"e":[0.0094,0.0001,0.0,0.356,0.0223,0.0806],"m":[0,1,10,11]},{"s":"haricotvert","n":"Haricot vert (cru)","g":"Fruits & légumes","t":0.446,"p":150,"e":[0.117,0.0002,0.0,0.262,0.0282,0.0391],"m":[5,6,7,8,9]},{"s":"soja","n":"Boisson au soja","g":"Boissons","t":0.427,"p":200},{"s":"epinard","n":"Épinard","g":"Fruits & légumes","t":0.423,"p":150,"e":[0.12,0.0,0.0,0.246,0.0466,0.01],"m":[0,1,2,3,4,8,9,10,11]},{"s":"oignon","n":"Oignon","g":"Fruits & légumes","t":0.42,"p":50,"e":[0.101,0.0001,0.0,0.268,0.0191,0.0323],"m":[0,1,2,3,8,9,10,11]},{"s":"pomme","n":"Pomme","g":"Fruits & légumes","t":0.408,"p":150,"e":[0.0919,0.0001,0.0,0.262,0.0219,0.0323],"m":[0,1,2,3,7,8,9,10,11]},{"s":"betterave","n":"Betterave","g":"Fruits & légumes","t":0.407,"p":150,"e":[0.0941,0.0001,0.0,0.262,0.0189,0.0323],"m":[0,1,2,9,10,11]},{"s":"carotte","n":"Carotte","g":"Fruits & légumes","t":0.396,"p":150,"e":[0.0828,0.0001,0.0,0.262,0.0189,0.0323],"m":[0,1,2,8,9,10,11]},{"s":"navet","n":"Navet","g":"Fruits & légumes","t":0.396,"p":150,"e":[0.0828,0.0,0.0,0.262,0.019,0.0323],"m":[0,1,2,3,4,9,10,11]},{"s":"echalote","n":"Échalote","g":"Fruits & légumes","t":0.394,"p":20,"e":[0.0814,0.0001,0.0,0.262,0.0178,0.0323],"m":[9,10,11]},{"s":"poire","n":"Poire","g":"Fruits & légumes","t":0.387,"p":150,"e":[0.069,0.0,0.0,0.272,0.014,0.0323],"m":[0,1,2,7,8,9,10,11]},{"s":"radis","n":"Radis","g":"Fruits & légumes","t":0.385,"p":150,"e":[0.111,0.0001,0.0,0.246,0.0177,0.01],"m":[2,3,4,5]},{"s":"ail","n":"Ail","g":"Fruits & légumes","t":0.383,"p":5,"e":[0.0841,0.0002,0.0,0.198,0.0206,0.0806],"m":[6,7,8,9,10,11]},{"s":"eauenbouteille","n":"Eau en bouteille","g":"Boissons","t":0.321,"p":500,"e":[0.0011,0.0,0.187,0.116,0.0157,0.001]},{"s":"the","n":"Thé","g":"Boissons","t":0.044,"p":200,"e":[0.0224,0.0,0.0064,0.0031,0.0002,0.0115]},{"s":"eaudurobinet","n":"Eau du robinet","g":"Boissons","t":0.0,"p":250}],"dishes":[{"n":"Brioche et confiture","m":["pdj"],"w":2,"l":[["brioche",80],["confiture",25],["cafe",120]]},{"n":"Tartine de confiture","m":["pdj"],"w":2,"l":[["baguette",60],["confiture",30]]},{"n":"Pad thaï au tofu","m":["dej","din"],"w":1,"l":[["nouillesderiz",120],["tofu",100],["oeuf",60],["cacahuetes",20],["germesdesoja",80],["echalote",30],["matieregrasse",10],["citron",20]]},{"n":"Pad thaï végétalien","m":["dej","din"],"w":1,"l":[["nouillesderiz",120],["tofu",120],["germesdesoja",100],["carotte",60],["poivron",60],["cacahuetes",20],["echalote",30],["matieregrasse",10],["citron",20]]},{"n":"Taboulé (entrée)","m":["dej","din"],"w":1,"l":[["boulgour",40],["tomate",60],["concombre",50],["echalote",15],["citron",10],["matieregrasse",5]]},{"n":"Taboulé (plat)","m":["dej","din"],"w":2,"l":[["boulgour",90],["tomate",120],["concombre",100],["echalote",25],["citron",15],["matieregrasse",10]]},{"n":"Salade de crudités (entrée)","m":["dej","din"],"w":2,"l":[["laitue",40],["carotte",50],["tomate",60],["concombre",50],["matieregrasse",5]]},{"n":"Pâtes carbonara","m":["dej","din"],"w":3,"l":[["pates",110],["porc",60],["oeuf",60],["fromagedure",30]]},{"n":"Pad thaï aux crevettes","m":["dej","din"],"w":1,"l":[["nouillesderiz",120],["crevettes",120],["oeuf",60],["cacahuetes",20],["germesdesoja",80],["echalote",30],["matieregrasse",10],["citron",20]]},{"n":"Café et tartines beurrées","m":["pdj"],"w":4,"l":[["cafe",120],["baguette",60],["beurre",15]]},{"n":"Thé et pain de mie beurré","m":["pdj"],"w":2,"l":[["the",200],["paindemie",60],["beurre",10]]},{"n":"Yaourt, banane, café","m":["pdj"],"w":2,"l":[["yaourt",125],["banane",120],["cafe",120]]},{"n":"Fromage blanc et fruits rouges","m":["pdj"],"w":1,"l":[["fromageblanc",150],["fraise",125]]},{"n":"Œufs brouillés et pain","m":["pdj"],"w":2,"l":[["oeuf",120],["paindemie",60],["beurre",10]]},{"n":"Croissant et café","m":["pdj"],"w":2,"l":[["croissant",60],["cafe",120]]},{"n":"Pain au chocolat et café","m":["pdj"],"w":2,"l":[["painauchocolat",70],["cafe",120]]},{"n":"Bol de lait et pain","m":["pdj"],"w":1,"l":[["laitdevache",250],["baguette",60]]},{"n":"Steak et frites","m":["dej"],"w":3,"l":[["boeuf",150],["frites",200]]},{"n":"Poulet, riz, courgettes","m":["dej"],"w":4,"l":[["poulet",150],["riz",80],["courgette",150]]},{"n":"Pâtes à la tomate et parmesan","m":["dej","din"],"w":3,"l":[["pates",100],["tomate",200],["fromagedure",25]]},{"n":"Salade de lentilles et féta","m":["dej","din"],"w":1,"l":[["lentilles",80],["feta",40],["tomate",100],["laitue",50]]},{"n":"Sandwich au porc et beurre","m":["dej"],"w":3,"l":[["baguette",80],["porc",50],["beurre",15]]},{"n":"Cheeseburger et frites","m":["dej"],"w":2,"l":[["cheeseburger",110],["frites",150]]},{"n":"Pizza quatre fromages","m":["dej","din"],"w":3,"l":[["pizza",400]]},{"n":"Sushis","m":["dej","din"],"w":1,"l":[["sushis",250]]},{"n":"Kebab","m":["dej"],"w":2,"l":[["kebab",350]]},{"n":"Curry de pois chiches et riz","m":["dej","din"],"w":1,"l":[["poischiches",80],["riz",80],["tomate",150],["oignon",50]]},{"n":"Saumon, pommes de terre, brocoli","m":["dej","din"],"w":2,"l":[["saumon",130],["pommedeterre",200],["brocoli",150]]},{"n":"Cabillaud, riz, épinards","m":["dej","din"],"w":1,"l":[["cabillaud",130],["riz",80],["epinard",150]]},{"n":"Omelette et salade","m":["dej","din"],"w":2,"l":[["oeuf",120],["laitue",80],["tomate",100]]},{"n":"Chili sin carne","m":["dej","din"],"w":1,"l":[["haricotsrouges",150],["riz",80],["tomate",150],["oignon",50]]},{"n":"Tofu sauté et boulgour","m":["dej","din"],"w":1,"l":[["tofu",120],["boulgour",80],["poivron",100],["oignon",50]]},{"n":"Bœuf carottes","m":["dej","din"],"w":3,"l":[["boeuf",150],["carotte",120],["oignon",80],["vin",100]]},{"n":"Poulet rôti et pommes de terre","m":["dej","din"],"w":3,"l":[["poulet",180],["pommedeterre",200]]},{"n":"Burger végétarien et frites","m":["dej"],"w":1,"l":[["burgervegetarien",160],["frites",150]]},{"n":"Crevettes sautées et riz","m":["dej","din"],"w":1,"l":[["crevettes",120],["riz",80],["poivron",80]]},{"n":"Soupe de légumes, pain, fromage","m":["din"],"w":3,"l":[["courgette",150],["carotte",100],["poireau",100],["baguette",60],["fromagedure",30]]},{"n":"Salade de riz au thon","m":["din"],"w":2,"l":[["riz",80],["thon",80],["tomate",100],["mais",60]]},{"n":"Gratin de courgettes","m":["din"],"w":2,"l":[["courgette",300],["laitdevache",100],["fromagedure",40],["oeuf",60]]},{"n":"Croque-monsieur","m":["din"],"w":3,"l":[["paindemie",80],["fromagedure",40],["porc",40],["beurre",10]]},{"n":"Assiette de crudités et œufs","m":["din"],"w":2,"l":[["laitue",80],["tomate",100],["carotte",80],["oeuf",120]]},{"n":"Moules et frites","m":["din"],"w":1,"l":[["moules",400],["frites",150]]},{"n":"Galette végétale et salade","m":["din"],"w":1,"l":[["galettevegetale",120],["laitue",80],["tomate",100]]},{"n":"Carré de chocolat","m":["encas"],"w":1,"l":[["boucheechocolat",20]]},{"n":"Pomme","m":["encas"],"w":1,"l":[["pomme",150]]},{"n":"Poignée de noix","m":["encas"],"w":1,"l":[["noix",30]]},{"n":"Cookie et café","m":["encas"],"w":1,"l":[["cookie",30],["cafe",120]]},{"n":"Verre de vin","m":["encas"],"w":1,"l":[["vin",125]]},{"n":"Bière","m":["encas"],"w":1,"l":[["biere",250]]},{"n":"Yaourt","m":["encas"],"w":1,"l":[["yaourt",125]]},{"n":"Bonbons","m":["encas"],"w":1,"l":[["bonbons",30]]}],"standards":[{"n":"Standard poulet · normal","l":[["poulet",130],["riz",80],["courgette",150]]},{"n":"Standard poulet · large","l":[["poulet",200],["riz",120],["courgette",180]]},{"n":"Standard poisson · normal","l":[["saumon",130],["riz",80],["courgette",150]]},{"n":"Standard poisson · large","l":[["saumon",200],["riz",120],["courgette",180]]},{"n":"Standard viande rouge · normal","l":[["boeuf",130],["riz",80],["courgette",150]]},{"n":"Standard viande rouge · large","l":[["boeuf",200],["riz",120],["courgette",180]]}],"facts":{"footprint":9200,"foodShare":0.22,"foodAbs":2000,"target2050":2000,"budget":700,"beefKg":28.009,"refMeal":1.41,"refPdj":0.32,"contrib":[{"n":"Viande","d":"bovins avant tout","p":39},{"n":"Boissons","d":"café, alcools, sodas","p":19},{"n":"Produits laitiers et fromages","d":"","p":17}]}};
 
 /* ============================ utilitaires ============================ */
 const $ = s => document.querySelector(s);
@@ -362,9 +418,31 @@ const kgOf = lines => lines.reduce((a,[s,g]) => a + (F.has(s) ? F.get(s).t * g/1
 const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
 
 /* ============================ état ============================ */
+/* ============================ thème ============================ */
+const TKEY = 'carbone.theme';
+const mql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+let themeMode = 'system';
+function readTheme(){ try{ return localStorage.getItem(TKEY) || 'system'; }catch(e){ return 'system'; } }
+function effectiveDark(mode){
+  return mode === 'dark' || (mode === 'system' && mql && mql.matches);
+}
+function applyTheme(mode){
+  themeMode = mode;
+  const dark = effectiveDark(mode);
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const meta = document.getElementById('metaTheme');
+  if(meta) meta.setAttribute('content', dark ? '#0B3B35' : '#0E4D45');
+  try{ localStorage.setItem(TKEY, mode); }catch(e){}
+}
+if(mql){
+  const onSys = () => { if(themeMode === 'system') applyTheme('system'); };
+  mql.addEventListener ? mql.addEventListener('change', onSys) : mql.addListener(onSys);
+}
+
 const KEY = 'carbone.v1';
-let S = {tab:'biblio', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
-         tv:'repas', demo:true, openDish:null, pickQ:'', pickSlug:null, stdInit:false};
+let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
+         tv:'repas', demo:true, openDish:null, pickQ:'', pickSlug:null, stdInit:false,
+         dishQ:'', comCat:'plat', editId:null};
 
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify({favs:S.favs,hist:S.hist,demo:S.demo,stdInit:S.stdInit})); }catch(e){}
@@ -560,19 +638,39 @@ function quickAdd(slug){
 }
 
 /* ============================ onglet 2 — saisie ============================ */
+const COM_COEF = {entree:0.55, plat:1, dessert:1};
+function comPortion(slug){
+  const f = F.get(slug);
+  if(S.comCat === 'dessert') return SWEET.has(slug) ? f.p : Math.round(f.p * 0.6);
+  return Math.round(f.p * COM_COEF[S.comCat] / 5) * 5 || 5;
+}
+function comLabel(slug){
+  const base = F.get(slug).p, q = comPortion(slug);
+  if(S.comCat === 'plat') return `portion type ${base} g`;
+  if(S.comCat === 'dessert') return SWEET.has(slug) ? `dessert, ${q} g` : `hors dessert type, ${q} g`;
+  return `entrée, ${q} g (type ${base} g)`;
+}
+
 function renderSaisie(){
   const dayHist = S.hist.filter(e => e.d === today());
   const byMeal = {}; MEALS.forEach(m => byMeal[m.k] = 0);
   dayHist.forEach(e => byMeal[e.m] += kgOf(e.l));
   const dayTot = Object.values(byMeal).reduce((a,b)=>a+b,0);
   const draftKg = kgOf(S.draft);
-  const dishes = DB.dishes.filter(d => d.m.includes(S.meal)).map(d => ({...d, kg:kgOf(d.l)}))
-                          .sort((a,b) => a.kg - b.kg);
+  const nrm = t => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/œ/g,'oe');
+  const dq = nrm(S.dishQ.trim());
+  const dishes = DB.dishes.filter(d => d.m.includes(S.meal))
+    .filter(d => !dq || nrm(d.n).includes(dq) || d.l.some(([sl]) => nrm(F.get(sl).n).includes(dq)))
+    .map(d => ({...d, kg:kgOf(d.l)})).sort((a,b) => a.kg - b.kg);
   const favs = S.favs.map((f,i) => ({...f, i, kg:kgOf(f.l)}))
     .sort((a,b) => (b.std?1:0)-(a.std?1:0) || a.kg-b.kg);
   const missing = DB.standards.filter(d => !S.favs.some(f => f.n === d.n)).length;
 
+  const editing = S.editId && S.hist.find(x => x.id === S.editId);
   view.innerHTML = `
+  ${editing ? `<div class="demo edit">
+    Modification d’un repas du ${dLabel(editing.d)}.
+    <button id="canceledit">Annuler</button></div><div style="height:12px"></div>` : ''}
   <h2 class="sec">Aujourd’hui — ${n2(dayTot)} kg CO₂e enregistrés</h2>
   <div class="card">${gauge(byMeal, dayTot)}</div>
 
@@ -589,8 +687,10 @@ function renderSaisie(){
     <button data-path="compose" aria-pressed="${S.path==='compose'}">Composer</button>
   </div>
 
-  ${S.path === 'types' ? `<div class="list">
-    ${dishes.map(d => `<div class="dish">
+  ${S.path === 'types' ? `
+    <input class="search" id="dq" placeholder="Chercher un plat" value="${esc(S.dishQ)}" style="margin:2px 0 10px">
+    <div class="list">
+    ${dishes.length ? dishes.map(d => `<div class="dish">
       <div class="top">
         <button class="nm" data-dish="${esc(d.n)}" style="text-align:left">${esc(d.n)}</button>
         <span class="kg">${n2(d.kg)}</span>
@@ -598,8 +698,8 @@ function renderSaisie(){
       </div>
       ${S.openDish === d.n ? `<div class="comp">${d.l.map(([s,g]) => `${F.get(s).n.toLowerCase()} ${g} g`).join(' · ')}</div>` : ''}
       <div class="bar"><i style="width:${clamp(d.kg/(BUDGET_J*1.5)*100,2,100)}%;background:${d.kg>BUDGET_J?'var(--brick)':'var(--forest-2)'}"></i></div>
-    </div>`).join('')}
-    <div class="count">Barre pleine = un repas à lui seul dépasse le budget d’une journée entière.</div>
+    </div>`).join('') + `<div class="count">Barre pleine = un repas à lui seul dépasse le budget d’une journée entière.</div>`
+    : `<div class="empty">Aucun plat ne correspond${S.dishQ?` à « ${esc(S.dishQ)} »`:''}. Essayez « pâtes » ou « tofu », ou composez librement.</div>`}
   </div>` : ''}
 
   ${S.path === 'favs' ? `<div class="list">
@@ -621,6 +721,11 @@ function renderSaisie(){
   </div>` : ''}
 
   ${S.path === 'compose' ? `<div class="card">
+    <div class="unit" style="margin-bottom:6px">Type de service</div>
+    <div class="seg" style="margin-bottom:11px">
+      ${[['entree','Entrée','× 0,55'],['plat','Plat','portion pleine'],['dessert','Dessert','sucré']]
+        .map(([k,l,h]) => `<button data-com="${k}" aria-pressed="${S.comCat===k}"><b>${l}</b><small>${h}</small></button>`).join('')}
+    </div>
     <div class="pick">
       <input id="cf" type="text" inputmode="search" autocomplete="off" autocapitalize="off"
              spellcheck="false" placeholder="Tapez les premières lettres" value="${esc(S.pickQ)}">
@@ -628,10 +733,10 @@ function renderSaisie(){
     </div>
     <div class="compose">
       <div class="chint" id="chint">${S.pickSlug
-        ? `${esc(F.get(S.pickSlug).n)} · ${n1(F.get(S.pickSlug).t)} kg CO₂e/kg · portion type ${F.get(S.pickSlug).p} g`
-        : `${DB.foods.length} aliments. Trois lettres suffisent.`}</div>
+        ? `${esc(F.get(S.pickSlug).n)} · ${n1(F.get(S.pickSlug).t)} kg CO₂e/kg · ${comLabel(S.pickSlug)}`
+        : `${DB.foods.length} aliments. Le service ajuste la quantité, corrigeable ensuite.`}</div>
       <input type="number" id="cq" inputmode="numeric" min="1" step="5" placeholder="g"
-             value="${S.pickSlug ? F.get(S.pickSlug).p : ''}">
+             value="${S.pickSlug ? comPortion(S.pickSlug) : ''}">
       <button class="go" id="cadd">Ajouter</button>
     </div>
   </div>` : ''}
@@ -650,11 +755,16 @@ function renderSaisie(){
       <div class="v">${n2(draftKg)} <span class="unit">kg</span></div>
     </div>
     <div class="actions">
-      <button class="btn btn-1" id="rec">Enregistrer le repas</button>
+      <button class="btn btn-1" id="rec">${S.editId ? 'Mettre à jour le repas' : 'Enregistrer le repas'}</button>
       <button class="btn btn-2" id="fav">Garder en favori</button>
     </div>
   </div>` : ''}`;
 
+  const dqEl = $('#dq');
+  if(dqEl) dqEl.oninput = e => { S.dishQ = e.target.value; const p = e.target.selectionStart;
+    renderSaisie(); const n = $('#dq'); if(n){ n.focus(); n.setSelectionRange(p,p); } };
+  const ce = $('#canceledit');
+  if(ce) ce.onclick = () => { S.editId = null; S.draft = []; renderSaisie(); };
   view.querySelectorAll('[data-meal]').forEach(b => b.onclick = () => { S.meal = b.dataset.meal; renderSaisie(); });
   view.querySelectorAll('[data-path]').forEach(b => b.onclick = () => { S.path = b.dataset.path; renderSaisie(); });
   view.querySelectorAll('[data-dish]').forEach(b => b.onclick = () => {
@@ -698,9 +808,9 @@ function renderSaisie(){
     const choose = slug => {
       const f = F.get(slug);
       S.pickSlug = slug; S.pickQ = f.n;
-      cf.value = f.n; cq.value = f.p;
+      cf.value = f.n; cq.value = comPortion(slug);
       sg.hidden = true; sg.innerHTML = '';
-      $('#chint').textContent = `${f.n} · ${n1(f.t)} kg CO₂e/kg · portion type ${f.p} g`;
+      $('#chint').textContent = `${f.n} · ${n1(f.t)} kg CO₂e/kg · ${comLabel(slug)}`;
     };
     const paint = () => {
       const r = find(cf.value), rd = findDish(cf.value);
@@ -725,11 +835,17 @@ function renderSaisie(){
       let slug = S.pickSlug;
       if(!slug){ const r = find(cf.value); if(r.length) slug = r[0].s; }
       if(!slug) return toast('Aucun aliment ne correspond.');
-      S.draft.push([slug, +cq.value || F.get(slug).p]);
+      S.draft.push([slug, +cq.value || comPortion(slug)]);
       S.pickSlug = null; S.pickQ = '';
       renderSaisie();
       const nx = $('#cf'); if(nx) nx.focus();
     };
+    view.querySelectorAll('[data-com]').forEach(b => b.onclick = () => {
+      S.comCat = b.dataset.com;
+      if(S.pickSlug){ cq.value = comPortion(S.pickSlug);
+        $('#chint').textContent = `${F.get(S.pickSlug).n} · ${n1(F.get(S.pickSlug).t)} kg CO₂e/kg · ${comLabel(S.pickSlug)}`; }
+      view.querySelectorAll('[data-com]').forEach(x => x.setAttribute('aria-pressed', x.dataset.com===S.comCat));
+    });
     cf.oninput = () => { S.pickSlug = null; S.pickQ = cf.value; paint(); };
     cf.onkeydown = e => {
       if(e.key === 'Enter'){ e.preventDefault(); const r = find(cf.value); if(r.length) choose(r[0].s); }
@@ -747,8 +863,15 @@ function renderSaisie(){
   if(rec){
     rec.onclick = () => {
       const label = S.draft.length === 1 ? F.get(S.draft[0][0]).n : `${MEAL[S.meal].l} composé`;
-      S.hist.push({id:'e'+Date.now(), d:today(), m:S.meal, n:label, l:S.draft.map(l=>[...l])});
-      S.draft = []; save(); renderSaisie(); toast('Repas enregistré');
+      if(S.editId){
+        const e = S.hist.find(x => x.id === S.editId);
+        if(e){ e.m = S.meal; e.l = S.draft.map(l=>[...l]);
+               if(e.n.endsWith('composé') || S.draft.length === 1) e.n = label; }
+        S.editId = null; S.draft = []; save(); go('tracker'); toast('Repas mis à jour');
+      } else {
+        S.hist.push({id:'e'+Date.now(), d:today(), m:S.meal, n:label, l:S.draft.map(l=>[...l])});
+        S.draft = []; save(); renderSaisie(); toast('Repas enregistré');
+      }
     };
     $('#fav').onclick = () => openSheet(`
       <h3>Garder en favori</h3>
@@ -873,12 +996,53 @@ function tvRepas(a){
 
     <h2 class="sec">Derniers repas</h2>
     <div class="card journal">
-      ${last.length ? last.map(e => `<div class="j">
+      ${last.length ? last.map(e => `<button class="j jrow" data-entry="${esc(e.id)}" style="width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line-soft)">
         <div class="dt"><b>${new Date(e.d+'T12:00').getDate()}</b>${new Date(e.d+'T12:00').toLocaleDateString('fr-FR',{month:'short'})}</div>
-        <div class="nm">${esc(e.n)}<i>${MEAL[e.m].l}</i></div>
-        <div class="kg">${n2(kgOf(e.l))}</div>
-      </div>`).join('') : `<div class="empty">Aucun repas enregistré. Passez par l’onglet Saisie.</div>`}
+        <div class="nm">${esc(e.n)}<i>${MEAL[e.m].l} · ${e.l.length} aliment${e.l.length>1?'s':''}</i></div>
+        <div class="kg">${n2(kgOf(e.l))} ›</div>
+      </button>`).join('') : `<div class="empty">Aucun repas enregistré. Passez par l’onglet Saisie.</div>`}
     </div>`;
+  bindEntryRows();
+}
+
+function bindEntryRows(){
+  document.querySelectorAll('[data-entry]').forEach(b => b.onclick = () => entrySheet(b.dataset.entry));
+}
+
+function entrySheet(id){
+  const e = S.hist.find(x => x.id === id);
+  if(!e) return;
+  const lines = e.l.map(([sl,g]) => `${esc(F.get(sl).n)} · ${g} g · ${n2(F.get(sl).t*g/1000)}`).join('<br>');
+  openSheet(`
+    <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">
+      ${MEAL[e.m].l} · ${dLabel(e.d)}</div>
+    <h3>${esc(e.n)}</h3>
+    <div class="small mute" style="margin-bottom:10px">${n2(kgOf(e.l))} kg CO₂e · ${e.l.length} aliment${e.l.length>1?'s':''}</div>
+    <div class="small" style="line-height:1.7">${lines}</div>
+    <div class="hr"></div>
+    <div class="actions">
+      <button class="btn btn-1" id="e_edit">Modifier</button>
+      <button class="btn btn-2" id="e_dup">Dupliquer</button>
+    </div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn btn-2" id="e_del" style="color:var(--brick)">Supprimer</button>
+    </div>`);
+
+  $('#e_edit').onclick = () => {
+    S.draft = e.l.map(l => [...l]);
+    S.meal = e.m; S.path = 'compose'; S.editId = id;
+    closeSheet(); go('saisie');
+    toast('Repas ouvert pour modification');
+  };
+  $('#e_dup').onclick = () => {
+    S.hist.push({id:'e'+Date.now(), d:today(), m:e.m, n:e.n, l:e.l.map(l => [...l])});
+    save(); closeSheet(); renderTracker(); toast('Repas dupliqué sur aujourd’hui');
+  };
+  $('#e_del').onclick = () => {
+    const b = $('#e_del');
+    if(b.dataset.ok){ S.hist = S.hist.filter(x => x.id !== id); save(); closeSheet(); renderTracker(); toast('Repas supprimé'); }
+    else { b.dataset.ok = '1'; b.textContent = 'Confirmer la suppression'; }
+  };
 }
 
 function tvAn(a){
@@ -1002,6 +1166,11 @@ function tvCumule(a){
 const NONVEG = new Set(DB.foods.filter(f => f.v === 0).map(f => f.s));
 const RED    = new Set(DB.foods.filter(f => f.r).map(f => f.s));
 const LEGU   = new Set(['lentilles','poischiches','haricotsrouges','tofu']);
+const SWEET  = new Set(DB.foods.filter(f =>
+  f.g === 'En-cas & boulangerie' ||
+  ['banane','pomme','fraise','mangue','pasteque','melon','datte','poire','peche','abricot','raisin',
+   'orange','clementine','kiwi','ananas','cerise','myrtille','framboise','yaourt','fromageblanc',
+   'confiture','chocolat','glace'].includes(f.s)).map(f => f.s));
 const REF    = DB.facts.refMeal;              // repas moyen déjeuner/dîner, référence nationale
 const RANKS  = [[0,'Trajectoire de départ'],[150,'Sous la moyenne française'],
                 [500,'Trajectoire 2 °C'],[1200,'Trajectoire 1,5 °C'],[2500,'Budget 2050 tenu']];
@@ -1163,6 +1332,7 @@ function renderJeux(){
 
 /* ============================ navigation ============================ */
 function go(tab){
+  if(S.tab === 'saisie' && tab !== 'saisie' && S.editId){ S.editId = null; S.draft = []; }
   S.tab = tab; topbar();
   document.querySelectorAll('#tabbar button').forEach(b =>
     b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
@@ -1171,13 +1341,40 @@ function go(tab){
 }
 document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => go(b.dataset.tab));
 
+function themeSheet(){
+  const opts = [
+    ['light','Clair','<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>'],
+    ['dark','Sombre','<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5z"/></svg>'],
+    ['system','Système','<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg>']
+  ];
+  openSheet(`
+    <h3>Réglages</h3>
+    <div class="setrow">
+      <div class="l">Apparence<i>« Système » suit le réglage de l’iPhone.</i></div>
+      <div class="themeseg" id="tseg">
+        ${opts.map(([k,l,ic]) => `<button data-theme-opt="${k}" aria-pressed="${themeMode===k}">${ic}${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="setrow">
+      <div class="l">Version<i>Carbon FOODprint · données ADEME / AGRIBALYSE 3.2</i></div>
+    </div>`);
+  $('#tseg').querySelectorAll('[data-theme-opt]').forEach(btn => btn.onclick = () => {
+    applyTheme(btn.dataset.themeOpt);
+    $('#tseg').querySelectorAll('[data-theme-opt]').forEach(x =>
+      x.setAttribute('aria-pressed', x.dataset.themeOpt === themeMode));
+  });
+}
+
 function topbar(){
   const t = S.hist.filter(e => e.d === today()).reduce((a,e) => a + kgOf(e.l), 0);
   $('#topToday').innerHTML = `Aujourd’hui<b>${n2(t)} kg</b>`;
 }
+themeMode = readTheme(); applyTheme(themeMode);
+const gear = document.getElementById('gear');
+if(gear) gear.onclick = themeSheet;
 if(!load()) seed();
 if(!S.stdInit) addStandards();
-go('biblio');
+go('saisie');
 </script>
 <script>
 if('serviceWorker' in navigator){
