@@ -418,6 +418,47 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .callegend{display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:12px}
 .callegend span{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:9.5px;
   letter-spacing:.03em; text-transform:uppercase; color:var(--ink-soft)}
+/* ---------------- saisie : accueil et blocs repas ---------------- */
+.homegrid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:4px}
+.hcard{aspect-ratio:1; background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  padding:14px 12px; text-align:center}
+.hcard:active{background:var(--active)}
+.hcard .hi{width:44px; height:44px; border-radius:50%; background:var(--forest);
+  display:flex; align-items:center; justify-content:center}
+.hcard .hi svg{width:22px; height:22px; stroke:#fff; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+.hcard .ht{font-family:var(--serif); font-size:17px; line-height:1.15}
+.hcard .hs{font-family:var(--mono); font-size:9px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--mute); line-height:1.35; overflow-wrap:anywhere; max-width:100%}
+.mealblocks{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
+.mblock{background:var(--card); border:1px solid var(--line); border-radius:11px; padding:13px 12px;
+  display:flex; flex-direction:column; align-items:flex-start; gap:3px; text-align:left}
+.mblock .ml{font-size:14.5px}
+.mblock .mv{font-family:var(--mono); font-size:10px; letter-spacing:.05em; color:var(--mute)}
+.mblock[aria-pressed="true"]{background:var(--forest); border-color:var(--forest)}
+.mblock[aria-pressed="true"] .ml{color:#fff}
+.mblock[aria-pressed="true"] .mv{color:#AFC6BC}
+.star{flex:0 0 auto; padding:2px; margin-right:2px; display:flex; align-items:center}
+.star svg{width:17px; height:17px; fill:none; stroke:var(--mute); stroke-width:1.6; stroke-linejoin:round}
+.star.on svg{fill:var(--straw); stroke:var(--straw)}
+.qmark{position:absolute; top:14px; right:14px; width:26px; height:26px; border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.35); color:#fff; font-family:var(--serif); font-size:14px;
+  display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.08)}
+.rank{position:relative}
+/* ---------------- composition par services ---------------- */
+.course{border:1.5px dashed var(--line); border-radius:12px; padding:10px 12px 8px; margin-top:10px}
+.course.filled{border-color:var(--forest-2)}
+.course.target{border-color:var(--forest); background:var(--active)}
+.chd{display:flex; align-items:center; gap:8px; margin-bottom:5px}
+.chd .ct{flex:1; font-family:var(--mono); font-size:9.5px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--mute)}
+.chd .ct b{color:var(--forest); font-weight:400}
+.chd .ck{font-family:var(--serif); font-size:14px; font-variant-numeric:tabular-nums}
+.chd .plus{width:23px; height:23px; border-radius:50%; background:var(--forest); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; flex:0 0 auto}
+.cempty{font-size:11.5px; color:var(--mute); padding:3px 0 4px}
+.course .draft-line{padding:7px 0}
+.course .draft-line:last-child{border-bottom:0}
 /* ---------------- badges (Jeux) ---------------- */
 .bgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:2px}
 .badge{display:flex; flex-direction:column; align-items:center; text-align:center; padding:4px 2px}
@@ -552,16 +593,18 @@ if(mql){
 const KEY = 'carbone.v1';
 let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', demo:true, openDish:null, pickQ:'', pickSlug:null, stdInit:false,
-         dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null};
+         dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
+         step:'home', starred:[]};
 
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify({favs:S.favs,hist:S.hist,demo:S.demo,stdInit:S.stdInit})); }catch(e){}
+  try{ localStorage.setItem(KEY, JSON.stringify({favs:S.favs,hist:S.hist,demo:S.demo,
+        stdInit:S.stdInit,starred:S.starred})); }catch(e){}
 }
 function load(){
   try{
     const raw = localStorage.getItem(KEY);
     if(raw){ const o = JSON.parse(raw); S.favs=o.favs||[]; S.hist=o.hist||[]; S.demo=!!o.demo;
-              S.stdInit=!!o.stdInit; return true; }
+              S.stdInit=!!o.stdInit; S.starred=o.starred||[]; return true; }
   }catch(e){}
   return false;
 }
@@ -749,6 +792,9 @@ function quickAdd(slug){
 }
 
 /* ============================ onglet 2 — saisie ============================ */
+const MEAL_ORDER = ['pdj','dej','encas','din'];   // ordre demandé pour les quatre blocs
+const COURSES = [{k:'entree', l:'Entrée'}, {k:'plat', l:'Plat'}, {k:'dessert', l:'Dessert'}];
+
 const COM_COEF = {entree:0.55, plat:1, dessert:1};
 function comPortion(slug){
   const f = F.get(slug);
@@ -762,6 +808,26 @@ function comLabel(slug){
   return `entrée, ${q} g (type ${base} g)`;
 }
 
+function editSheet(){
+  const es = [...S.hist].sort((a,b) => b.d.localeCompare(a.d) || b.id.localeCompare(a.id)).slice(0, 30);
+  openSheet(`
+    <div class="unit">Modifier un repas</div>
+    <h3>${S.hist.length} repas enregistré${S.hist.length>1?'s':''}</h3>
+    <div class="small mute" style="margin-bottom:4px">Les 30 derniers. Touchez-en un pour le modifier,
+      le dupliquer ou le supprimer.</div>
+    <div class="hr"></div>
+    <div class="journal">
+      ${es.length ? es.map(e => `<button class="j jrow" data-entry="${esc(e.id)}"
+          style="width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line-soft)">
+          <div class="dt"><b>${new Date(e.d+'T12:00').getDate()}</b>${new Date(e.d+'T12:00').toLocaleDateString('fr-FR',{month:'short'})}</div>
+          <div class="nm">${esc(e.n)}<i>${MEAL[e.m].l}</i></div>
+          <div class="kg">${n2(kgOf(e.l))} ›</div>
+        </button>`).join('')
+        : '<div class="empty">Aucun repas enregistré pour l’instant.</div>'}
+    </div>`);
+  $('#sheet').querySelectorAll('[data-entry]').forEach(b => b.onclick = () => entrySheet(b.dataset.entry));
+}
+
 function renderSaisie(){
   topbar();
   if(!S.entryDate) S.entryDate = today();
@@ -773,22 +839,44 @@ function renderSaisie(){
   const draftKg = kgOf(S.draft);
   const nrm = t => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/œ/g,'oe');
   const dq = nrm(S.dishQ.trim());
-  const dishes = DB.dishes.filter(d => d.m.includes(S.meal))
-    .filter(d => !dq || nrm(d.n).includes(dq) || d.l.some(([sl]) => nrm(F.get(sl).n).includes(dq)))
-    .map(d => ({...d, kg:kgOf(d.l)})).sort((a,b) => a.kg - b.kg);
-  const favs = S.favs.map((f,i) => ({...f, i, kg:kgOf(f.l)}))
-    .sort((a,b) => (b.std?1:0)-(a.std?1:0) || a.kg-b.kg);
-  const missing = DB.standards.filter(d => !S.favs.some(f => f.n === d.n)).length;
+  /* une seule liste : compositions personnelles (toujours favorites) + plats types.
+     Les favoris remontent en tête, l'étoile bascule l'appartenance. */
+  const match = d => !dq || nrm(d.n).includes(dq) || d.l.some(([sl]) => nrm(F.get(sl).n).includes(dq));
+  const items = [
+    ...S.favs.map((f,i) => ({...f, i, fav:true, custom:true, kg:kgOf(f.l)})),
+    ...DB.dishes.filter(d => d.m.includes(S.meal))
+      .map(d => ({...d, fav:S.starred.includes(d.n), kg:kgOf(d.l)})),
+  ].filter(match).sort((a,b) => (b.fav?1:0)-(a.fav?1:0) || a.kg - b.kg);
 
   const editing = S.editId && S.hist.find(x => x.id === S.editId);
+
+  /* ---- écran d'accueil : deux fenêtres carrées ---- */
+  if(S.step === 'home' && !editing){
+    view.innerHTML = `
+      <div class="homegrid">
+        <button class="hcard" id="hNew">
+          <span class="hi"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span class="ht">Nouveau repas</span>
+          <span class="hs">Petit-déj · déj · en-cas · dîner</span>
+        </button>
+        <button class="hcard" id="hEdit">
+          <span class="hi"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 6.5l3 3"/></svg></span>
+          <span class="ht">Modifier un repas</span>
+          <span class="hs">${S.hist.length} repas enregistré${S.hist.length>1?'s':''}</span>
+        </button>
+      </div>`;
+    $('#hNew').onclick = () => { S.step = 'new'; renderSaisie(); };
+    $('#hEdit').onclick = editSheet;
+    return;
+  }
+
+  /* ---- parcours de saisie ---- */
   view.innerHTML = `
   ${editing ? `<div class="demo edit">
     Modification d’un repas du ${dLabel(editing.d)}.
-    <button id="canceledit">Annuler</button></div><div style="height:12px"></div>` : ''}
-  <h2 class="sec">${isToday ? 'Aujourd’hui' : dLabel(D)} — ${n2(dayTot)} kg CO₂e enregistrés</h2>
-  <div class="card">${gauge(byMeal, dayTot)}</div>
+    <button id="canceledit">Annuler</button></div><div style="height:12px"></div>`
+    : `<button class="backlink" id="sBack">‹ Retour</button>`}
 
-  <h2 class="sec">1 · Quel jour ?</h2>
   <div class="daterow">
     <input type="date" id="edate" value="${D}" max="${today()}">
     <button id="dToday" aria-pressed="${isToday}">Aujourd’hui</button>
@@ -796,50 +884,36 @@ function renderSaisie(){
   </div>
   ${!isToday ? `<div class="pastwarn">Saisie antidatée · ${dLabel(D)}</div>` : ''}
 
-  <h2 class="sec">2 · Quel repas ?</h2>
-  <div class="seg">${MEALS.map(m => `
-    <button data-meal="${m.k}" aria-pressed="${S.meal===m.k}">
-      <b>${m.l.replace('Petit-déjeuner','Petit-déj')}</b><small>${byMeal[m.k]>0?n2(byMeal[m.k])+' kg':m.s}</small>
-    </button>`).join('')}</div>
+  <h2 class="sec">Quel repas ?</h2>
+  <div class="mealblocks">${MEAL_ORDER.map(k => { const m = MEAL[k]; return `
+    <button class="mblock" data-meal="${k}" aria-pressed="${S.meal===k}">
+      <span class="ml">${m.l}</span>
+      <span class="mv">${byMeal[k] > 0 ? n2(byMeal[k]) + ' kg' : '—'}</span>
+    </button>`; }).join('')}</div>
 
-  <h2 class="sec">3 · Comment le saisir ?</h2>
-  <div class="paths">
+  <div class="paths" style="margin-top:14px">
     <button data-path="types"   aria-pressed="${S.path==='types'}">Plats types</button>
-    <button data-path="favs"    aria-pressed="${S.path==='favs'}">Mes favoris</button>
     <button data-path="compose" aria-pressed="${S.path==='compose'}">Composer</button>
   </div>
 
   ${S.path === 'types' ? `
     <input class="search" id="dq" placeholder="Chercher un plat" value="${esc(S.dishQ)}" style="margin:2px 0 10px">
     <div class="list">
-    ${dishes.length ? dishes.map(d => `<div class="dish">
+    ${items.length ? items.map(d => `<div class="dish">
       <div class="top">
-        <button class="nm" data-dish="${esc(d.n)}" style="text-align:left">${esc(d.n)}</button>
+        <button class="star${d.fav ? ' on' : ''}" data-star="${esc(d.n)}"
+          aria-label="${d.fav ? 'Retirer des favoris' : 'Mettre en favori'}" aria-pressed="${d.fav}">
+          <svg viewBox="0 0 24 24"><path d="M12 3.2l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.7l6.1-.9z"/></svg>
+        </button>
+        <button class="nm" data-dish="${esc(d.n)}" style="text-align:left">${esc(d.n)}${d.std ? '<span class="tag">standard</span>' : ''}</button>
         <span class="kg">${n2(d.kg)}</span>
-        <button class="add" data-adddish="${esc(d.n)}">Ajouter</button>
+        <button class="add" data-additem="${esc(d.n)}">Ajouter</button>
       </div>
       ${S.openDish === d.n ? `<div class="comp">${d.l.map(([s,g]) => `${F.get(s).n.toLowerCase()} ${g} g`).join(' · ')}</div>` : ''}
       <div class="bar"><i style="width:${clamp(d.kg/(BUDGET_J*1.5)*100,2,100)}%;background:${d.kg>BUDGET_J?'var(--brick)':'var(--forest-2)'}"></i></div>
-    </div>`).join('') + `<div class="count">Barre pleine = un repas à lui seul dépasse le budget d’une journée entière.</div>`
+    </div>`).join('') + `<div class="count">L’étoile fait remonter un plat en tête de liste.
+      Barre pleine = un repas dépasse à lui seul le budget d’une journée.</div>`
     : `<div class="empty">Aucun plat ne correspond${S.dishQ?` à « ${esc(S.dishQ)} »`:''}. Essayez « pâtes » ou « tofu », ou composez librement.</div>`}
-  </div>` : ''}
-
-  ${S.path === 'favs' ? `<div class="list">
-    ${favs.length ? favs.map(d => `<div class="dish">
-      <div class="top">
-        <span class="nm">${esc(d.n)}${d.std ? '<span class="tag">standard</span>' : ''}</span>
-        <span class="kg">${n2(d.kg)}</span>
-        <button class="add" data-addfav="${d.i}">Ajouter</button>
-        <button class="rm" data-delfav="${d.i}" aria-label="Supprimer ${esc(d.n)}">×</button>
-      </div>
-      <div class="comp">${d.l.map(([s,g]) => `${F.get(s).n.toLowerCase()} ${g} g`).join(' · ')}</div>
-      <div class="bar"><i style="width:${clamp(d.kg/(BUDGET_J*1.5)*100,2,100)}%;background:${d.kg>BUDGET_J?'var(--brick)':'var(--forest-2)'}"></i></div>
-    </div>`).join('')
-    : `<div class="empty">Plus aucun favori. Composez un repas puis gardez-le en favori, ou rétablissez les repas standard.</div>`}
-    ${missing ? `<div class="count"><button id="restd" style="text-decoration:underline">${missing > 1
-      ? `Rétablir les ${missing} repas standard manquants` : 'Rétablir le repas standard manquant'}</button></div>`
-      : `<div class="count">Le féculent et le légume sont identiques dans les six standards : seule la
-      protéine change, l’écart affiché est donc entièrement le sien.</div>`}
   </div>` : ''}
 
   ${S.path === 'compose' ? `<div class="card">
@@ -863,7 +937,29 @@ function renderSaisie(){
     </div>
   </div>` : ''}
 
-  ${S.draft.length ? `<h2 class="sec">Le repas en cours</h2><div class="card">
+  ${S.path === 'compose' ? `<h2 class="sec">Le repas en cours</h2>
+    ${COURSES.map(c => {
+      const lines = S.draft.map((l,i) => ({l, i})).filter(x => (x.l[2]||'plat') === c.k);
+      const ckg = kgOf(lines.map(x => x.l));
+      return `<div class="course${lines.length ? ' filled' : ''}${S.comCat === c.k ? ' target' : ''}">
+        <div class="chd">
+          <span class="ct">${c.l}${S.comCat === c.k ? ' <b>· cible</b>' : ''}</span>
+          ${lines.length >= 2 ? `<button class="plus" data-savecourse="${c.k}"
+            aria-label="Enregistrer cette ${c.l.toLowerCase()} dans les plats types">+</button>` : ''}
+          <span class="ck">${ckg ? n2(ckg) : '—'}</span>
+        </div>
+        ${lines.length ? lines.map(x => `<div class="draft-line">
+            <span class="nm">${esc(F.get(x.l[0]).n)}</span>
+            <span class="q">${x.l[1]} g</span>
+            <span class="kg">${n2(F.get(x.l[0]).t*x.l[1]/1000)}</span>
+            <button class="rm" data-rm="${x.i}" aria-label="Retirer">×</button>
+          </div>`).join('')
+          : `<div class="cempty">Vide. Choisissez « ${c.l} » ci-dessus, puis ajoutez un aliment.</div>`}
+      </div>`;
+    }).join('')}
+` : ''}
+
+  ${S.draft.length && S.path !== 'compose' ? `<h2 class="sec">Le repas en cours</h2><div class="card">
     ${S.draft.map(([s,g],i) => `<div class="draft-line">
       <span class="nm">${esc(F.get(s).n)}</span>
       <span class="q">${g} g</span>
@@ -880,6 +976,19 @@ function renderSaisie(){
       <button class="btn btn-1" id="rec">${S.editId ? 'Mettre à jour le repas' : 'Enregistrer le repas'}</button>
       <button class="btn btn-2" id="fav">Garder en favori</button>
     </div>
+  </div>` : ''}
+
+  ${S.path === 'compose' && S.draft.length ? `<div class="card" style="margin-top:12px">
+    <div class="total" style="margin-top:0">
+      <div><div class="unit">Total — ${MEAL[S.meal].l.toLowerCase()}</div>
+        <div class="small mute">${draftKg > BUDGET_J ? 'Ce seul repas dépasse le budget de la journée.'
+          : `${Math.round(draftKg/BUDGET_J*100)} % du budget du jour.`}</div></div>
+      <div class="v">${n2(draftKg)} <span class="unit">kg</span></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-1" id="rec2">${S.editId ? 'Mettre à jour le repas' : 'Enregistrer le repas'}</button>
+      <button class="btn btn-2" id="fav2">Garder en favori</button>
+    </div>
   </div>` : ''}`;
 
   const dqEl = $('#dq');
@@ -894,21 +1003,23 @@ function renderSaisie(){
   const dt = $('#dToday'); if(dt) dt.onclick = () => { S.entryDate = today(); renderSaisie(); };
   const dy = $('#dYest');  if(dy) dy.onclick = () => { S.entryDate = yesterday(); renderSaisie(); };
   const ce = $('#canceledit');
-  if(ce) ce.onclick = () => { S.editId = null; S.draft = []; renderSaisie(); };
+  if(ce) ce.onclick = () => { S.editId = null; S.draft = []; S.step = 'home'; renderSaisie(); };
   view.querySelectorAll('[data-meal]').forEach(b => b.onclick = () => { S.meal = b.dataset.meal; renderSaisie(); });
   view.querySelectorAll('[data-path]').forEach(b => b.onclick = () => { S.path = b.dataset.path; renderSaisie(); });
   view.querySelectorAll('[data-dish]').forEach(b => b.onclick = () => {
     S.openDish = S.openDish === b.dataset.dish ? null : b.dataset.dish; renderSaisie(); });
-  view.querySelectorAll('[data-adddish]').forEach(b => b.onclick = () => {
-    const d = DB.dishes.find(x => x.n === b.dataset.adddish);
-    d.l.forEach(l => S.draft.push([...l])); renderSaisie(); toast(`${d.n} ajouté`); });
-  view.querySelectorAll('[data-addfav]').forEach(b => b.onclick = () => {
-    const d = S.favs[+b.dataset.addfav];
-    d.l.forEach(l => S.draft.push([...l])); renderSaisie(); toast(`${d.n} ajouté`); });
-  view.querySelectorAll('[data-delfav]').forEach(b => b.onclick = () => {
-    const d = S.favs.splice(+b.dataset.delfav, 1)[0]; save(); renderSaisie(); toast(`${d.n} supprimé`); });
-  const rs = $('#restd');
-  if(rs) rs.onclick = () => { addStandards(); renderSaisie(); toast('Repas standard rétablis'); };
+  const findItem = n => S.favs.find(f => f.n === n) || DB.dishes.find(d => d.n === n);
+  view.querySelectorAll('[data-additem]').forEach(b => b.onclick = () => {
+    const d = findItem(b.dataset.additem);
+    if(d){ d.l.forEach(l => S.draft.push([l[0], l[1], 'plat'])); renderSaisie(); toast(`${d.n} ajouté`); } });
+  view.querySelectorAll('[data-star]').forEach(b => b.onclick = () => {
+    const n = b.dataset.star, fi = S.favs.findIndex(f => f.n === n);
+    if(fi >= 0){ S.favs.splice(fi, 1); toast(`${n} retiré des favoris`); }
+    else if(S.starred.includes(n)){ S.starred = S.starred.filter(x => x !== n); }
+    else { S.starred.push(n); toast(`${n} mis en favori`); }
+    save(); renderSaisie(); });
+  const sb = $('#sBack');
+  if(sb) sb.onclick = () => { S.step = 'home'; S.draft = []; renderSaisie(); };
   view.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
     S.draft.splice(+b.dataset.rm, 1); renderSaisie(); });
 
@@ -956,7 +1067,7 @@ function renderSaisie(){
       sg.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => choose(b.dataset.pick));
       sg.querySelectorAll('[data-dishpick]').forEach(b => b.onclick = () => {
         const d = DB.dishes.find(x => x.n === b.dataset.dishpick);
-        d.l.forEach(l => S.draft.push([...l]));
+        d.l.forEach(l => S.draft.push([l[0], l[1], 'plat']));
         S.pickSlug = null; S.pickQ = '';
         renderSaisie(); toast(`${d.n} ajouté`);
       });
@@ -965,7 +1076,7 @@ function renderSaisie(){
       let slug = S.pickSlug;
       if(!slug){ const r = find(cf.value); if(r.length) slug = r[0].s; }
       if(!slug) return toast('Aucun aliment ne correspond.');
-      S.draft.push([slug, +cq.value || comPortion(slug)]);
+      S.draft.push([slug, +cq.value || comPortion(slug), S.comCat]);
       S.pickSlug = null; S.pickQ = '';
       renderSaisie();
       const nx = $('#cf'); if(nx) nx.focus();
@@ -989,22 +1100,46 @@ function renderSaisie(){
     }, {once:true});
   }
 
-  const rec = $('#rec');
+  view.querySelectorAll('[data-savecourse]').forEach(b => b.onclick = () => {
+    const c = b.dataset.savecourse;
+    const lines = S.draft.filter(l => (l[2]||'plat') === c).map(l => [l[0], l[1]]);
+    if(lines.length < 2) return;
+    const label = COURSES.find(x => x.k === c).l;
+    const base = F.get(lines.reduce((a,l) => F.get(l[0]).t*l[1] > F.get(a[0]).t*a[1] ? l : a)[0]).n;
+    openSheet(`
+      <div class="unit">Nouveau plat type</div>
+      <h3>Enregistrer cette ${label.toLowerCase()}</h3>
+      <div class="small mute" style="margin-bottom:8px">${lines.length} ingrédients ·
+        ${n2(kgOf(lines))} kg CO₂e. Le plat rejoindra vos favoris, en tête des plats types.</div>
+      <input class="search" id="cname" value="${esc(label)} ${esc(base.toLowerCase())}">
+      <div class="actions">
+        <button class="btn btn-1" id="cok">Enregistrer</button>
+        <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
+      </div>`);
+    $('#cok').onclick = () => {
+      const nm = $('#cname').value.trim() || `${label} composé`;
+      if(S.favs.some(f => f.n === nm)) return toast('Ce nom existe déjà.');
+      S.favs.push({n:nm, m:S.meal, l:lines});
+      save(); closeSheet(); renderSaisie(); toast(`${nm} ajouté aux plats types`);
+    };
+  });
+
+  const rec = $('#rec') || $('#rec2');
   if(rec){
     rec.onclick = () => {
       const label = S.draft.length === 1 ? F.get(S.draft[0][0]).n : `${MEAL[S.meal].l} composé`;
       if(S.editId){
         const e = S.hist.find(x => x.id === S.editId);
-        if(e){ e.m = S.meal; e.d = S.entryDate; e.l = S.draft.map(l=>[...l]);
+        if(e){ e.m = S.meal; e.d = S.entryDate; e.l = S.draft.map(l=>[l[0],l[1]]);
                if(e.n.endsWith('composé') || S.draft.length === 1) e.n = label; }
         S.editId = null; S.draft = []; save(); go('tracker'); toast('Repas mis à jour');
       } else {
-        S.hist.push({id:'e'+Date.now(), d:S.entryDate, m:S.meal, n:label, l:S.draft.map(l=>[...l])});
-        S.draft = []; save(); renderSaisie();
+        S.hist.push({id:'e'+Date.now(), d:S.entryDate, m:S.meal, n:label, l:S.draft.map(l=>[l[0],l[1]])});
+        S.draft = []; S.step = 'home'; save(); renderSaisie();
         toast(S.entryDate === today() ? 'Repas enregistré' : `Repas enregistré au ${dLabel(S.entryDate)}`);
       }
     };
-    $('#fav').onclick = () => openSheet(`
+    ($('#fav') || $('#fav2')).onclick = () => openSheet(`
       <h3>Garder en favori</h3>
       <p class="small mute">Ce repas réapparaîtra dans « Mes favoris », ajoutable en une tape.</p>
       <input class="search" id="favname" value="${esc(MEAL[S.meal].l)} type" style="margin-top:6px">
@@ -1014,8 +1149,8 @@ function renderSaisie(){
       </div>`) || setTimeout(() => {
         $('#favok').onclick = () => {
           const name = $('#favname').value.trim() || 'Repas favori';
-          S.favs.push({n:name, m:S.meal, l:S.draft.map(l=>[...l])}); save();
-          closeSheet(); S.path = 'favs'; renderSaisie(); toast('Favori enregistré');
+          S.favs.push({n:name, m:S.meal, l:S.draft.map(l=>[l[0],l[1]])}); save();
+          closeSheet(); S.path = 'types'; renderSaisie(); toast('Favori enregistré');
         };
       }, 0);
   }
@@ -1229,8 +1364,8 @@ function entrySheet(id){
     </div>`);
 
   $('#e_edit').onclick = () => {
-    S.draft = e.l.map(l => [...l]);
-    S.meal = e.m; S.path = 'compose'; S.editId = id; S.entryDate = e.d;
+    S.draft = e.l.map(l => [l[0], l[1], l[2] || 'plat']);
+    S.meal = e.m; S.path = 'compose'; S.editId = id; S.entryDate = e.d; S.step = 'new';
     closeSheet(); go('saisie');
     toast('Repas ouvert pour modification');
   };
@@ -1704,6 +1839,39 @@ function pointsSheet(){
     </div>`);
 }
 
+function rulesSheet(){
+  const sc = scoring();
+  openSheet(`
+    <div class="unit">Comment ça marche</div>
+    <h3>La règle du jeu</h3>
+    <p class="small">Les points d’un repas sont acquis à la saisie. Les bonus de journée, de semaine et de
+    mois ne se déclenchent qu’à la clôture de la période : le score ne peut donc jamais reculer parce que
+    vous avez enregistré un repas de plus.</p>
+    <div class="hr"></div>
+    <p class="small">Chaque palier vaut au moins le double de la somme de ce qu’il contient : une journée
+    sans viande rapporte 25 points avec ses repas, une semaine sans viande 100 de plus. Aucun point n’est
+    jamais retiré, et une série interrompue laisse sa meilleure valeur affichée.</p>
+    <div class="hr"></div>
+    <div class="src">Référence des kg évités : le repas moyen français à ${n2(REF)} kg CO₂e, calculé sur les
+    ${DB.dishes.length} plats types pondérés par leur fréquence. Budget retenu : ${n0(DB.facts.budget)} kg CO₂e
+    par an, soit ${n2(BUDGET_J)} kg par jour.</div>
+  
+  <div class="hr"></div>
+  <div class="unit" style="margin-bottom:8px">Le barème</div>
+  <div class="list">
+    ${CHALS.map(c => { const n = sc.count(c.t); return `
+      <div class="chal">
+        <div class="st ${n?'on':'off'}">${n?'●':'○'}</div>
+        <div class="nm">${c.t}</div>
+        <div class="pt">${c.p} <span class="unit">pts</span></div>
+        <div class="rule">${c.r}</div>
+        ${n ? `<div class="got">Validé ${n} fois · ${n0(n*c.p)} points</div>` : ''}
+      </div>`; }).join('')}
+    <div class="count">Les points récompensent la régularité, pas le carbone : un même geste peut valider
+      plusieurs épreuves. La colonne carbone reste le tracker.</div>
+  </div>`);
+}
+
 function renderJeux(){
   topbar();
   const sc = scoring();
@@ -1717,6 +1885,7 @@ function renderJeux(){
 
   view.innerHTML = `
   <div class="card rank">
+    <button id="rulesBtn" class="qmark" aria-label="Règle du jeu et barème">?</button>
     <div class="kicker">Score<button id="ptsDetail" class="detaillink">Détail</button></div>
     <div class="pts">${n0(sc.total)} <small>points</small></div>
     <div class="name">${RANKS[ri][1]}</div>
@@ -1756,36 +1925,10 @@ function renderJeux(){
       ne compte que si deux repas principaux au moins y sont enregistrés.</div>
   </div>
 
-  <h2 class="sec">La règle du jeu</h2>
-  <div class="card">
-    <p class="small">Les points d’un repas sont acquis à la saisie. Les bonus de journée, de semaine et de
-    mois ne se déclenchent qu’à la clôture de la période : le score ne peut donc jamais reculer parce que
-    vous avez enregistré un repas de plus.</p>
-    <div class="hr"></div>
-    <p class="small">Chaque palier vaut au moins le double de la somme de ce qu’il contient : une journée
-    sans viande rapporte 25 points avec ses repas, une semaine sans viande 100 de plus. Aucun point n’est
-    jamais retiré, et une série interrompue laisse sa meilleure valeur affichée.</p>
-    <div class="hr"></div>
-    <div class="src">Référence des kg évités : le repas moyen français à ${n2(REF)} kg CO₂e, calculé sur les
-    ${DB.dishes.length} plats types pondérés par leur fréquence. Budget retenu : ${n0(DB.facts.budget)} kg CO₂e
-    par an, soit ${n2(BUDGET_J)} kg par jour.</div>
-  </div>
-
-  <h2 class="sec">Le barème</h2>
-  <div class="list">
-    ${CHALS.map(c => { const n = sc.count(c.t); return `
-      <div class="chal">
-        <div class="st ${n?'on':'off'}">${n?'●':'○'}</div>
-        <div class="nm">${c.t}</div>
-        <div class="pt">${c.p} <span class="unit">pts</span></div>
-        <div class="rule">${c.r}</div>
-        ${n ? `<div class="got">Validé ${n} fois · ${n0(n*c.p)} points</div>` : ''}
-      </div>`; }).join('')}
-    <div class="count">Les points récompensent la régularité, pas le carbone : un même geste peut valider
-      plusieurs épreuves. La colonne carbone reste le tracker.</div>
-  </div>`;
+  `;
 
   $('#ptsDetail').onclick = pointsSheet;
+  $('#rulesBtn').onclick = rulesSheet;
 }
 
 /* ============================ navigation ============================ */
