@@ -77,6 +77,7 @@ body{
 @media(min-width:900px){
   body{padding:26px 0}
   .phone{min-height:calc(100vh - 52px); border-radius:34px; overflow:hidden}
+  .tabbar{bottom:calc(36px + env(safe-area-inset-bottom))}
 }
 button{font-family:inherit;font-size:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 input,select{font-family:inherit;font-size:inherit;color:inherit}
@@ -349,8 +350,11 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 
 /* ---------------- tabbar ---------------- */
 .tabbar{
-  position:sticky; bottom:0; z-index:30; display:flex; gap:2px;
-  margin:0 10px calc(10px + env(safe-area-inset-bottom));
+  /* fixée au cadre, pas au flux : elle ne bouge plus d'un pixel au défilement */
+  position:fixed; left:50%; transform:translateX(-50%);
+  bottom:calc(10px + env(safe-area-inset-bottom));
+  width:calc(min(430px, 100%) - 20px);
+  z-index:30; display:flex; gap:2px;
   padding:7px 6px; border-radius:26px; border:1px solid var(--line);
   background:var(--tabbar); backdrop-filter:blur(16px); box-shadow:var(--shadow);
 }
@@ -370,6 +374,208 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .tabbar button[aria-current="page"] .ic svg{stroke:#fff}
 .tabbar button:active .ic{background:var(--seg-bg)}
 .tabbar button[aria-current="page"]:active .ic{background:var(--forest)}
+/* ---------------- carte de score (Trophées) ---------------- */
+.rank{background:var(--card-2-bg); color:var(--card-2-on); border:0; position:relative}
+.rank .kicker{font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--straw)}
+.detaillink{font-family:var(--serif); font-style:italic; font-size:11px; letter-spacing:0;
+  text-transform:none; color:var(--straw); margin-left:8px; text-decoration:underline;
+  text-underline-offset:2px; vertical-align:baseline}
+.rank .pts{font-family:var(--serif); font-size:46px; line-height:1; margin:6px 0 0; font-variant-numeric:tabular-nums}
+.rank .pts small{font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:var(--on-forest-mute); text-transform:uppercase}
+.rank .name{font-family:var(--serif); font-size:19px; margin-top:9px}
+.rank .prog{height:7px; background:rgba(255,255,255,.16); border-radius:2px; overflow:hidden; margin:9px 0 6px}
+.rank .prog i{display:block; height:100%; background:var(--straw)}
+.rank .next{font-family:var(--mono); font-size:10px; color:var(--on-forest-mute); letter-spacing:.04em}
+.rank .aside{display:flex; gap:14px; border-top:1px solid rgba(255,255,255,.16); margin-top:14px; padding-top:12px}
+.rank .aside div{flex:1}
+.rank .aside .v{font-family:var(--serif); font-size:22px; font-variant-numeric:tabular-nums}
+.rank .aside .l{font-family:var(--mono); font-size:9px; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--on-forest-mute); line-height:1.4}
+.qmark{position:absolute; top:14px; right:14px; width:26px; height:26px; border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.35); color:#fff; font-family:var(--serif); font-size:14px;
+  display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.08)}
+
+/* ---------------- barème ---------------- */
+.chal{display:grid; grid-template-columns:24px 1fr auto; gap:3px 9px; align-items:baseline; padding:12px 13px;
+  border-bottom:1px solid var(--line-soft)}
+.chal:last-of-type{border-bottom:0}
+.chal .st{font-family:var(--mono); font-size:14px; text-align:center; line-height:1.2}
+.chal .st.on{color:var(--forest)}
+.chal .st.off{color:var(--line)}
+.chal .nm{font-size:14.5px}
+.chal .pt{font-family:var(--serif); font-size:16px; font-variant-numeric:tabular-nums; white-space:nowrap}
+.chal .rule{grid-column:2/-1; font-size:11.5px; color:var(--mute); line-height:1.35}
+.chal .got{grid-column:2/-1; font-family:var(--mono); font-size:9.5px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--forest-2); margin-top:3px}
+
+/* ---------------- semaine en cours ---------------- */
+.wnow{display:grid; grid-template-columns:1fr auto; gap:4px 10px}
+.wnow .l{font-size:13.5px}
+.wnow .v{font-family:var(--serif); font-variant-numeric:tabular-nums; font-size:15px; text-align:right}
+.wnow .tr{grid-column:1/-1; height:8px; background:var(--track); border-radius:2px; overflow:hidden; margin-bottom:6px}
+.wnow .tr i{display:block; height:100%}
+
+/* ---------------- trophées ---------------- */
+.bgrid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 6px; margin-top:2px}
+.badge{display:flex; flex-direction:column; align-items:center; text-align:center; padding:4px 2px; cursor:pointer}
+.badge svg{width:100%; height:auto; max-width:86px; display:block}
+.badge .be{font-size:13px; line-height:1; margin-bottom:-4px}
+.badge .bt{font-family:var(--mono); font-size:8.5px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--ink-soft); margin-top:8px; line-height:1.3; overflow-wrap:anywhere}
+.badge .bp{font-family:var(--serif); font-size:15px; font-variant-numeric:tabular-nums; margin-top:2px}
+.badge .bp s{text-decoration:none; color:var(--mute)}
+.badge.locked .bt,.badge.locked .bp{color:var(--mute)}
+.bfamttl{font-size:15px; margin-bottom:1px}
+.bfamsub{font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--mute); margin-bottom:11px}
+.seemore{width:100%; margin-top:14px; padding:11px; border:1px solid var(--line); border-radius:10px;
+  background:var(--card); color:var(--forest); font-size:13px}
+.trodet{display:flex; align-items:baseline; gap:9px; margin:12px 0 2px}
+.trodet .tn{font-family:var(--serif); font-size:21px}
+.trodet .te{font-size:20px}
+
+/* ---------------- conseil contextuel (Tracker) ---------------- */
+.tip{display:flex; gap:10px; align-items:flex-start; background:var(--kpi-good);
+  border:1px solid var(--forest-2); border-radius:10px; padding:11px 12px; margin-top:12px}
+.tip.warn{background:var(--note-bg); border-color:var(--note-line-2)}
+.tip .ic{font-family:var(--mono); font-size:13px; line-height:1.3}
+.tip .tx{font-size:12.5px; line-height:1.45; color:var(--ink)}
+.tip .tx b{font-weight:600}
+
+/* ---------------- date de saisie ---------------- */
+.daterow{display:flex; gap:7px; align-items:center; margin-bottom:2px}
+.daterow input[type=date]{flex:1; padding:10px 12px; border:1px solid var(--line);
+  border-radius:10px; background:var(--field); font-size:14px; color:var(--ink); min-width:0}
+.daterow button{padding:10px 12px; border-radius:10px; background:var(--seg-bg); color:var(--ink-soft);
+  font-size:12.5px; white-space:nowrap}
+.daterow button[aria-pressed="true"]{background:var(--forest); color:#fff}
+.pastwarn{font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--note-ink); background:var(--note-bg); border:1px solid var(--note-line);
+  border-radius:7px; padding:5px 9px; margin-top:7px; display:inline-block}
+.backlink{font-family:var(--mono); font-size:10px; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--forest); margin-bottom:8px; display:block}
+
+/* ---------------- calendrier ---------------- */
+.calnav{display:flex; align-items:center; justify-content:space-between; margin-bottom:9px}
+.calnav .m{font-family:var(--serif); font-size:16px}
+.calnav button{width:30px; height:30px; border-radius:8px; background:var(--seg-bg); color:var(--ink);
+  font-size:15px; display:flex; align-items:center; justify-content:center}
+.calnav button[disabled]{opacity:.3}
+.calhead,.calgrid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px}
+.calhead span{font-family:var(--mono); font-size:8.5px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--mute); text-align:center; padding-bottom:3px}
+.cell{border-radius:9px; background:var(--track); display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:4px; padding:6px 0 5px; min-height:44px}
+.cell.void{background:none}
+.cell.today{outline:1.5px solid var(--forest); outline-offset:-1.5px}
+.cell .dn{font-family:var(--serif); font-size:12.5px; font-variant-numeric:tabular-nums; line-height:1}
+.dots{display:flex; gap:4px}
+.dots i{width:7px; height:7px; border-radius:50%; box-sizing:border-box;
+  border:1.4px solid var(--line); display:block}
+.dots i.on{border-width:0}
+.calwrap.mini{max-width:284px; margin:0 auto}
+.calwrap.mini .cell{min-height:0; aspect-ratio:1; gap:2px; padding:0; border-radius:7px}
+.calwrap.mini .cell .dn{font-size:10px}
+.calwrap.mini .dots i{width:5px; height:5px; border-width:1.2px}
+.calwrap.mini .calhead span{font-size:7.5px; padding-bottom:2px}
+.calmini{text-align:left; cursor:pointer}
+.calmini:active{background:var(--active)}
+.mininav{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:9px}
+.mininav span{font-family:var(--serif); font-size:15px}
+.mininav .op{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--forest)}
+.callegend{display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:12px}
+.callegend span{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:9.5px;
+  letter-spacing:.03em; text-transform:uppercase; color:var(--ink-soft)}
+
+/* ---------------- trois dernières semaines ---------------- */
+.daysgrid{position:relative}
+.budline{position:absolute; left:0; right:0; height:0; border-top:1px dashed var(--brick); z-index:2; pointer-events:none}
+.dayleg{display:flex; flex-wrap:wrap; gap:9px 12px; margin-top:11px}
+.dayleg span{display:flex; align-items:center; gap:5px; font-family:var(--mono); font-size:9.5px;
+  letter-spacing:.03em; color:var(--ink-soft); text-transform:uppercase}
+.dayleg .budkey{width:12px; height:0; border-top:2px dashed var(--brick); display:inline-block}
+.dayscard{background:var(--card)}
+.dayscard:active{background:var(--active)}
+.wkday{display:grid; grid-template-columns:52px 1fr auto; gap:4px 10px; align-items:center; padding:8px 0;
+  border-bottom:1px solid var(--line-soft)}
+.wkday:last-child{border-bottom:0}
+.wkday .dd{font-family:var(--mono); font-size:10px; color:var(--mute); letter-spacing:.02em; line-height:1.2}
+.wkday .dd b{display:block; font-family:var(--serif); font-size:14px; color:var(--ink)}
+.wkday .stack2{height:14px; border-radius:3px; overflow:hidden; display:flex; background:var(--track)}
+.wkday .stack2 i{height:100%}
+.wkday .kg2{font-family:var(--serif); font-variant-numeric:tabular-nums; font-size:14px; text-align:right}
+.wkhead{display:flex; align-items:baseline; justify-content:space-between; margin:14px 0 4px}
+.wkhead .wt{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--mute)}
+.wkhead .wv{font-family:var(--serif); font-variant-numeric:tabular-nums; font-size:14px}
+
+/* ---------------- saisie : accueil et blocs repas ---------------- */
+.homegrid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:4px}
+.hcard{aspect-ratio:1; background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+  padding:14px 12px; text-align:center}
+.hcard:active{background:var(--active)}
+.hcard .hi{width:44px; height:44px; border-radius:50%; background:var(--forest);
+  display:flex; align-items:center; justify-content:center}
+.hcard .hi svg{width:22px; height:22px; stroke:#fff; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+.hcard .ht{font-family:var(--serif); font-size:17px; line-height:1.15}
+.hcard .hs{font-family:var(--mono); font-size:9px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--mute); line-height:1.35; overflow-wrap:anywhere; max-width:100%}
+.mealblocks{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
+.mblock{background:var(--card); border:1px solid var(--line); border-radius:11px; padding:13px 12px;
+  display:flex; flex-direction:column; align-items:flex-start; gap:3px; text-align:left}
+.mblock .ml{font-size:14.5px}
+.mblock .mv{font-family:var(--mono); font-size:10px; letter-spacing:.05em; color:var(--mute)}
+.mblock[aria-pressed="true"]{background:var(--forest); border-color:var(--forest)}
+.mblock[aria-pressed="true"] .ml{color:#fff}
+.mblock[aria-pressed="true"] .mv{color:var(--on-topbar-mute)}
+.star{flex:0 0 auto; padding:2px; margin-right:2px; display:flex; align-items:center}
+.star svg{width:17px; height:17px; fill:none; stroke:var(--mute); stroke-width:1.6; stroke-linejoin:round}
+.star.on svg{fill:var(--straw); stroke:var(--straw)}
+
+/* ---------------- composition par services ---------------- */
+.course{border:1.5px dashed var(--line); border-radius:12px; padding:10px 12px 8px; margin-top:10px}
+.course.filled{border-color:var(--forest-2)}
+.course.target{border-color:var(--forest); background:var(--active)}
+.chd{display:flex; align-items:center; gap:8px; margin-bottom:5px}
+.chd .ct{flex:1; font-family:var(--mono); font-size:9.5px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--mute)}
+.chd .ct b{color:var(--forest); font-weight:400}
+.chd .ck{font-family:var(--serif); font-size:14px; font-variant-numeric:tabular-nums}
+.chd .plus{width:23px; height:23px; border-radius:50%; background:var(--forest); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; flex:0 0 auto}
+.cempty{font-size:11.5px; color:var(--mute); padding:3px 0 4px}
+.course .draft-line{padding:7px 0}
+.course .draft-line:last-child{border-bottom:0}
+
+/* ---------------- éclair de série et réglages ---------------- */
+.streak{display:flex; align-items:center; gap:3px; padding:4px 8px 4px 6px; border-radius:999px;
+  background:rgba(255,255,255,.13); flex:0 0 auto; cursor:pointer}
+.streak svg{width:13px; height:13px; fill:var(--straw); stroke:none}
+.streak b{font-family:var(--serif); font-size:15px; color:#fff; font-variant-numeric:tabular-nums; line-height:1}
+.streak.off{opacity:.45}
+.streak.off svg{fill:var(--on-topbar-mute)}
+.aside2{display:flex; gap:14px; margin-top:12px}
+.aside2 div{flex:1}
+.aside2 .v{font-family:var(--serif); font-size:26px; font-variant-numeric:tabular-nums; line-height:1}
+.aside2 .l{font-family:var(--mono); font-size:9px; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--mute); line-height:1.4; margin-top:4px}
+.setrow{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 0;
+  border-bottom:1px solid var(--line-soft)}
+.setrow:last-child{border-bottom:0}
+.setrow .l{font-size:14px}
+.setrow .l i{font-style:normal; display:block; font-size:11.5px; color:var(--mute); margin-top:2px}
+.themeseg{display:flex; background:var(--seg-bg); border-radius:9px; padding:3px; gap:3px; flex:0 0 auto}
+.themeseg button{padding:7px 12px; border-radius:7px; font-size:12.5px; color:var(--ink-soft);
+  display:flex; align-items:center; gap:5px}
+.themeseg button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.10)}
+.themeseg svg{width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.7}
+.gear{background:none; border:0; color:var(--on-topbar-mute); padding:4px; margin-right:-2px;
+  display:flex; align-items:center}
+.gear svg{width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:1.6}
+.gear:active{color:var(--on-topbar-strong)}
+.jrow{cursor:pointer}
+.jrow:active{background:var(--active)}
+
 @media(prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
 
 /* surcharges petits écrans — placées en fin de feuille pour primer dans la cascade */
