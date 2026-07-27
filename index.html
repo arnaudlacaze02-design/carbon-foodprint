@@ -485,17 +485,24 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .course .draft-line{padding:7px 0}
 .course .draft-line:last-child{border-bottom:0}
 /* ---------------- badges (Jeux) ---------------- */
-.bgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:2px}
+.bgrid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 6px; margin-top:2px}
 .badge{display:flex; flex-direction:column; align-items:center; text-align:center; padding:4px 2px}
 .badge svg{width:100%; height:auto; max-width:86px; display:block}
-.badge .bt{font-family:var(--mono); font-size:9px; letter-spacing:.07em; text-transform:uppercase;
-  color:var(--ink-soft); margin-top:8px; line-height:1.3}
+.badge{cursor:pointer}
+.badge .bt{font-family:var(--mono); font-size:8.5px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--ink-soft); margin-top:8px; line-height:1.3; overflow-wrap:anywhere}
+.badge .be{font-size:13px; line-height:1; margin-bottom:-4px}
 .badge .bp{font-family:var(--serif); font-size:15px; font-variant-numeric:tabular-nums; margin-top:2px}
 .badge .bp s{text-decoration:none; color:var(--mute)}
 .badge.locked .bt,.badge.locked .bp{color:var(--mute)}
 .bfamttl{font-size:15px; margin-bottom:1px}
 .bfamsub{font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; text-transform:uppercase;
   color:var(--mute); margin-bottom:11px}
+.seemore{width:100%; margin-top:14px; padding:11px; border:1px solid var(--line); border-radius:10px;
+  background:var(--card); color:var(--forest); font-size:13px}
+.trodet{display:flex; align-items:baseline; gap:9px; margin:12px 0 2px}
+.trodet .tn{font-family:var(--serif); font-size:21px}
+.trodet .te{font-size:20px}
 /* ---------------- conseil contextuel (Tracker) ---------------- */
 .tip{display:flex; gap:10px; align-items:flex-start; background:var(--kpi-good);
   border:1px solid var(--forest-2); border-radius:10px; padding:11px 12px; margin-top:12px}
@@ -549,7 +556,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
     </button>
     <button data-tab="jeux">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
-      <span>Jeux</span>
+      <span>Trophées</span>
     </button>
     <button data-tab="biblio">
       <svg viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M10 4h8.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H10"/><path d="M13 9h4M13 13h4"/></svg>
@@ -619,7 +626,7 @@ const KEY = 'carbone.v1';
 let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', demo:true, openDish:null, pickQ:'', pickSlug:null, stdInit:false,
          dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
-         step:'home', starred:[], knowOpen:false};
+         step:'home', starred:[], knowOpen:false, troAll:false};
 
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify({favs:S.favs,hist:S.hist,demo:S.demo,
@@ -1809,70 +1816,135 @@ function daySheet(k){
   $('#sheet').querySelectorAll('[data-entry]').forEach(b => b.onclick = () => entrySheet(b.dataset.entry));
 }
 
-/* ---- badges : trois paliers pour la famille « journée sans viande » ----
-   Médaille frappée : corps métallique balayé, tranche crantée, tribar de Penrose gravé
-   au centre dans des tons plus sombres du même métal. Verrouillé : silhouette grisée
-   et anneau de progression autour. */
-const TIERS = [
-  {k:'Bronze', n:20,
-   g:[['0','#E3B98F'],['.45','#B5773C'],['.62','#7E4A1E'],['1','#D3A374']],
-   rim:'#E0B389', jonc:'#5E3A18',
-   eng:['#7A4E22','#63401B','#523415','#412910','#96612B','#7A4E22']},
-  {k:'Argent', n:50,
-   g:[['0','#F2F6F8'],['.45','#C2CACF'],['.62','#7E888E'],['1','#E2E8EB']],
-   rim:'#F4F8FA', jonc:'#6E787E',
-   eng:['#6E787E','#5A6368','#4A5155','#3B4145','#8B959B','#6E787E']},
-  {k:'Or', n:100,
-   g:[['0','#FFF0B8'],['.45','#E8C24E'],['.62','#B8850C'],['1','#F2D66E']],
-   rim:'#FFF0B8', jonc:'#8A6206',
-   eng:['#8A6206','#6F4E05','#5E4104','#4A3303','#A8790B','#8A6206']},
-];
+/* ---- trophées : deux jalons végétariens, puis l'échelle des kg évités ----
+   Chaque médaille est frappée dans son métal, le tribar de Penrose gravé au centre. */
+const PAL = {
+  sky:    {g:[['0','#BEE8FA'],['.45','#5BC8F5'],['.62','#2A93C4'],['1','#96D9F3']],
+           rim:'#BEE8FA', jonc:'#1F6E92', eng:['#1F6E92','#195B79','#144A63','#103C50','#2A8CB4','#1F6E92']},
+  green:  {g:[['0','#B9EFCE'],['.45','#46C87C'],['.62','#1E8A4C'],['1','#8FE3B2']],
+           rim:'#B9EFCE', jonc:'#166B3A', eng:['#166B3A','#125830','#0E4827','#0B3A1F','#1E8046','#166B3A']},
+  bronze: {g:[['0','#E3B98F'],['.45','#B5773C'],['.62','#7E4A1E'],['1','#D3A374']],
+           rim:'#E0B389', jonc:'#5E3A18', eng:['#7A4E22','#63401B','#523415','#412910','#96612B','#7A4E22']},
+  argent: {g:[['0','#F2F6F8'],['.45','#C2CACF'],['.62','#7E888E'],['1','#E2E8EB']],
+           rim:'#F4F8FA', jonc:'#6E787E', eng:['#6E787E','#5A6368','#4A5155','#3B4145','#8B959B','#6E787E']},
+  or:     {g:[['0','#FFF0B8'],['.45','#E8C24E'],['.62','#B8850C'],['1','#F2D66E']],
+           rim:'#FFF0B8', jonc:'#8A6206', eng:['#8A6206','#6F4E05','#5E4104','#4A3303','#A8790B','#8A6206']},
+  platine:{g:[['0','#F4FBFF'],['.45','#D7E6EE'],['.62','#93AAB6'],['1','#EAF4F9']],
+           rim:'#FFFFFF', jonc:'#7A8F9B', eng:['#7A8F9B','#657885','#54666F','#43535B','#95A9B4','#7A8F9B']},
+};
 const LOCK_OP = [.55,.45,.38,.30,.65,.55];
+
+/* meilleur total de repas végétariens sur une même semaine civile */
+function bestVegWeek(){
+  const w = {};
+  S.hist.forEach(e => {
+    if((e.m === 'dej' || e.m === 'din') && isVeg(e)){ const k = monday(e.d); w[k] = (w[k]||0) + 1; }
+  });
+  const v = Object.values(w);
+  return v.length ? Math.max(...v) : 0;
+}
+function vegDayCount(sc){
+  return Object.values(sc.days).filter(x => x.main.size >= 2 && x.veg).length;
+}
+
+const TROPHIES = [
+  {s:'Journée sans viande', n:'Journée sans viande', e:'🥗', need:1, u:'journée', pal:'sky',
+   d:'Une journée entière sans viande ni poisson, avec au moins deux repas principaux enregistrés.',
+   m:sc => vegDayCount(sc)},
+  {s:'7 végé en 1 semaine', n:'Sept repas végé en une semaine', e:'🌱', need:7, u:'repas', pal:'green',
+   d:'Sept déjeuners ou dîners végétariens dans une même semaine civile.',
+   m:() => bestVegWeek()},
+  {s:'Premier geste', n:'Premier geste', e:'🥉', need:20, u:'kg', pal:'bronze',
+   d:'L’équivalent de faire tourner ta box Internet et ta TV en veille pendant un an entier.'},
+  {s:'Demi-plein', n:'Demi-plein', e:'⛽', need:50, u:'kg', pal:'bronze',
+   d:'Environ 22 litres d’essence brûlés, soit un demi-réservoir de citadine.'},
+  {s:'Traversée', n:'Traversée', e:'🚗', need:100, u:'kg', pal:'bronze',
+   d:'Traverser la France en voiture, Lille → Marseille, environ 1 000 km.'},
+  {s:'Aller-retour', n:'Aller-retour national', e:'🔁', need:200, u:'kg', pal:'argent',
+   d:'Traverser la France… et revenir. Environ 2 000 km en voiture.'},
+  {s:'Grand tour', n:'Grand tour', e:'🗺️', need:300, u:'kg', pal:'argent',
+   d:'Trois fois la traversée du pays — de quoi faire le tour de l’Hexagone.'},
+  {s:'Hiver parisien', n:'Hiver parisien', e:'🔥', need:500, u:'kg', pal:'argent',
+   d:'Chauffer un studio à Paris pendant tout un hiver.'},
+  {s:'Court-courrier', n:'Court-courrier', e:'🛫', need:750, u:'kg', pal:'or',
+   d:'Un vol Paris–Rome aller-retour, traînées de condensation comprises.'},
+  {s:'Poids d’une voiture', n:'Le poids d’une voiture', e:'⚖️', need:1000, u:'kg', pal:'or',
+   d:'Littéralement le poids d’une citadine type Twingo. Imagine une voiture entière disparaître de l’atmosphère.'},
+  {s:'Long-courrier', n:'Long-courrier', e:'✈️', need:1750, u:'kg', pal:'or',
+   d:'Un vol Paris–New York aller-retour.'},
+  {s:'Budget d’une vie', n:'Budget d’une vie', e:'🏆', need:2000, u:'kg', pal:'platine',
+   d:'Le maximum que chaque humain devrait émettre par an, tous postes confondus, pour respecter l’Accord de Paris.'},
+];
+
+function troValue(t, sc){ return t.m ? t.m(sc) : sc.saved; }
 
 function tribar(fills, op){
   const L = DB.logo;
   return `<g transform="translate(${L.ox} ${L.oy}) scale(${L.k})">` +
-    L.p.map(([pts, t]) => `<polygon points="${pts}" fill="${fills[t]}"${op ? ` opacity="${op[t]}"` : ''}/>`).join('') +
+    L.p.map(([pts, ti]) => `<polygon points="${pts}" fill="${fills[ti]}"${op ? ` opacity="${op[ti]}"` : ''}/>`).join('') +
     `</g>`;
 }
 
 function medal(t, done, i){
-  const got = done >= t.n, pct = Math.min(1, done / t.n);
+  const p = PAL[t.pal], got = done >= t.need, pct = Math.min(1, done / t.need);
   const R = 40, C = 2 * Math.PI * R;
   if(got) return `<svg viewBox="0 0 88 88" aria-hidden="true">
     <defs><linearGradient id="mg${i}" x1=".08" y1="0" x2=".92" y2="1">
-      ${t.g.map(([o,c]) => `<stop offset="${o}" stop-color="${c}"/>`).join('')}
+      ${p.g.map(([o,c]) => `<stop offset="${o}" stop-color="${c}"/>`).join('')}
     </linearGradient></defs>
     <circle cx="44" cy="44" r="36" fill="url(#mg${i})"/>
     <circle cx="44" cy="44" r="36" fill="none" stroke="#000" stroke-width="1.4" opacity=".32"/>
-    <circle cx="44" cy="44" r="36" fill="none" stroke="${t.rim}" stroke-width="3.4"
+    <circle cx="44" cy="44" r="36" fill="none" stroke="${p.rim}" stroke-width="3.4"
       stroke-dasharray="2.6 4.4" opacity=".55"/>
-    <circle cx="44" cy="44" r="27.5" fill="none" stroke="${t.jonc}" stroke-width="1.1" opacity=".75"/>
-    ${tribar(t.eng)}
+    <circle cx="44" cy="44" r="27.5" fill="none" stroke="${p.jonc}" stroke-width="1.1" opacity=".75"/>
+    ${tribar(p.eng)}
   </svg>`;
   return `<svg viewBox="0 0 88 88" aria-hidden="true">
     <circle cx="44" cy="44" r="${R}" fill="none" stroke="var(--track)" stroke-width="6"/>
-    <circle cx="44" cy="44" r="${R}" fill="none" stroke="${t.rim}" stroke-width="6" stroke-linecap="round"
+    <circle cx="44" cy="44" r="${R}" fill="none" stroke="${p.rim}" stroke-width="6" stroke-linecap="round"
       stroke-dasharray="${(C*pct).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 44 44)" opacity=".85"/>
     <circle cx="44" cy="44" r="31" fill="var(--track)"/>
     <g style="color:var(--mute)">${tribar(new Array(6).fill('currentColor'), LOCK_OP)}</g>
   </svg>`;
 }
 
-function vegDayCount(sc){
-  return Object.values(sc.days).filter(x => x.main.size >= 2 && x.veg).length;
+function troSheet(i){
+  const sc = scoring(), t = TROPHIES[i], v = troValue(t, sc), got = v >= t.need;
+  const fmt = x => t.u === 'kg' ? (x >= 1000 ? n2(x/1000) + ' t' : n0(x) + ' kg') : n0(x);
+  openSheet(`
+    <div class="unit">${got ? 'Trophée obtenu' : 'Trophée à venir'}</div>
+    <div class="trodet"><span class="te">${t.e}</span><span class="tn">${esc(t.n)}</span></div>
+    <div class="small mute">Seuil : ${fmt(t.need)}${t.u !== 'kg' ? ' ' + t.u + (t.need>1?'s':'') : ' de CO₂e évités'}</div>
+    <div style="margin-top:14px">${medal(t, v, 'sh')}</div>
+    <div class="hr"></div>
+    <p class="small">${esc(t.d)}</p>
+    <div class="hr"></div>
+    <div class="wnow">
+      <div class="l">Votre compteur</div><div class="v">${fmt(v)}</div>
+      <div class="tr"><i style="width:${Math.min(100, v/t.need*100).toFixed(0)}%;background:${PAL[t.pal].jonc}"></i></div>
+      <div class="l small mute" style="grid-column:1/-1">${got ? 'Acquis.'
+        : `Il reste ${fmt(Math.max(0, t.need - v))} pour l’obtenir.`}</div>
+    </div>`);
+  $('#sheet').querySelector('svg').style.maxWidth = '96px';
 }
+
 function badgeBlock(sc){
-  const done = vegDayCount(sc);
-  return `<div class="bfamttl">Journée sans viande</div>
-    <div class="bfamsub">${done} journée${done>1?'s':''} validée${done>1?'s':''}</div>
+  const list = S.troAll ? TROPHIES : TROPHIES.slice(0, 3);
+  const fmt = (x,u) => u === 'kg' ? (x >= 1000 ? n1(x/1000) + ' t' : n0(x)) : n0(x);
+  return `<div class="bfamttl">${n1(sc.saved)} kg CO₂e évités</div>
+    <div class="bfamsub">${TROPHIES.filter(t => troValue(t, sc) >= t.need).length} trophée${
+      TROPHIES.filter(t => troValue(t, sc) >= t.need).length > 1 ? 's' : ''} sur ${TROPHIES.length}</div>
     <div class="bgrid">
-      ${TIERS.map((t,i) => `<div class="badge${done >= t.n ? '' : ' locked'}">
-        ${medal(t, done, i)}
-        <div class="bt">${t.k}</div>
-        <div class="bp">${done} <s>/</s> ${t.n}</div>
-      </div>`).join('')}
-    </div>`;
+      ${list.map((t,i) => { const v = troValue(t, sc), got = v >= t.need;
+        return `<button class="badge${got ? '' : ' locked'}" data-tro="${i}">
+          ${medal(t, v, i)}
+          <div class="be">${t.e}</div>
+          <div class="bt">${t.s}</div>
+          <div class="bp">${fmt(v, t.u)} <s>/</s> ${fmt(t.need, t.u)}</div>
+        </button>`; }).join('')}
+    </div>
+    <button class="seemore" id="troMore">${S.troAll
+      ? 'Réduire' : `Voir les ${TROPHIES.length - 3} trophées suivants ›`}</button>`;
 }
 
 function pointsSheet(){
@@ -1905,25 +1977,23 @@ function rulesSheet(){
     <p class="small">Chaque palier vaut au moins le double de la somme de ce qu’il contient : une journée
     sans viande rapporte 25 points avec ses repas, une semaine sans viande 100 de plus. Aucun point n’est
     jamais retiré, et une série interrompue laisse sa meilleure valeur affichée.</p>
+    <div class="src" style="margin-top:12px">Référence des kg évités : le repas moyen français à ${n2(REF)} kg CO₂e,
+    calculé sur les ${DB.dishes.length} plats types pondérés par leur fréquence. Budget retenu :
+    ${n0(DB.facts.budget)} kg CO₂e par an, soit ${n2(BUDGET_J)} kg par jour.</div>
     <div class="hr"></div>
-    <div class="src">Référence des kg évités : le repas moyen français à ${n2(REF)} kg CO₂e, calculé sur les
-    ${DB.dishes.length} plats types pondérés par leur fréquence. Budget retenu : ${n0(DB.facts.budget)} kg CO₂e
-    par an, soit ${n2(BUDGET_J)} kg par jour.</div>
-  
-  <div class="hr"></div>
-  <div class="unit" style="margin-bottom:8px">Le barème</div>
-  <div class="list">
-    ${CHALS.map(c => { const n = sc.count(c.t); return `
-      <div class="chal">
-        <div class="st ${n?'on':'off'}">${n?'●':'○'}</div>
-        <div class="nm">${c.t}</div>
-        <div class="pt">${c.p} <span class="unit">pts</span></div>
-        <div class="rule">${c.r}</div>
-        ${n ? `<div class="got">Validé ${n} fois · ${n0(n*c.p)} points</div>` : ''}
-      </div>`; }).join('')}
-    <div class="count">Les points récompensent la régularité, pas le carbone : un même geste peut valider
-      plusieurs épreuves. La colonne carbone reste le tracker.</div>
-  </div>`);
+    <div class="unit" style="margin-bottom:8px">Le barème</div>
+    <div class="list">
+      ${CHALS.map(c => { const n = sc.count(c.t); return `
+        <div class="chal">
+          <div class="st ${n?'on':'off'}">${n?'●':'○'}</div>
+          <div class="nm">${c.t}</div>
+          <div class="pt">${c.p} <span class="unit">pts</span></div>
+          <div class="rule">${c.r}</div>
+          ${n ? `<div class="got">Validé ${n} fois · ${n0(n*c.p)} points</div>` : ''}
+        </div>`; }).join('')}
+      <div class="count">Les points récompensent la régularité, pas le carbone : un même geste peut valider
+        plusieurs épreuves. La colonne carbone reste le tracker.</div>
+    </div>`);
 }
 
 function renderJeux(){
@@ -1972,7 +2042,7 @@ function renderJeux(){
       : `Il reste ${n1(wBud-cw.kg)} kg et ${Math.max(0,7-cw.full)} jour(s) à enregistrer pour la semaine parfaite.`}</div>
   </div>
 
-  <h2 class="sec">Badges</h2>
+  <h2 class="sec">Trophées</h2>
   <div class="card">
     ${badgeBlock(sc)}
     <div class="src" style="margin-top:13px">Journées réussies sur journées nécessaires. Une journée
@@ -1983,6 +2053,8 @@ function renderJeux(){
 
   $('#ptsDetail').onclick = pointsSheet;
   $('#rulesBtn').onclick = rulesSheet;
+  $('#troMore').onclick = () => { S.troAll = !S.troAll; renderJeux(); };
+  view.querySelectorAll('[data-tro]').forEach(b => b.onclick = () => troSheet(+b.dataset.tro));
 }
 
 /* ============================ navigation ============================ */
