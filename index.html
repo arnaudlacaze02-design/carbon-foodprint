@@ -449,6 +449,16 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .tabbar svg{width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.7}
 .tabbar span:not(.ic){font-family:var(--mono); font-size:8px; letter-spacing:.03em; text-transform:uppercase;
   overflow:hidden; text-overflow:ellipsis; max-width:100%; white-space:nowrap}
+/* Bulle centrale. Elle déborde du haut de la barre, d'où le retrait négatif :
+   la barre n'a pas d'overflow caché, sinon il faudrait le lever. */
+.tabbar .bub{flex:0 0 auto; width:56px; margin-top:-19px; justify-content:flex-start; gap:5px}
+.tabbar .bub .ic{width:46px; height:46px; max-width:46px; background:var(--forest);
+  border:3px solid var(--tabbar); box-shadow:var(--shadow)}
+.tabbar .bub .ic svg{stroke:#fff; width:23px; height:23px; stroke-width:1.8}
+.tabbar .bub:active .ic{background:var(--forest-2)}
+.tabbar .bub[aria-current="page"]{color:var(--forest)}
+.tabbar .bub[aria-current="page"] .ic{background:var(--forest); border-color:var(--straw)}
+
 .tabbar button[aria-current="page"]{color:var(--forest)}
 .tabbar button[aria-current="page"] .ic{background:var(--forest)}
 .tabbar button[aria-current="page"] .ic svg{stroke:#fff}
@@ -733,6 +743,15 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
       <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><circle cx="12" cy="12" r="9"/></svg></span>
       <span>Saisie</span>
     </button>
+    <button data-tab="feed" class="bub">
+      <span class="ic"><svg viewBox="0 0 24 24">
+        <circle cx="9.2" cy="8.4" r="3.1"/>
+        <path d="M3.8 18.6c0-3 2.4-5.4 5.4-5.4s5.4 2.4 5.4 5.4"/>
+        <circle cx="17.2" cy="7.2" r="2.3"/>
+        <path d="M15.8 12.2A4.5 4.5 0 0 1 20.6 16.6"/>
+      </svg></span>
+      <span>Feed</span>
+    </button>
     <button data-tab="jeux">
       <span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg></span>
       <span>Trophées</span>
@@ -831,21 +850,22 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false,
          dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
-         tomb:[], lastSync:null, prof:{}};
+         tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined};
 
 function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
         tomb:S.tomb, stdInit:S.stdInit, starred:S.starred, lastSync:S.lastSync,
-        prof:S.prof})); }catch(e){}
+        prof:S.prof, people:S.people})); }catch(e){}
 }
 function load(){
   S.favs=[]; S.hist=[]; S.tomb=[]; S.starred=[]; S.stdInit=false; S.lastSync=null; S.prof={};
+  S.people=[];
   try{
     const raw = localStorage.getItem(dataKey());
     if(raw){ const o = JSON.parse(raw);
       S.favs=o.favs||[]; S.hist=o.hist||[]; S.tomb=o.tomb||[];
       S.stdInit=!!o.stdInit; S.starred=o.starred||[]; S.lastSync=o.lastSync||null;
-      S.prof=o.prof||{};
+      S.prof=o.prof||{}; S.people=o.people||[];
       stamp(); return true; }
   }catch(e){}
   return false;
@@ -1053,6 +1073,134 @@ function openSheet(html){
 }
 function closeSheet(){ $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); }
 $('#scrim').onclick = closeSheet;
+
+/* ============================ onglet — feed ============================
+   Première pierre du volet social : trouver quelqu'un par son pseudo et se
+   constituer une liste de contacts. Volontairement en recherche exacte, sans
+   liste ni recherche partielle : on doit connaître le pseudo pour trouver la
+   personne, comme sur une messagerie. Cette contrainte est aussi ce qui
+   empêchera, une fois la table des profils refermée, de moissonner l'annuaire.
+
+   Les contacts sont pour l'instant locaux au compte. Ils serviront de vivier
+   aux communautés, et remonteront au serveur en même temps qu'elles. */
+
+let fbusy = false;
+
+async function feedSearch(){
+  const q = ($('#fq') ? $('#fq').value : S.fq || '').trim();
+  S.fq = q;
+  const slug = SB.slugify(q);
+  if(slug.length < 2){ S.fres = undefined; return renderFeed(); }
+  if(fbusy) return;
+  fbusy = true; S.fres = 'cherche'; renderFeed();
+  const r = await SB.rest('profiles?select=username,username_slug,created_at' +
+    '&username_slug=eq.' + encodeURIComponent(slug) + '&limit=1');
+  fbusy = false;
+  S.fres = !r.ok ? (r.status === 0 ? 'hors-ligne' : 'erreur')
+    : (r.body && r.body.length ? r.body[0] : 'aucun');
+  renderFeed();
+}
+
+function feedAdd(p){
+  if(SESS && p.username_slug === SESS.slug) return toast('C’est vous');
+  if(S.people.some(x => x.slug === p.username_slug)) return toast('Déjà dans vos contacts');
+  S.people.push({slug:p.username_slug, username:p.username, at:new Date().toISOString()});
+  save(); renderFeed(); toast(p.username + ' ajouté');
+}
+
+function renderFeed(){
+  if(!SB.ready()){
+    view.innerHTML = `<h2 class="sec">Feed</h2>
+      <div class="card"><p class="small">Le volet social nécessite la configuration du serveur
+        sur cette copie de l’app.</p></div>`;
+    return;
+  }
+  if(!SESS){
+    view.innerHTML = `
+      <h2 class="sec">Feed</h2>
+      <div class="card">
+        <p class="lede">Retrouver les autres</p>
+        <p class="small">Chercher quelqu’un par son pseudo, se constituer des contacts, et
+          bientôt monter des communautés pour y partager badges, idées de recettes et défis.</p>
+        <div class="hr"></div>
+        <p class="small mute">Il faut un compte : c’est votre pseudo qui vous rend trouvable.</p>
+        <button class="btn btn-1" id="f_login" style="margin-top:4px">Ouvrir mon profil</button>
+      </div>`;
+    $('#f_login').onclick = profileSheet;
+    return;
+  }
+
+  const r = S.fres;
+  const trouve = r && typeof r === 'object';
+
+  view.innerHTML = `
+    <h2 class="sec">Trouver quelqu’un</h2>
+    <div class="card">
+      <p class="small">Le pseudo doit être exact, aux accents et majuscules près — il n’y a pas
+        d’annuaire à parcourir, et c’est voulu.</p>
+      <input class="search" id="fq" placeholder="Pseudo exact" value="${esc(S.fq || '')}"
+             autocomplete="off" autocapitalize="off">
+      <div class="actions">
+        <button class="btn btn-1" id="f_go">Chercher</button>
+      </div>
+
+      ${r === 'cherche' ? `<div class="src" style="margin-top:10px">Recherche…</div>` : ''}
+      ${r === 'aucun' ? `<div class="src" style="margin-top:10px">Aucun compte sous ce pseudo.
+        Vérifiez l’orthographe auprès de la personne.</div>` : ''}
+      ${r === 'hors-ligne' ? `<div class="src" style="margin-top:10px">Hors ligne : la recherche
+        a besoin du réseau.</div>` : ''}
+      ${r === 'erreur' ? `<div class="src" style="margin-top:10px">La recherche a échoué.</div>` : ''}
+
+      ${trouve ? `
+        <div class="hr"></div>
+        <div class="total" style="margin-top:0">
+          <div><div class="unit">Trouvé</div>
+            <div class="small mute">compte ouvert le ${new Date(r.created_at)
+              .toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}</div></div>
+          <div class="v" style="font-size:19px">${esc(r.username)}</div>
+        </div>
+        <button class="btn btn-2" id="f_add" style="margin-top:10px">${
+          SESS.slug === r.username_slug ? 'C’est vous'
+          : S.people.some(x => x.slug === r.username_slug) ? 'Déjà dans vos contacts'
+          : 'Ajouter à mes contacts'}</button>` : ''}
+    </div>
+
+    <h2 class="sec">Mes contacts${S.people.length ? ` · ${S.people.length}` : ''}</h2>
+    <div class="card">
+      ${S.people.length ? S.people.map((p,i) => `
+        <div class="draft-line">
+          <span class="nm">${esc(p.username)}</span>
+          <span class="q">${esc(p.slug)}</span>
+          <button class="rm" data-rm="${i}" aria-label="Retirer">×</button>
+        </div>`).join('')
+        : `<p class="small mute">Personne pour l’instant. Cherchez un pseudo ci-dessus.</p>`}
+      <div class="src" style="margin-top:10px">Liste gardée sur cet appareil, dans votre compte.
+        Elle servira de vivier aux communautés — personne n’est prévenu que vous l’avez ajouté.</div>
+    </div>
+
+    <h2 class="sec">La suite</h2>
+    <div class="card">
+      <p class="small">Ce que l’étape serveur suivante ouvrira, dans cet ordre :</p>
+      <div class="stagelist" style="margin-top:8px">
+        <span class="unit">Communautés</span><span class="small">plusieurs groupes, entrée sur code d’invitation</span><span></span>
+        <span class="unit">Partages</span><span class="small">badges, idées de recettes, défis</span><span></span>
+        <span class="unit">Portée</span><span class="small">une communauté, plusieurs, ou des contacts choisis</span><span></span>
+      </div>
+      <div class="src" style="margin-top:10px">Rien de ce que vous mangez ne sera partagé : les repas
+        restent hors du volet social. Seuls y circulent ce que vous publiez explicitement.</div>
+    </div>`;
+
+  $('#f_go').onclick = feedSearch;
+  const fq = $('#fq');
+  fq.onkeydown = e => { if(e.key === 'Enter') feedSearch(); };
+  fq.oninput = () => { S.fq = fq.value; };
+  const add = $('#f_add');
+  if(add) add.onclick = () => feedAdd(r);
+  view.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
+    const p = S.people[+b.dataset.rm];
+    S.people.splice(+b.dataset.rm, 1); save(); renderFeed(); toast(p.username + ' retiré');
+  });
+}
 
 /* ============================ onglet 1 — bibliothèque ============================ */
 function renderBiblio(){
@@ -3368,7 +3516,8 @@ function go(tab){
   document.querySelectorAll('#tabbar button').forEach(b =>
     b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
   window.scrollTo(0,0);
-  ({biblio:renderBiblio, saisie:renderSaisie, tracker:renderTracker, jeux:renderJeux})[tab]();
+  ({biblio:renderBiblio, saisie:renderSaisie, tracker:renderTracker,
+    jeux:renderJeux, feed:renderFeed})[tab]();
 }
 document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => go(b.dataset.tab));
 
