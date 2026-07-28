@@ -142,6 +142,43 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 .wdots i.soon{background:var(--line-soft)}
 .wdots i.tdy{outline:1.5px solid var(--straw); outline-offset:1px}
 
+/* ---------------- fête néon d'un défi en cours ----------------
+   Seul endroit de l'app à sortir de la charte : un défi qui court doit se voir
+   au premier coup d'œil, avant le reste du feed. Palette autonome, indépendante
+   du thème clair ou sombre. */
+.neon{position:relative; border-radius:16px; padding:13px 14px 12px; margin:2px 0 14px;
+  background:linear-gradient(158deg,#08201B 0%,#10362B 55%,#0B2620 100%);
+  border:1.5px solid #2BE0A8; overflow:hidden;
+  box-shadow:0 0 0 1px rgba(43,224,168,.22), 0 0 20px rgba(43,224,168,.30),
+             inset 0 0 26px rgba(43,224,168,.10);
+  animation:neonpulse 3.4s ease-in-out infinite}
+@keyframes neonpulse{
+  0%,100%{box-shadow:0 0 0 1px rgba(43,224,168,.22), 0 0 16px rgba(43,224,168,.24), inset 0 0 22px rgba(43,224,168,.08)}
+  50%    {box-shadow:0 0 0 1px rgba(43,224,168,.34), 0 0 30px rgba(43,224,168,.44), inset 0 0 30px rgba(43,224,168,.15)}
+}
+@media (prefers-reduced-motion:reduce){ .neon{animation:none} }
+.neon .tt{font-family:var(--mono); font-size:8.5px; letter-spacing:.18em; text-transform:uppercase;
+  color:#2BE0A8; text-shadow:0 0 9px rgba(43,224,168,.85)}
+.neon .nh{font-family:var(--serif); font-size:19px; color:#EAFFF7; margin:3px 0 1px; line-height:1.15}
+.neon .sub{font-family:var(--mono); font-size:8.5px; letter-spacing:.05em; color:#79D3B8}
+.neon .foot{font-family:var(--mono); font-size:8.5px; color:#69C4AA; margin-top:10px; line-height:1.45}
+.neon .glow{position:absolute; width:130px; height:130px; border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle,rgba(43,224,168,.30),rgba(43,224,168,0) 70%); top:-56px; right:-34px}
+
+/* échelle du classement : un barreau par participant */
+.lad{margin-top:11px; display:flex; flex-direction:column; gap:6px}
+.lad .rung{display:flex; align-items:center; gap:8px}
+.lad .pos{width:17px; text-align:center; font-family:var(--mono); font-size:10.5px; color:#2BE0A8}
+.lad .who{flex:0 0 72px; font-size:12px; color:#DFF7EE; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.lad .tr{flex:1; height:9px; border-radius:5px; background:rgba(255,255,255,.09); overflow:hidden}
+.lad .tr i{display:block; height:100%; border-radius:5px;
+  background:linear-gradient(90deg,#1FBF8D,#8CF5CE); box-shadow:0 0 9px rgba(43,224,168,.65)}
+.lad .val{font-family:var(--mono); font-size:9.5px; color:#A8E9D3; min-width:46px; text-align:right}
+.lad .rung.me .who{color:#FFE98A; font-weight:600}
+.lad .rung.me .tr i{background:linear-gradient(90deg,#E8B93A,#FFF0A8); box-shadow:0 0 10px rgba(255,216,77,.7)}
+.lad .rung.wait .who,.lad .rung.wait .val{color:#5E9C89}
+.lad .rung.wait .tr i{background:rgba(255,255,255,.14); box-shadow:none}
+
 /* ---------------- célébration du jour tenu ---------------- */
 #spin{position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center;
   pointer-events:none}
@@ -908,7 +945,7 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
          tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined,
-         fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined};
+         fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null};
 
 function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
@@ -1325,6 +1362,233 @@ async function postDrop(id){
   toast('Publication retirée'); frPosts();
 }
 
+/* ==================== défis ====================
+   Trois types, tous calculés par l'app à partir des données locales puis
+   publiés par le participant. Le score est donc déclaratif : c'est le client
+   qui écrit ses propres repas, aucun classement ici n'est infalsifiable.
+   Assumé comme émulation entre gens qui se connaissent. */
+
+const CHAL = {
+  points:     {l:'Le plus de points',  s:'Points de trophée gagnés pendant la période',
+               u:'pts', sens:'max'},
+  sans_rouge: {l:'Le plus de repas sans viande rouge',
+               s:'Part des repas principaux sans bœuf, veau, merguez, cheeseburger ni kebab',
+               u:'%',   sens:'max'},
+  budget2050: {l:'Le plus proche du budget 2050',
+               s:'Total de la période comparé à 1,92 kg par jour écoulé — ni au-dessus, ni en dessous',
+               u:'kg',  sens:'proche'},
+};
+const CHAL_DUREE = [[7,'7 jours'],[14,'2 semaines'],[30,'30 jours']];
+
+/* Mesure locale. On ne compte jamais les jours à venir : la période court,
+   la mesure s'arrête à aujourd'hui. */
+function chalScore(ch){
+  const t = today();
+  const fin = ch.ends < t ? ch.ends : t;
+  if(fin < ch.starts) return {value:0, meals:0, days:0};
+  const days = Math.round((new Date(fin+'T12:00') - new Date(ch.starts+'T12:00')) / 864e5) + 1;
+  const es = S.hist.filter(x => x.d >= ch.starts && x.d <= fin);
+  if(ch.kind === 'points'){
+    const v = scoring().ev.filter(x => x.d >= ch.starts && x.d <= fin).reduce((a,x) => a + x.p, 0);
+    return {value:v, meals:es.length, days};
+  }
+  if(ch.kind === 'sans_rouge'){
+    const mains = es.filter(x => x.m === 'dej' || x.m === 'din');
+    const sans = mains.filter(x => !hasRed(x)).length;
+    return {value: mains.length ? sans / mains.length : 0, meals:mains.length, days};
+  }
+  return {value: es.reduce((a,x) => a + kgOf(x.l), 0), meals:es.length, days};
+}
+
+/* Clé de tri. Pour « le plus proche », l'écart absolu à la cible du jour —
+   ce qui a une vertu rare : ne rien saisir affiche zéro, donc un écart maximal.
+   Ne pas jouer devient perdant. */
+const chalKey = (kind, s) => kind === 'budget2050'
+  ? Math.abs((+s.value) - BUDGET_J * (s.days || 1))
+  : -(+s.value);
+
+const CHAL_MIN = {points:0, sans_rouge:4, budget2050:0};   /* repas requis pour être classé */
+
+function chalFmt(kind, s){
+  if(kind === 'points')     return n0(s.value) + ' pts';
+  if(kind === 'sans_rouge') return Math.round(s.value * 100) + ' %';
+  const cible = BUDGET_J * (s.days || 1);
+  const d = (+s.value) - cible;
+  return n1(s.value) + ' kg · ' + (d >= 0 ? '+' : '−') + n1(Math.abs(d));
+}
+
+/* Barre de l'échelle : longueur proportionnelle au mérite, premier au plein. */
+function chalBars(kind, rows){
+  const ks = rows.filter(r => r.ok).map(r => chalKey(kind, r));
+  const best = ks.length ? Math.min(...ks) : 0, worst = ks.length ? Math.max(...ks) : 1;
+  return rows.map(r => {
+    if(!r.ok) return 6;
+    if(worst === best) return 100;
+    const k = chalKey(kind, r);
+    return Math.round(100 - (k - best) / (worst - best) * 72);
+  });
+}
+
+async function chalLoad(silent){
+  if(!SESS || !SB.ready()) return;
+  const c = await SB.rest('challenges?select=id,kind,label,starts,ends,created_by,' +
+    'aut:profiles!challenges_created_by_fkey(username)&order=ends.desc&limit=20');
+  if(!c.ok){ if(!silent) toast('Défis indisponibles'); S.chal = null; return renderFeed(); }
+  const list = c.body || [];
+  if(!list.length){ S.chal = []; return renderFeed(); }
+  const ids = list.map(x => x.id);
+  const inList = 'in.(' + ids.join(',') + ')';
+  const [pp, ss] = await Promise.all([
+    SB.rest('challenge_participants?select=challenge,member,status,' +
+      'who:profiles!challenge_participants_member_fkey(username)&challenge=' + inList),
+    SB.rest('challenge_scores?select=challenge,member,value,meals,days&challenge=' + inList),
+  ]);
+  const parts = pp.ok ? (pp.body || []) : [];
+  const scores = ss.ok ? (ss.body || []) : [];
+  S.chal = list.map(ch => ({...ch,
+    parts:  parts.filter(x => x.challenge === ch.id),
+    scores: scores.filter(x => x.challenge === ch.id)}));
+  await chalPublish();
+  renderFeed();
+}
+
+/* Publication silencieuse de mon score, à chaque passage sur le feed : le
+   classement doit être frais sans demander un geste. */
+async function chalPublish(){
+  if(!S.chal) return;
+  const t = today();
+  for(const ch of S.chal){
+    const moi = ch.parts.find(x => x.member === SESS.uid);
+    if(!moi || moi.status !== 'in') continue;
+    if(ch.starts > t) continue;
+    const sc = chalScore(ch);
+    const ancien = ch.scores.find(x => x.member === SESS.uid);
+    if(ancien && Math.abs((+ancien.value) - sc.value) < 1e-6 && ancien.days === sc.days) continue;
+    await SB.rest('challenge_scores?on_conflict=challenge,member', {method:'POST',
+      headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify({challenge:ch.id, member:SESS.uid, value:+sc.value.toFixed(4),
+                            meals:sc.meals, days:sc.days, db_version:'ademe-3.2'})});
+    if(ancien) Object.assign(ancien, sc); else ch.scores.push({challenge:ch.id, member:SESS.uid, ...sc});
+  }
+}
+
+function chalRows(ch){
+  const rows = ch.parts.filter(x => x.status === 'in').map(x => {
+    const sc = ch.scores.find(y => y.member === x.member) || {value:0, meals:0, days:0};
+    return {member:x.member, nom:(x.who||{}).username || '?', value:+sc.value, meals:sc.meals,
+            days:sc.days, ok:(sc.meals || 0) >= CHAL_MIN[ch.kind] && (sc.days || 0) > 0};
+  });
+  rows.sort((a,b) => (a.ok === b.ok) ? chalKey(ch.kind, a) - chalKey(ch.kind, b) : (a.ok ? -1 : 1));
+  return rows;
+}
+
+function chalNeon(ch){
+  const rows = chalRows(ch), bars = chalBars(ch.kind, rows);
+  const t = today();
+  const reste = Math.round((new Date(ch.ends+'T12:00') - new Date(t+'T12:00')) / 864e5);
+  const def = CHAL[ch.kind];
+  return `<div class="neon" data-chal="${ch.id}">
+    <div class="glow"></div>
+    <div class="tt">Défi en cours · ${reste > 0 ? `${reste} jour${reste>1?'s':''} restant${reste>1?'s':''}`
+      : reste === 0 ? 'dernier jour' : 'terminé'}</div>
+    <div class="nh">${esc(ch.label || def.l)}</div>
+    <div class="sub">${esc(def.l)} · du ${dLabel(ch.starts)} au ${dLabel(ch.ends)}</div>
+    <div class="lad">
+      ${rows.map((r,i) => `
+        <div class="rung ${r.member === SESS.uid ? 'me' : ''}${r.ok ? '' : ' wait'}">
+          <span class="pos">${r.ok ? i+1 : '–'}</span>
+          <span class="who">${esc(r.nom)}</span>
+          <span class="tr"><i style="width:${bars[i]}%"></i></span>
+          <span class="val">${r.ok ? chalFmt(ch.kind, r) : 'en attente'}</span>
+        </div>`).join('')}
+      ${rows.length ? '' : `<div class="sub">Aucun participant n’a encore accepté.</div>`}
+    </div>
+    <div class="foot">${esc(def.s)}${rows.some(r => !r.ok)
+      ? ` · « en attente » : moins de ${CHAL_MIN[ch.kind]} repas principaux saisis sur la période.` : ''}</div>
+  </div>`;
+}
+
+function chalCreate(){
+  const amis = S.fr.friends.map(x => ({
+    id: x.requester === SESS.uid ? x.addressee : x.requester,
+    nom: frAutre(x).username}));
+  if(!amis.length) return toast('Il faut au moins un ami accepté');
+  S.chalQ = S.chalQ || {kind:'budget2050', jours:14, invites:amis.map(a => a.id)};
+  const q = S.chalQ;
+  openSheet(`
+    <div class="unit">Nouveau défi</div>
+    <h3 style="margin:2px 0 10px">Lequel ?</h3>
+    ${Object.entries(CHAL).map(([k,v]) => `
+      <button class="qopt" data-k="${k}" aria-pressed="${q.kind === k}">
+        <span class="qn">${v.l}<span class="qs">${v.s}</span></span><span class="qk">✓</span>
+      </button>`).join('')}
+    <div class="hr"></div>
+    <div class="unit" style="margin-bottom:6px">Durée</div>
+    <div class="seg">${CHAL_DUREE.map(([j,l]) =>
+      `<button data-j="${j}" class="${q.jours === j ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="hr"></div>
+    <div class="unit" style="margin-bottom:6px">Inviter · ${q.invites.length} sur ${amis.length}</div>
+    ${amis.map(a => `
+      <button class="qopt" data-inv="${a.id}" aria-pressed="${q.invites.includes(a.id)}">
+        <span class="qn">${esc(a.nom)}</span><span class="qk">✓</span>
+      </button>`).join('')}
+    <div class="actions" style="margin-top:14px">
+      <button class="btn btn-1" id="ch_go" ${q.invites.length ? '' : 'disabled'}>Lancer le défi</button>
+      <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
+    </div>
+    <div class="src" style="margin-top:8px">Chaque invité décide s’il participe. Les scores sont calculés
+      par l’app depuis vos saisies : entre gens qui se connaissent, personne ne vérifie.</div>`);
+
+  $('#sheet').querySelectorAll('[data-k]').forEach(b => b.onclick = () => { q.kind = b.dataset.k; chalCreate(); });
+  $('#sheet').querySelectorAll('[data-j]').forEach(b => b.onclick = () => { q.jours = +b.dataset.j; chalCreate(); });
+  $('#sheet').querySelectorAll('[data-inv]').forEach(b => b.onclick = () => {
+    const id = b.dataset.inv;
+    q.invites = q.invites.includes(id) ? q.invites.filter(x => x !== id) : q.invites.concat(id);
+    chalCreate();
+  });
+  const go = $('#ch_go');
+  if(go) go.onclick = async () => {
+    go.disabled = true; go.textContent = 'Création…';
+    const fin = new Date(); fin.setDate(fin.getDate() + q.jours - 1);
+    const c = await SB.rest('challenges?select=id', {method:'POST',
+      headers:{Prefer:'return=representation'},
+      body: JSON.stringify({kind:q.kind, label:CHAL[q.kind].l, starts:today(), ends:iso(fin),
+                            created_by:SESS.uid})});
+    if(!c.ok || !c.body || !c.body.length){
+      console.error('chalCreate:', c.status, JSON.stringify(c.body || {}));
+      go.disabled = false; go.textContent = 'Lancer le défi';
+      const msg = JSON.stringify(c.body || {});
+      return toast(/PGRST205|schema cache/i.test(msg)
+        ? 'Table des défis absente : schéma non installé'
+        : 'Création impossible · ' + c.status);
+    }
+    const id = c.body[0].id;
+    const lignes = [{challenge:id, member:SESS.uid, status:'in', invited_by:SESS.uid}]
+      .concat(q.invites.map(m => ({challenge:id, member:m, status:'invited', invited_by:SESS.uid})));
+    const r = await SB.rest('challenge_participants', {method:'POST',
+      headers:{Prefer:'return=minimal'}, body: JSON.stringify(lignes)});
+    closeSheet();
+    S.chalQ = null;
+    toast(r.ok ? `Défi lancé, ${q.invites.length} invitation${q.invites.length>1?'s':''} envoyée${q.invites.length>1?'s':''}`
+               : 'Défi créé mais invitations non envoyées');
+    await chalLoad(true);
+  };
+}
+
+async function chalAnswer(ch, statut){
+  const r = await SB.rest('challenge_participants?challenge=eq.' + ch.id +
+    '&member=eq.' + SESS.uid, {method:'PATCH', body: JSON.stringify({status:statut})});
+  if(!r.ok) return toast('Impossible pour l’instant');
+  toast(statut === 'in' ? 'Vous participez' : 'Invitation déclinée');
+  await chalLoad(true);
+}
+
+async function chalDrop(ch){
+  const r = await SB.rest('challenges?id=eq.' + ch.id, {method:'DELETE'});
+  if(!r.ok) return toast('Impossible pour l’instant');
+  toast('Défi supprimé'); await chalLoad(true);
+}
+
 function renderFeed(){
   if(!SB.ready()){
     view.innerHTML = `<h2 class="sec">Feed</h2>
@@ -1347,6 +1611,14 @@ function renderFeed(){
     return;
   }
   if(S.fr.state === 'vide'){ frLoad(); }
+  if(S.chal === undefined){ S.chal = null; chalLoad(true); }
+
+  const t0 = today();
+  const chals = S.chal || [];
+  const moi = ch => ch.parts.find(x => x.member === SESS.uid);
+  const enCours = chals.filter(ch => ch.ends >= t0 && (moi(ch) || {}).status === 'in');
+  const invites = chals.filter(ch => ch.ends >= t0 && (moi(ch) || {}).status === 'invited');
+  const finis   = chals.filter(ch => ch.ends < t0 && (moi(ch) || {}).status === 'in');
 
   const r = S.fres, trouve = r && typeof r === 'object';
   const F = S.fr;
@@ -1360,6 +1632,39 @@ function renderFeed(){
     </div>`;
 
   view.innerHTML = `
+    ${enCours.map(chalNeon).join('')}
+
+    ${invites.length ? `
+      <h2 class="sec">Invitations à un défi · ${invites.length}</h2>
+      <div class="card">
+        ${invites.map((ch,i) => `
+          <div class="draft-line">
+            <span class="nm">${esc(CHAL[ch.kind].l)}
+              <i class="small mute" style="font-style:normal">  ·  de ${esc((ch.aut||{}).username || '?')}
+                · ${dLabel(ch.starts)} → ${dLabel(ch.ends)}</i></span>
+            <button class="rm" data-cyes="${i}" style="color:var(--forest);font-size:13px">Rejoindre</button>
+            <button class="rm" data-cno="${i}">×</button>
+          </div>`).join('')}
+      </div>` : ''}
+
+    <h2 class="sec">Défis</h2>
+    <div class="card">
+      ${enCours.length || finis.length ? `<div class="stagelist">
+        ${enCours.map(ch => `<span class="unit">En cours</span><span class="small">${esc(CHAL[ch.kind].l)}
+          · fin le ${dLabel(ch.ends)}</span><span></span>`).join('')}
+        ${finis.map(ch => { const rows = chalRows(ch), gagnant = rows.find(x => x.ok);
+          return `<span class="unit">Terminé</span><span class="small">${esc(CHAL[ch.kind].l)}
+          · ${gagnant ? (gagnant.member === SESS.uid ? 'vous l’emportez' : esc(gagnant.nom) + ' l’emporte')
+                      : 'sans classement'}</span><span></span>`; }).join('')}
+      </div>` : `<p class="small mute">Aucun défi. Lancez-en un avec vos amis : l’app calcule les scores
+        depuis vos saisies, il n’y a rien à déclarer.</p>`}
+      <button class="btn btn-2" id="ch_new" style="margin-top:10px"
+        ${S.fr.friends.length ? '' : 'disabled'}>${S.fr.friends.length
+        ? 'Lancer un défi' : 'Lancer un défi — il faut un ami'}</button>
+      ${chals.some(ch => ch.created_by === SESS.uid) ? `<div class="src" style="margin-top:8px">Vous pouvez
+        supprimer un défi que vous avez lancé depuis sa fête, en haut.</div>` : ''}
+    </div>
+
     <h2 class="sec">Trouver quelqu’un</h2>
     <div class="card">
       <p class="small">Le pseudo doit être exact, aux accents et majuscules près — il n’y a pas
@@ -1472,6 +1777,37 @@ function renderFeed(){
   view.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => frDrop(F.out[+b.dataset.cancel], 'Demande annulée'));
   view.querySelectorAll('[data-un]').forEach(b => b.onclick = () => frDrop(F.friends[+b.dataset.un], 'Ami retiré'));
   view.querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => postDrop(b.dataset.pdel));
+  const cn = $('#ch_new');
+  if(cn && !cn.disabled) cn.onclick = chalCreate;
+  view.querySelectorAll('[data-cyes]').forEach(b => b.onclick = () => chalAnswer(invites[+b.dataset.cyes], 'in'));
+  view.querySelectorAll('[data-cno]').forEach(b => b.onclick = () => chalAnswer(invites[+b.dataset.cno], 'out'));
+  /* la fête est cliquable : détail et suppression pour son auteur */
+  view.querySelectorAll('[data-chal]').forEach(el => el.onclick = () => {
+    const ch = chals.find(x => x.id === el.dataset.chal);
+    const rows = chalRows(ch), def = CHAL[ch.kind];
+    openSheet(`
+      <div class="unit">Défi · ${esc((ch.aut||{}).username || '?')}</div>
+      <h3 style="margin:2px 0 4px">${esc(def.l)}</h3>
+      <p class="small mute">${esc(def.s)}</p>
+      <div class="hr"></div>
+      <div class="stagelist">
+        ${rows.map((x,i) => `<span class="unit">${x.ok ? i+1 : '–'} · ${esc(x.nom)}</span>
+          <span class="small">${x.ok ? chalFmt(ch.kind, x) + ' · ' + x.meals + ' repas' : 'pas assez de repas saisis'}</span><span></span>`).join('')}
+        ${ch.parts.filter(x => x.status === 'invited').map(x =>
+          `<span class="unit">invité</span><span class="small mute">${esc((x.who||{}).username || '?')} n’a pas répondu</span><span></span>`).join('')}
+      </div>
+      <div class="src" style="margin-top:10px">Du ${dLabel(ch.starts)} au ${dLabel(ch.ends)}.
+        Les scores sont calculés par chaque app depuis ses propres saisies : ce classement est déclaratif,
+        c’est de l’émulation, pas un arbitrage.</div>
+      ${ch.created_by === SESS.uid
+        ? `<button class="btn btn-2" id="ch_del" style="margin-top:12px;color:var(--brick)">Supprimer ce défi</button>`
+        : `<button class="btn btn-2" id="ch_out" style="margin-top:12px">Quitter ce défi</button>`}`);
+    const dl = $('#ch_del');
+    if(dl) dl.onclick = () => { if(dl.dataset.ok){ closeSheet(); chalDrop(ch); }
+      else { dl.dataset.ok = '1'; dl.textContent = 'Confirmer la suppression'; } };
+    const ou = $('#ch_out');
+    if(ou) ou.onclick = () => { closeSheet(); chalAnswer(ch, 'out'); };
+  });
   view.querySelectorAll('[data-fiche]').forEach(b => b.onclick = () => {
     const x = F.friends[+b.dataset.fiche], a = frAutre(x);
     tasteSheet(x.requester === SESS.uid ? x.addressee : x.requester, a.username);
@@ -4071,7 +4407,7 @@ function go(tab){
   /* Le feed dépend d'écritures faites par d'autres : il doit se relire à chaque
      entrée dans l'onglet, sinon une demande reçue entre-temps reste invisible.
      Rafraîchissement silencieux — un échec réseau ne doit rien signaler. */
-  if(tab === 'feed' && SESS && SB.ready()){ frLoad(true); frPosts(); }
+  if(tab === 'feed' && SESS && SB.ready()){ frLoad(true); frPosts(); chalLoad(true); }
 }
 document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => go(b.dataset.tab));
 
