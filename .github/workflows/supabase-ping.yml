@@ -1,0 +1,17 @@
+name: Ping Supabase
+on:
+  schedule:
+    - cron: '0 6 * * 1,4'     # lundi et jeudi, 6h UTC
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reveiller le projet
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://ioqjkssonvrxzymicmlz.supabase.co" \
+            -H "sb_publishable_N8nnjn5EIZffCKRCcpUASw_dLc0DX6w")
+          echo "HTTP $code"
+          test "$code" = "200"
