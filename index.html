@@ -1274,19 +1274,37 @@ async function tasteSheet(uid, nom){
    aux personnes nommées. */
 async function badgeShare(t){
   if(!SESS) return toast('Il faut un compte pour partager');
-  if(!S.fr.friends.length) return toast('Aucun ami à qui l’envoyer pour l’instant');
+
+  /* La liste d'amis n'est peuplée qu'en entrant dans le Feed. Sans ce
+     chargement à la demande, partager depuis les Trophées sans être passé par
+     le Feed répondait « aucun ami » alors qu'on en a. */
+  if(S.fr.state !== 'ok') await frLoad(true);
+  if(!S.fr.friends.length) return toast('Aucun ami accepté à qui l’envoyer');
+
   const post = await SB.rest('posts?select=id', {method:'POST',
     headers:{Prefer:'return=representation'},
     body: JSON.stringify({author:SESS.uid, kind:'badge',
       body:{key:t.s, label:t.n, emoji:t.e}})});
-  if(!post.ok || !post.body || !post.body.length)
-    return toast(post.status === 0 ? 'Hors ligne' : 'Partage impossible');
+  if(!post.ok || !post.body || !post.body.length){
+    /* Ne pas masquer la cause : sans la table des publications, le serveur
+       répond PGRST205, et « partage impossible » ne dit pas où chercher. */
+    const msg = JSON.stringify((post.body || {}));
+    console.error('badgeShare — posts:', post.status, msg);
+    if(/PGRST205|schema cache|does not exist/i.test(msg))
+      return toast('Table des publications absente : le schéma social n’est pas installé');
+    return toast(post.status === 0 ? 'Hors ligne'
+      : post.status === 401 || post.status === 403 ? 'Refusé par le serveur'
+      : 'Partage impossible · ' + post.status);
+  }
   const id = post.body[0].id;
   const cibles = S.fr.friends.map(x => ({post:id,
     person: x.requester === SESS.uid ? x.addressee : x.requester}));
   const r = await SB.rest('post_people', {method:'POST',
     headers:{Prefer:'return=minimal'}, body: JSON.stringify(cibles)});
-  if(!r.ok) return toast('Publication créée mais non distribuée');
+  if(!r.ok){
+    console.error('badgeShare — post_people:', r.status, JSON.stringify(r.body || {}));
+    return toast('Publication créée mais non distribuée · ' + r.status);
+  }
   toast(`Badge partagé avec ${cibles.length} ami${cibles.length>1?'s':''}`);
   frPosts();
 }
