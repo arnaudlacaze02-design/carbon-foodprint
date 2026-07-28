@@ -104,6 +104,25 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 
 /* Logo complet, posé sur le fond de page : encre verte en thème clair,
    crème en thème sombre. Illisible sous 90 px de large, d'où cette taille. */
+/* ---------------- deux cadrans, jour et semaine ---------------- */
+.duo{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:4px}
+.dcell{aspect-ratio:1; background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+  padding:10px 8px; text-align:center; font-family:inherit; color:var(--ink); cursor:pointer}
+.dcell:active{background:var(--active)}
+.dcell .dt{font-family:var(--mono); font-size:9.5px; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--mute)}
+.dcell .dc{font-family:var(--mono); font-size:8.5px; color:var(--mute); line-height:1.35}
+.dnt{width:90px; height:90px; display:block; flex:0 0 auto}
+.dnt .dv{font-family:var(--serif); font-size:20px; font-variant-numeric:tabular-nums;
+  text-anchor:middle}
+.dnt .du{font-family:var(--mono); font-size:6.5px; fill:var(--mute); text-anchor:middle;
+  letter-spacing:.06em}
+.wdots{display:flex; gap:3px; align-items:center}
+.wdots i{width:6px; height:6px; border-radius:50%; background:var(--line); flex:0 0 auto}
+.wdots i.on{background:var(--forest)}
+.wdots i.tdy{outline:1.5px solid var(--straw); outline-offset:1px}
+
 .brandbig{width:158px; height:90px; margin:2px auto 16px; display:block;
   background-color:var(--forest);
   -webkit-mask:url(logo-wide.png) center/contain no-repeat;
@@ -2424,6 +2443,154 @@ function budgetTip(rest){
     tx:`Plus que <b>${kgOrG(rest)}</b>. Une soupe, une compote, et la journée est sauvée.`};
 }
 
+/* ==================== cadrans jour et semaine ====================
+   Deux cadrans identiques dans leur construction : l'arc est la consommation
+   décomposée par repas, les deux traits radiaux sont le budget soutenable et
+   l'objectif du profil. L'échelle englobe toujours les trois, sinon un repère
+   sortirait du cadran dès qu'il est dépassé. */
+
+const objDay = () => (S.prof && S.prof.objKg != null) ? S.prof.objKg / 365 : null;
+
+/* semaine courante, lundi en tête */
+function weekDays(){
+  const now = new Date(today() + 'T12:00');
+  const dow = (now.getDay() + 6) % 7;
+  const out = [];
+  for(let i = 0; i < 7; i++){
+    const d = new Date(now); d.setDate(now.getDate() - dow + i); out.push(iso(d));
+  }
+  return out;
+}
+
+function donut(o){
+  const R = 40, C = 2 * Math.PI * R, sc = o.scale || 1;
+  let acc = 0;
+  const arcs = (o.segs || []).filter(x => x.v > 0).map(x => {
+    const len = Math.max(0, Math.min(x.v, sc - acc)) / sc * C;
+    const off = -acc / sc * C;
+    acc += x.v;
+    return `<circle cx="50" cy="50" r="${R}" fill="none" stroke="${x.c}" stroke-width="10"
+      stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}"
+      stroke-dashoffset="${off.toFixed(2)}"/>`;
+  }).join('');
+
+  /* Le budget traverse la bande, l'objectif se pose à l'extérieur. La
+     distinction est positionnelle et non chromatique, parce que --straw est
+     aussi la couleur des en-cas : un repère coloré posé dans la bande
+     deviendrait indiscernable d'un segment de repas. */
+  const ticks = (o.ticks || []).filter(t => t.v > 0 && t.v <= sc).map(t => {
+    const ang = (t.v / sc * 360 - 90) * Math.PI / 180;
+    const cx = Math.cos(ang), cy = Math.sin(ang);
+    const r1 = t.out ? 46.5 : 33, r2 = t.out ? 49 : 47;
+    return `<line x1="${(50 + cx*r1).toFixed(2)}" y1="${(50 + cy*r1).toFixed(2)}"
+      x2="${(50 + cx*r2).toFixed(2)}" y2="${(50 + cy*r2).toFixed(2)}"
+      stroke="${t.c}" stroke-width="${t.out ? 3.4 : 2.6}" stroke-linecap="round"/>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 100 100" class="dnt" aria-hidden="true">
+    <circle cx="50" cy="50" r="${R}" fill="none" stroke="var(--line)" stroke-width="10"/>
+    <g transform="rotate(-90 50 50)">${arcs}</g>
+    ${ticks}
+    <text x="50" y="50" class="dv" fill="${o.col}">${o.big}</text>
+    <text x="50" y="62" class="du">${o.unit}</text>
+  </svg>`;
+}
+
+/* Les données des deux cadrans, calculées une fois et réutilisées par les
+   fiches de détail. */
+function duoData(a){
+  const t = today(), od = objDay();
+
+  const dd = a.days[t] || {tot:0, byMeal:{}};
+  const day = {tot:dd.tot, byMeal:dd.byMeal, bud:BUDGET_J, obj:od};
+  day.scale = Math.max(day.bud, od || 0, day.tot) * 1.06;
+  day.over = day.tot > day.bud;
+
+  const wk = weekDays(), log = wk.filter(d => a.days[d]);
+  const byMeal = {};
+  log.forEach(d => MEALS.forEach(m => {
+    byMeal[m.k] = (byMeal[m.k] || 0) + (a.days[d].byMeal[m.k] || 0);
+  }));
+  /* Budget au prorata des jours renseignés. Comparer quatre jours de saisie à
+     sept jours de budget flatterait le résultat en rétrécissant le périmètre,
+     exactement comme une intensité qu'on améliore en coupant son dénominateur. */
+  const n = log.length;
+  const week = {days:wk, log, n, tot:log.reduce((x,d) => x + a.days[d].tot, 0), byMeal,
+                bud:BUDGET_J * Math.max(n,1), full:BUDGET_J * 7,
+                obj:od != null ? od * Math.max(n,1) : null};
+  week.scale = Math.max(week.bud, week.obj || 0, week.tot) * 1.06;
+  week.over = week.tot > week.bud;
+  return {day, week, t};
+}
+
+function duoCards(a){
+  const {day, week, t} = duoData(a);
+  const segs = bm => MEALS.map(m => ({v:bm[m.k] || 0, c:m.c}));
+  const tk = o => [{v:o.bud, c:'var(--ink)'}]
+    .concat(o.obj != null ? [{v:o.obj, c:'var(--straw)', out:1}] : []);
+
+  return `
+    <div class="duo">
+      <button class="dcell" id="dqDay" aria-label="Détail du budget du jour">
+        <span class="dt">Aujourd’hui</span>
+        ${donut({scale:day.scale, segs:segs(day.byMeal), ticks:tk(day),
+          big:n2(day.tot), unit:'KG CO₂E',
+          col:day.over ? 'var(--brick)' : 'var(--ink)'})}
+        <span class="dc">budget ${n2(day.bud)}${day.obj != null ? ` · objectif ${n2(day.obj)}` : ''}</span>
+      </button>
+
+      <button class="dcell" id="dqWeek" aria-label="Détail du budget de la semaine">
+        <span class="dt">Cette semaine</span>
+        ${donut({scale:week.scale, segs:segs(week.byMeal), ticks:tk(week),
+          big:n1(week.tot), unit:'KG CO₂E',
+          col:week.over ? 'var(--brick)' : 'var(--ink)'})}
+        <span class="wdots">${week.days.map(d =>
+          `<i class="${a.days[d] ? 'on' : ''}${d === t ? ' tdy' : ''}"></i>`).join('')}</span>
+        <span class="dc">${week.n === 7 ? 'semaine complète'
+          : `${week.n} j sur 7 · budget au prorata`}</span>
+      </button>
+    </div>`;
+}
+
+function duoBind(a){
+  const {day, week} = duoData(a);
+  const lignes = o => MEALS.filter(m => (o.byMeal[m.k] || 0) > 0)
+    .map(m => `<span class="unit"><i class="dot" style="background:${m.c}"></i> ${m.l}</span>
+      <span class="small">${n2(o.byMeal[m.k])} kg</span><span></span>`).join('')
+    || '<span class="unit">Rien</span><span class="small">aucune saisie</span><span></span>';
+
+  const fiche = (titre, o, extra) => {
+    const reste = o.bud - o.tot;
+    openSheet(`
+      <div class="unit">${titre}</div>
+      <h3 style="margin:2px 0 10px">${n2(o.tot)} kg CO₂e</h3>
+      <div class="stagelist">
+        ${lignes(o)}
+        <span class="unit">Budget</span><span class="small">${n2(o.bud)} kg</span><span></span>
+        ${o.obj != null ? `<span class="unit">Objectif</span><span class="small">${n2(o.obj)} kg</span><span></span>` : ''}
+      </div>
+      <div class="hr"></div>
+      <div class="small">${reste >= 0
+        ? `Il reste <b>${n0(reste*1000)} g</b>, soit ${Math.round(reste/o.bud*100)} % du budget.`
+        : `Budget dépassé de <b>${n0(-reste*1000)} g</b>, soit ${Math.round(-reste/o.bud*100)} % au-delà.`}</div>
+      ${extra || ''}
+      ${o.obj == null ? `<button class="btn btn-2" id="dq_obj" style="margin-top:12px">Définir un objectif</button>` : ''}`);
+    const b = $('#dq_obj');
+    if(b) b.onclick = () => profQuiz(profSteps().findIndex(q => q.k === 'objSet'));
+  };
+
+  const dd = $('#dqDay');
+  if(dd) dd.onclick = () => fiche('Aujourd’hui · ' + dLabel(today()), day);
+
+  const dw = $('#dqWeek');
+  if(dw) dw.onclick = () => fiche('Semaine du ' + dLabel(week.days[0]), week, `
+    <div class="src" style="margin-top:10px">Budget calculé sur les
+      ${week.n} jour${week.n>1?'s':''} renseigné${week.n>1?'s':''}, pas sur sept.
+      Un jour sans saisie n'est pas un jour sans émission : le compter comme nul
+      améliorerait le résultat sans rien changer à la réalité.
+      ${week.n < 7 ? `Semaine entière : ${n1(week.full)} kg.` : ''}</div>`);
+}
+
 function tvRepas(a){
   const t = today();
   const d = a.days[t] || {tot:0, byMeal:{}};
@@ -2440,7 +2607,9 @@ function tvRepas(a){
   const mxd = Math.max(...perDay.map(p => p.perDay), .001);
   const last = [...S.hist].reverse().slice(0, 14);
   $('#tv').innerHTML = `
-    <h2 class="sec">La journée en cours</h2>
+    ${duoCards(a)}
+
+    <h2 class="sec">Détail du jour</h2>
     <div class="card">${gauge(d.byMeal, d.tot)}
       <div class="hr"></div>
       <div class="small">${(() => {
@@ -2480,6 +2649,7 @@ function tvRepas(a){
     <h2 class="sec">Le mois</h2>
     ${calMini()}`;
   $('#calMiniBtn').onclick = () => calendarSheet();
+  duoBind(a);
 }
 
 function bindEntryRows(){
