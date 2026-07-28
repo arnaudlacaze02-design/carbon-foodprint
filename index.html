@@ -121,6 +121,10 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 .wdots{display:flex; gap:3px; align-items:center}
 .wdots i{width:6px; height:6px; border-radius:50%; background:var(--line); flex:0 0 auto}
 .wdots i.on{background:var(--forest)}
+/* trois états, et la distinction compte : un jour manqué est un jour qui a
+   émis sans être compté, un jour à venir n'est rien du tout */
+.wdots i.miss{background:transparent; box-shadow:inset 0 0 0 1.6px var(--brick)}
+.wdots i.soon{background:var(--line-soft)}
 .wdots i.tdy{outline:1.5px solid var(--straw); outline-offset:1px}
 
 .brandbig{width:158px; height:90px; margin:2px auto 16px; display:block;
@@ -2506,17 +2510,26 @@ function duoData(a){
   day.scale = Math.max(day.bud, od || 0, day.tot) * 1.06;
   day.over = day.tot > day.bud;
 
-  const wk = weekDays(), log = wk.filter(d => a.days[d]);
+  const wk = weekDays();
+  /* Le cadre de référence s'arrête à aujourd'hui. Un jour à venir n'est pas un
+     jour manqué : le compter comme tel afficherait « 2 j sur 7 » un mercredi et
+     ferait passer quatre jours qui n'existent pas encore pour des oublis. */
+  const elapsed = wk.filter(d => d <= t);
+  const log = elapsed.filter(d => a.days[d]);
+  const miss = elapsed.filter(d => !a.days[d]);
   const byMeal = {};
   log.forEach(d => MEALS.forEach(m => {
     byMeal[m.k] = (byMeal[m.k] || 0) + (a.days[d].byMeal[m.k] || 0);
   }));
-  /* Budget au prorata des jours renseignés. Comparer quatre jours de saisie à
-     sept jours de budget flatterait le résultat en rétrécissant le périmètre,
-     exactement comme une intensité qu'on améliore en coupant son dénominateur. */
+  /* Budget au prorata des seuls jours renseignés : un jour manqué retire donc
+     son allocation. C'est le choix sévère, et le bon — lui laisser son budget
+     offrirait 1,9 kg de marge en échange de zéro émission déclarée, soit une
+     intensité qu'on améliore en coupant son dénominateur. */
   const n = log.length;
-  const week = {days:wk, log, n, tot:log.reduce((x,d) => x + a.days[d].tot, 0), byMeal,
-                bud:BUDGET_J * Math.max(n,1), full:BUDGET_J * 7,
+  const week = {days:wk, elapsed:elapsed.length, log, n, miss:miss.length,
+                tot:log.reduce((x,d) => x + a.days[d].tot, 0), byMeal,
+                bud:BUDGET_J * Math.max(n,1),
+                budElapsed:BUDGET_J * elapsed.length, full:BUDGET_J * 7,
                 obj:od != null ? od * Math.max(n,1) : null};
   week.scale = Math.max(week.bud, week.obj || 0, week.tot) * 1.06;
   week.over = week.tot > week.bud;
@@ -2545,9 +2558,10 @@ function duoCards(a){
           big:n1(week.tot), unit:'KG CO₂E',
           col:week.over ? 'var(--brick)' : 'var(--ink)'})}
         <span class="wdots">${week.days.map(d =>
-          `<i class="${a.days[d] ? 'on' : ''}${d === t ? ' tdy' : ''}"></i>`).join('')}</span>
-        <span class="dc">${week.n === 7 ? 'semaine complète'
-          : `${week.n} j sur 7 · budget au prorata`}</span>
+          `<i class="${a.days[d] ? 'on' : d <= t ? 'miss' : 'soon'}${d === t ? ' tdy' : ''}"></i>`).join('')}</span>
+        <span class="dc">${week.n === 0 ? 'aucune saisie cette semaine'
+          : week.miss === 0 ? `${week.n} j sur ${week.elapsed} · à jour`
+          : `${week.n} j sur ${week.elapsed} · ${week.miss} manqué${week.miss>1?'s':''}`}</span>
       </button>
     </div>`;
 }
@@ -2584,11 +2598,21 @@ function duoBind(a){
 
   const dw = $('#dqWeek');
   if(dw) dw.onclick = () => fiche('Semaine du ' + dLabel(week.days[0]), week, `
-    <div class="src" style="margin-top:10px">Budget calculé sur les
-      ${week.n} jour${week.n>1?'s':''} renseigné${week.n>1?'s':''}, pas sur sept.
-      Un jour sans saisie n'est pas un jour sans émission : le compter comme nul
-      améliorerait le résultat sans rien changer à la réalité.
-      ${week.n < 7 ? `Semaine entière : ${n1(week.full)} kg.` : ''}</div>`);
+    <div class="hr"></div>
+    <div class="stagelist">
+      <span class="unit">Jours écoulés</span><span class="small">${week.elapsed} sur 7</span><span></span>
+      <span class="unit">Renseignés</span><span class="small">${week.n}</span><span></span>
+      ${week.miss ? `<span class="unit">Manqués</span><span class="small">${week.miss} · ${n1(week.miss*BUDGET_J)} kg de budget retirés</span><span></span>` : ''}
+    </div>
+    <div class="src" style="margin-top:10px">Le budget suit les seuls jours renseignés.
+      ${week.miss
+        ? `${week.miss > 1 ? `Les ${week.miss} jours manqués ne reçoivent pas d'allocation`
+                             : `Le jour manqué ne reçoit pas d'allocation`} : un jour sans saisie
+           n'est pas un jour sans émission, et lui laisser son budget offrirait de la
+           marge en échange de rien. Semaine à jour, le budget serait de ${n1(week.budElapsed)} kg.`
+        : `Aucun jour manqué à ce stade de la semaine.`}
+      ${week.elapsed < 7 ? ` Les ${7 - week.elapsed} jour${7-week.elapsed>1?'s':''} à venir ne comptent pas encore ;
+         semaine pleine, le budget atteindra ${n1(week.full)} kg.` : ''}</div>`);
 }
 
 function tvRepas(a){
