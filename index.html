@@ -2735,6 +2735,8 @@ function profileSheet(){
   bindAccount();
   const pg = $('#pf_go');
   if(pg) pg.onclick = () => profQuiz(0);
+  const pd = $('#pf_diag');
+  if(pd) pd.onclick = diagSheet;
   const ps = $('#pf_share');
   if(ps) ps.onclick = async () => {
     S.tasteShared = !S.tasteShared;
@@ -2779,7 +2781,78 @@ function profBlock(){
         S.tasteShared ? 'Fermer le partage' : 'Partager avec mes amis'}</button>
       <div class="src" style="margin-top:8px">Ni vos objectifs, ni votre estimation, ni aucun repas
         ne sont partagés — la table qui les recevrait n’existe pas.</div>` : ''}
-    <button class="btn btn-2" id="pf_go" style="margin-top:10px">Modifier mon profil</button>`;
+    <button class="btn btn-2" id="pf_go" style="margin-top:10px">Modifier mon profil</button>
+    ${SESS ? `<button class="backlink" id="pf_diag" style="margin-top:8px">Diagnostic serveur ›</button>` : ''}`;
+}
+
+/* ==================== diagnostic serveur ====================
+   Chaque dépendance testée séparément, avec son code HTTP. Le but est de
+   distinguer une table absente d'un refus de droits et d'une panne réseau :
+   ces trois pannes donnent le même symptôme côté utilisateur — « ça ne marche
+   pas » — et des remèdes entièrement différents. */
+async function diagSheet(){
+  openSheet(`<div class="unit">Diagnostic</div>
+    <h3 style="margin:2px 0 10px">Vérification en cours…</h3>
+    <p class="small mute">Une ligne par dépendance.</p>`);
+
+  const tests = [
+    ['Profils',        'profiles?select=id&limit=1'],
+    ['Repas',          'entries?select=entry_id&limit=1'],
+    ['Demandes d’ami', 'friend_requests?select=status&limit=1'],
+    ['Amitiés',        'my_friends?select=friend'],
+    ['Fiches goûts',   'tastes?select=shared&limit=1'],
+    ['Publications',   'posts?select=id&limit=1'],
+    ['Destinataires',  'post_people?select=post&limit=1'],
+    ['Communautés',    'communities?select=id&limit=1'],
+  ];
+  const out = [];
+  for(const [nom, req] of tests){
+    const r = await SB.rest(req);
+    const txt = JSON.stringify(r.body || {});
+    let verdict, ton;
+    if(r.status === 0){ verdict = 'hors ligne'; ton = 'var(--mute)'; }
+    else if(/PGRST205|schema cache/i.test(txt)){ verdict = 'TABLE ABSENTE'; ton = 'var(--brick)'; }
+    else if(r.status === 401 || r.status === 403 || /42501|permission denied/.test(txt)){
+      verdict = 'accès refusé (' + r.status + ')'; ton = 'var(--brick)'; }
+    else if(r.ok){ verdict = 'ok · ' + (Array.isArray(r.body) ? r.body.length + ' ligne(s)' : 'ok');
+                   ton = 'var(--forest)'; }
+    else { verdict = 'erreur ' + r.status; ton = 'var(--brick)'; }
+    out.push([nom, verdict, ton]);
+  }
+
+  const manquantes = out.filter(x => x[1] === 'TABLE ABSENTE').map(x => x[0]);
+  const nAmis = S.fr.friends.length;
+  const acquis = TROPHIES.filter((t,i) => troValue(t, scoring()) >= t.need).length;
+
+  openSheet(`
+    <div class="unit">Diagnostic</div>
+    <h3 style="margin:2px 0 10px">${manquantes.length ? 'Schéma incomplet' : 'Serveur conforme'}</h3>
+    <div class="stagelist">
+      <span class="unit">Session</span><span class="small">${SESS ? esc(SESS.username) : 'déconnecté'}</span><span></span>
+      <span class="unit">Amis acceptés</span><span class="small">${nAmis}</span><span></span>
+      <span class="unit">Badges acquis</span><span class="small">${acquis}</span><span></span>
+    </div>
+    <div class="hr"></div>
+    <div class="stagelist">
+      ${out.map(([n,v,c]) => `<span class="unit">${n}</span>
+        <span class="small" style="color:${c}">${v}</span><span></span>`).join('')}
+    </div>
+    <div class="hr"></div>
+    <div class="small">${
+      manquantes.length
+        ? `Il manque ${manquantes.length} table${manquantes.length>1?'s':''} : <b>${manquantes.join(', ')}</b>.
+           Le partage de badge a besoin de <b>Publications</b> et <b>Destinataires</b>, créées par
+           <b>social_schema.sql</b>. Passez ce fichier dans Supabase, puis relancez ce diagnostic.`
+        : !SESS ? `Aucune session : connectez-vous depuis votre profil.`
+        : nAmis === 0 ? `Tout est en place, mais aucune amitié <b>acceptée</b>. Un badge est adressé
+           nominativement : sans destinataire, personne ne le verrait. Une demande en attente ne compte pas.`
+        : acquis === 0 ? `Tout est en place, mais aucun badge acquis pour l’instant — le bouton de partage
+           n’apparaît que sur un badge obtenu.`
+        : `Rien ne s’oppose au partage. S’il échoue encore, le message d’erreur en bas de l’écran
+           donnera le code renvoyé par le serveur.`}</div>
+    <button class="btn btn-2" id="dg_again" style="margin-top:12px">Relancer</button>`);
+  const b = $('#dg_again');
+  if(b) b.onclick = diagSheet;
 }
 
 /* état de la pastille : grisée sans compte, ourlée de paille une fois connecté */
