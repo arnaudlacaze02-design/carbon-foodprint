@@ -8,7 +8,7 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-3.4.0';
+const VERSION = 'cfp-3.5.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
