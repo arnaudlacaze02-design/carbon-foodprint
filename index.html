@@ -91,8 +91,24 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 .brand{display:flex; align-items:center; gap:9px; min-width:0}
 .wordmark{display:flex; flex-direction:column; font-family:var(--round); font-weight:700;
   font-size:17px; letter-spacing:-.005em; line-height:1.1; white-space:nowrap}
-.mark{width:29px; height:29px; flex:0 0 auto; background:#000; border-radius:7px; padding:2.5px;
-  box-sizing:border-box; display:block}
+/* Mascotte. Servie en masque alpha plutôt qu'en image : le dessin étant
+   monochrome, tes deux versions ne diffèrent que par la couleur de l'encre et
+   du fond. Un seul fichier prend donc la teinte de la surface où il se pose,
+   sans jamais laisser voir un rectangle de fond. */
+.mark{width:22px; height:30px; flex:0 0 auto; display:block;
+  background-color:var(--on-topbar);
+  -webkit-mask:url(logo-mark.png) center/contain no-repeat;
+  mask:url(logo-mark.png) center/contain no-repeat}
+/* sur les écrans les plus étroits, la mascotte cède la place au nom */
+@media (max-width:359px){ .mark{display:none} }
+
+/* Logo complet, posé sur le fond de page : encre verte en thème clair,
+   crème en thème sombre. Illisible sous 90 px de large, d'où cette taille. */
+.brandbig{width:158px; height:90px; margin:2px auto 16px; display:block;
+  background-color:var(--forest);
+  -webkit-mask:url(logo-wide.png) center/contain no-repeat;
+  mask:url(logo-wide.png) center/contain no-repeat}
+:root[data-theme="dark"] .brandbig{background-color:var(--on-topbar)}
 
 /* pastille de profil : hexagone bordé, silhouette grisée par défaut.
    Point d'entrée du compte, et plus tard de l'avatar. */
@@ -672,7 +688,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
           <path d="M27 88c0-12.7 10.3-23 23-23s23 10.3 23 23z"/>
         </g>
       </svg>
-    </button><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
+    </button><i class="mark" aria-hidden="true"></i><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="streak" id="topStreak" title="Jours consécutifs renseignés">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
@@ -1504,6 +1520,7 @@ function renderSaisie(){
   /* ================= 1. accueil : deux fenêtres carrées ================= */
   if(S.step === 'home' && !editing){
     view.innerHTML = `
+      <i class="brandbig" role="img" aria-label="Carbon FOODprint"></i>
       <div class="homegrid">
         <button class="hcard" id="hNew">
           <span class="hi"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
