@@ -2521,18 +2521,26 @@ function duoData(a){
   log.forEach(d => MEALS.forEach(m => {
     byMeal[m.k] = (byMeal[m.k] || 0) + (a.days[d].byMeal[m.k] || 0);
   }));
-  /* Budget au prorata des seuls jours renseignés : un jour manqué retire donc
-     son allocation. C'est le choix sévère, et le bon — lui laisser son budget
-     offrirait 1,9 kg de marge en échange de zéro émission déclarée, soit une
-     intensité qu'on améliore en coupant son dénominateur. */
+  /* Le cadran hebdomadaire est un épuisement de budget, pas une intensité : il
+     répond à « suis-je dans les temps pour la semaine ». Ses repères sont donc
+     ceux de la semaine pleine, et l'allure attendue à ce stade dit où l'on
+     devrait en être. Mettre l'objectif au prorata des jours renseignés en
+     faisait une cible mobile : sauter un jour la rétrécissait, si bien qu'on ne
+     pouvait jamais être en retard sur son propre engagement.
+     L'intensité, elle, reste calculée sur les seuls jours renseignés et vit
+     dans la fiche de détail, où elle ne peut pas être confondue. */
   const n = log.length;
   const week = {days:wk, elapsed:elapsed.length, log, n, miss:miss.length,
                 tot:log.reduce((x,d) => x + a.days[d].tot, 0), byMeal,
-                bud:BUDGET_J * Math.max(n,1),
-                budElapsed:BUDGET_J * elapsed.length, full:BUDGET_J * 7,
-                obj:od != null ? od * Math.max(n,1) : null};
+                bud:BUDGET_J * 7,
+                obj:od != null ? od * 7 : null,
+                budDay:BUDGET_J, objDay:od};
+  week.ref   = od != null ? od : BUDGET_J;        /* rythme visé, par jour */
+  week.pace  = week.ref * week.elapsed;           /* attendu à ce stade */
+  week.rate  = n ? week.tot / n : 0;               /* intensité, jours renseignés */
+  week.miss_kg = week.miss * BUDGET_J;
   week.scale = Math.max(week.bud, week.obj || 0, week.tot) * 1.06;
-  week.over = week.tot > week.bud;
+  week.over  = week.tot > week.pace;               /* en avance sur l'allure = mauvais */
   return {day, week, t};
 }
 
@@ -2562,6 +2570,7 @@ function duoCards(a){
         <span class="dc">${week.n === 0 ? 'aucune saisie cette semaine'
           : week.miss === 0 ? `${week.n} j sur ${week.elapsed} · à jour`
           : `${week.n} j sur ${week.elapsed} · ${week.miss} manqué${week.miss>1?'s':''}`}</span>
+        <span class="dc">attendu ${n1(week.pace)} · semaine ${n1(week.obj != null ? week.obj : week.bud)}</span>
       </button>
     </div>`;
 }
@@ -2599,20 +2608,29 @@ function duoBind(a){
   const dw = $('#dqWeek');
   if(dw) dw.onclick = () => fiche('Semaine du ' + dLabel(week.days[0]), week, `
     <div class="hr"></div>
+    <div class="unit" style="margin-bottom:6px">Où vous devriez en être</div>
     <div class="stagelist">
-      <span class="unit">Jours écoulés</span><span class="small">${week.elapsed} sur 7</span><span></span>
-      <span class="unit">Renseignés</span><span class="small">${week.n}</span><span></span>
-      ${week.miss ? `<span class="unit">Manqués</span><span class="small">${week.miss} · ${n1(week.miss*BUDGET_J)} kg de budget retirés</span><span></span>` : ''}
+      <span class="unit">Attendu à ce jour</span><span class="small">${n1(week.pace)} kg
+        · ${week.elapsed} j × ${n2(week.ref)}</span><span></span>
+      <span class="unit">Réalisé</span><span class="small" style="color:${week.over ? 'var(--brick)' : 'var(--forest)'}">${n1(week.tot)} kg
+        · ${week.over ? `${n1(week.tot - week.pace)} kg d'avance sur l'allure` : `${n1(week.pace - week.tot)} kg de marge`}</span><span></span>
     </div>
-    <div class="src" style="margin-top:10px">Le budget suit les seuls jours renseignés.
+    <div class="hr"></div>
+    <div class="unit" style="margin-bottom:6px">Intensité, sur les jours renseignés</div>
+    <div class="stagelist">
+      <span class="unit">Votre rythme</span><span class="small" style="color:${week.rate > week.budDay ? 'var(--brick)' : 'var(--forest)'}">${week.n ? n2(week.rate) + ' kg/j sur ' + week.n + ' j' : '—'}</span><span></span>
+      <span class="unit">Budget</span><span class="small">${n2(week.budDay)} kg/j</span><span></span>
+      ${week.objDay != null ? `<span class="unit">Objectif</span><span class="small">${n2(week.objDay)} kg/j</span><span></span>` : ''}
+      <span class="unit">Jours</span><span class="small">${week.elapsed} écoulé${week.elapsed>1?'s':''} · ${week.n} renseigné${week.n>1?'s':''}${week.miss ? ` · ${week.miss} manqué${week.miss>1?'s':''}` : ''}</span><span></span>
+    </div>
+    <div class="src" style="margin-top:10px">Le cadran mesure l'épuisement du budget de la semaine
+      entière : ses deux repères sont le budget soutenable, ${n1(week.bud)} kg${week.obj != null ? `, et votre objectif, ${n1(week.obj)} kg` : ''}.
       ${week.miss
-        ? `${week.miss > 1 ? `Les ${week.miss} jours manqués ne reçoivent pas d'allocation`
-                             : `Le jour manqué ne reçoit pas d'allocation`} : un jour sans saisie
-           n'est pas un jour sans émission, et lui laisser son budget offrirait de la
-           marge en échange de rien. Semaine à jour, le budget serait de ${n1(week.budElapsed)} kg.`
-        : `Aucun jour manqué à ce stade de la semaine.`}
-      ${week.elapsed < 7 ? ` Les ${7 - week.elapsed} jour${7-week.elapsed>1?'s':''} à venir ne comptent pas encore ;
-         semaine pleine, le budget atteindra ${n1(week.full)} kg.` : ''}</div>`);
+        ? `Attention : ${week.miss > 1 ? `${week.miss} jours n'ont pas été renseignés` : `un jour n'a pas été renseigné`},
+           soit environ ${n1(week.miss_kg)} kg absents du total. Le cadran vous flatte d'autant.`
+        : `Tous les jours écoulés sont renseignés, le total est complet.`}
+      L'intensité ci-dessus, elle, ne porte que sur les jours mesurés : c'est la seule
+      grandeur comparable d'une semaine à l'autre.</div>`);
 }
 
 function tvRepas(a){
