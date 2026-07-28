@@ -8,7 +8,7 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-2.9.0';
+const VERSION = 'cfp-3.0.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png'
@@ -38,6 +38,14 @@ const fresh = (req, key) => fetch(req).then(res => {
 
 self.addEventListener('fetch', e => {
   if(e.request.method !== 'GET') return;
+
+  /* Ne jamais toucher aux requêtes sortantes vers un autre domaine. Sans ce
+     garde-fou, la lecture des repas — un GET — tombait dans la branche
+     « cache d'abord » : la première synchro était mise en cache et toutes les
+     suivantes relisaient cette réponse périmée au lieu d'interroger le
+     serveur. En prime, les données du compte restaient stockées dans le cache
+     après déconnexion. */
+  if(new URL(e.request.url).origin !== self.location.origin) return;
   const isPage = e.request.mode === 'navigate' ||
                  (e.request.headers.get('accept') || '').includes('text/html');
 
