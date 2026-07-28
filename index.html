@@ -93,6 +93,47 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
   font-size:17px; letter-spacing:-.005em; line-height:1.1; white-space:nowrap}
 .mark{width:29px; height:29px; flex:0 0 auto; background:#000; border-radius:7px; padding:2.5px;
   box-sizing:border-box; display:block}
+
+/* pastille de profil : hexagone bordé, silhouette grisée par défaut.
+   Point d'entrée du compte, et plus tard de l'avatar. */
+.ava{background:none; border:0; padding:0; flex:0 0 auto; display:flex; align-items:center;
+  width:32px; height:36px; cursor:pointer; -webkit-tap-highlight-color:transparent}
+.ava svg{width:32px; height:36px; display:block; overflow:visible}
+.ava .hex{fill:rgba(0,0,0,.18); stroke:var(--on-topbar-mute); stroke-width:5; vector-effect:non-scaling-stroke}
+.ava .who{fill:var(--on-topbar-mute)}
+.ava:active{transform:scale(.94)}
+.ava[data-on="1"] .hex{stroke:var(--straw); stroke-width:6.5}
+.ava[data-on="1"] .who{fill:var(--on-topbar-strong)}
+
+/* ---------------- questionnaire de profil ---------------- */
+.qbar{display:flex; gap:4px; margin:2px 0 12px}
+.qbar i{flex:1; height:3px; border-radius:2px; background:var(--line)}
+.qbar i.on{background:var(--forest)}
+.qbar i.now{background:var(--straw)}
+.qopt{display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+  background:var(--card); border:1px solid var(--line); border-radius:11px;
+  padding:12px 14px; margin-top:7px; font-size:14.5px; color:var(--ink);
+  font-family:inherit; cursor:pointer}
+.qopt:active{background:var(--active)}
+.qopt[aria-pressed="true"]{border-color:var(--forest); background:var(--active)}
+.qopt .qn{flex:1; min-width:0}
+.qopt .qs{display:block; font-family:var(--mono); font-size:10px; color:var(--mute); margin-top:2px}
+.qopt .qk{font-family:var(--mono); font-size:13px; color:var(--forest); opacity:0}
+.qopt[aria-pressed="true"] .qk{opacity:1}
+.qrange{width:100%; margin:16px 0 4px; -webkit-appearance:none; appearance:none;
+  background:transparent; height:26px}
+.qrange::-webkit-slider-runnable-track{height:4px; border-radius:2px; background:var(--line)}
+.qrange::-moz-range-track{height:4px; border-radius:2px; background:var(--line)}
+.qrange::-webkit-slider-thumb{-webkit-appearance:none; appearance:none; width:22px; height:22px;
+  border-radius:50%; background:var(--forest); border:3px solid var(--card); margin-top:-9px;
+  box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.qrange::-moz-range-thumb{width:22px; height:22px; border-radius:50%; background:var(--forest);
+  border:3px solid var(--card); box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.qends{display:flex; justify-content:space-between; font-family:var(--mono);
+  font-size:10px; color:var(--mute)}
+.qbig{font-family:var(--serif); font-size:34px; font-variant-numeric:tabular-nums; text-align:center;
+  line-height:1.1; margin:6px 0 0}
+.qbig small{font-family:var(--mono); font-size:12px; color:var(--mute)}
 .wordmark em{font-style:normal; font-family:var(--round); font-weight:900; font-size:17px;
   letter-spacing:0; color:var(--straw)}
 .wordmark .sp{letter-spacing:-.04em}
@@ -623,7 +664,15 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 <body>
 <div class="phone">
   <header class="topbar">
-    <div class="brand"><svg class="mark" viewBox="-201.68 -240.46 418.64 386.42" aria-hidden="true"><polygon points="-148.96,86.00 148.96,86.00 58.89,34.00 -58.89,34.00" fill="#8FA37E"/><polygon points="-148.96,86.00 148.96,86.00 148.96,103.00 -148.96,103.00" fill="#6E8358"/><polygon points="148.96,86.00 0.00,-172.00 0.00,-68.00 58.89,34.00" fill="#1C6E3C"/><polygon points="148.96,86.00 0.00,-172.00 14.72,-180.50 163.68,77.50" fill="#0E3D22"/><polygon points="0.00,-172.00 -148.96,86.00 -58.89,34.00 0.00,-68.00" fill="#F4CE55"/><polygon points="0.00,-172.00 -148.96,86.00 -163.68,77.50 -14.72,-180.50" fill="#D9A81E"/><polygon points="148.96,86.00 208.96,86.00 118.89,34.00 58.89,34.00" fill="#8FA37E"/><polygon points="148.96,86.00 208.96,86.00 208.96,103.00 148.96,103.00" fill="#6E8358"/><polygon points="0.00,-172.00 -30.00,-223.96 -30.00,-119.96 0.00,-68.00" fill="#1C6E3C"/><polygon points="0.00,-172.00 -30.00,-223.96 -15.28,-232.46 14.72,-180.50" fill="#0E3D22"/><polygon points="-148.96,86.00 -178.96,137.96 -88.89,85.96 -58.89,34.00" fill="#F4CE55"/><polygon points="-148.96,86.00 -178.96,137.96 -193.68,129.46 -163.68,77.50" fill="#D9A81E"/></svg><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
+    <div class="brand"><button class="ava" id="topAva" aria-label="Profil et compte">
+      <svg viewBox="0 0 100 112" aria-hidden="true">
+        <polygon class="hex" points="50,4 92,29 92,79 50,104 8,79 8,29"/>
+        <g class="who">
+          <circle cx="50" cy="44" r="12.5"/>
+          <path d="M27 88c0-12.7 10.3-23 23-23s23 10.3 23 23z"/>
+        </g>
+      </svg>
+    </button><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="streak" id="topStreak" title="Jours consécutifs renseignés">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
@@ -743,19 +792,21 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false,
          dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
-         tomb:[], lastSync:null};
+         tomb:[], lastSync:null, prof:{}};
 
 function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
-        tomb:S.tomb, stdInit:S.stdInit, starred:S.starred, lastSync:S.lastSync})); }catch(e){}
+        tomb:S.tomb, stdInit:S.stdInit, starred:S.starred, lastSync:S.lastSync,
+        prof:S.prof})); }catch(e){}
 }
 function load(){
-  S.favs=[]; S.hist=[]; S.tomb=[]; S.starred=[]; S.stdInit=false; S.lastSync=null;
+  S.favs=[]; S.hist=[]; S.tomb=[]; S.starred=[]; S.stdInit=false; S.lastSync=null; S.prof={};
   try{
     const raw = localStorage.getItem(dataKey());
     if(raw){ const o = JSON.parse(raw);
       S.favs=o.favs||[]; S.hist=o.hist||[]; S.tomb=o.tomb||[];
       S.stdInit=!!o.stdInit; S.starred=o.starred||[]; S.lastSync=o.lastSync||null;
+      S.prof=o.prof||{};
       stamp(); return true; }
   }catch(e){}
   return false;
@@ -1724,13 +1775,17 @@ function anonPayload(){
     if(!raw) return null;
     const o = JSON.parse(raw);
     const h = (o.hist || []).filter(e => /^e\d/.test(e.id || ''));
-    return h.length ? {hist:h, favs:o.favs || []} : null;
+    const pr = o.prof && Object.keys(o.prof).length ? o.prof : null;
+    return (h.length || pr) ? {hist:h, favs:o.favs || [], prof:pr} : null;
   }catch(e){ return null; }
 }
 
 function offerImport(){
   const a = anonPayload();
   if(!a || S.hist.length) return;
+  if(!a.hist.length && a.prof){   /* rien à reprendre sinon le profil : on le fait sans demander */
+    S.prof = a.prof; save(); return;
+  }
   openSheet(`
     <div class="unit">Premier accès à ce compte</div>
     <h3>Reprendre vos données ?</h3>
@@ -1747,9 +1802,10 @@ function offerImport(){
     a.hist.forEach(e => S.hist.push({...e, c:e.c || CLIENT_ID,
       u:e.u || new Date(e.d + 'T12:00:00Z').toISOString()}));
     a.favs.forEach(f => { if(!S.favs.some(x => x.n === f.n)) S.favs.push(f); });
-    save(); closeSheet(); renderTracker();
+    if(a.prof && !Object.keys(S.prof).length) S.prof = a.prof;
+    save(); closeSheet(); go(S.tab);
     toast(a.hist.length + ' repas repris');
-    await syncNow(true); renderTracker();
+    await syncNow(true); go(S.tab);
   };
 }
 
@@ -1776,7 +1832,7 @@ function showRecoveryCode(code, titre){
     catch(e){ toast('Copie refusée, notez-le à la main'); }
   };
   const k = $('#rc_ok');
-  if(k) k.onclick = () => { closeSheet(); renderTracker(); offerImport(); };
+  if(k) k.onclick = () => { closeSheet(); go(S.tab); offerImport(); };
 }
 
 function signupSheet(pseudo, mdp){
@@ -1859,8 +1915,7 @@ function logoutSheet(){
   const done = wipe => async () => {
     await syncNow(true);
     if(wipe){ try{ localStorage.removeItem(dataKey()); }catch(e){} }
-    SB.signOut(); load(); closeSheet();
-    S.tab = 'tracker'; renderTracker();
+    SB.signOut(); load(); closeSheet(); go(S.tab);
     toast(wipe ? 'Déconnecté, copie locale effacée' : 'Déconnecté');
   };
   const k = $('#lo_keep'); if(k) k.onclick = done(false);
@@ -1869,6 +1924,311 @@ function logoutSheet(){
     if(b.dataset.ok) return done(true)();
     b.dataset.ok = '1'; b.textContent = 'Confirmer l\'effacement';
   };
+}
+
+/* ==================== questionnaire de profil ====================
+   Huit questions, une par écran, toutes facultatives. Les réponses restent
+   locales au compte : rien n'est publié, rien n'est comparé à quiconque. */
+
+const PROF_ANCRE = {dessus:2600, moyenne:2000, dessous:1200, budget:700};
+
+const PROFQ = [
+  {k:'gout', q:'Plutôt sucré ou salé ?', opts:[
+    ['sucre','Sucré','Desserts, viennoiseries, fruits'],
+    ['sale','Salé','Fromages, charcuterie, plats en sauce'],
+    ['deux','Les deux','Sans préférence marquée']]},
+
+  {k:'plat', q:'Votre plat préféré ?', txt:'Blanquette, pad thaï, lasagnes…',
+   note:'Pour le plaisir de la question. Rien n’en est déduit.'},
+
+  {k:'dessert', q:'Votre dessert préféré ?', txt:'Tarte au citron, fondant…'},
+
+  {k:'cuisine', q:'Une cuisine favorite ?', opts:[
+    ['traditionnelle','Traditionnelle',''],
+    ['francaise','Française',''],
+    ['mediterraneenne','Méditerranéenne',''],
+    ['italienne','Italienne',''],
+    ['asiatique','Asiatique','']]},
+
+  {k:'regime', q:'Quel régime ?', opts:[
+    ['vegetalien','Végétalien','Aucun produit animal'],
+    ['vegetarien','Végétarien','Ni viande ni poisson'],
+    ['flexitarien','Flexitarien','Viande occasionnelle'],
+    ['proteine','Tout pour la prot','Apport animal à chaque repas'],
+    ['carnivore','Carnivore','Viande sans compter']]},
+
+  {k:'situe', q:'Où pensez-vous vous situer ?',
+   note:'Votre estimation est conservée telle quelle. Quand l’app aura assez de saisies, elle vous montrera l’écart avec la mesure — c’est tout l’intérêt de répondre avant de savoir.',
+   opts:[
+    ['dessus','Au-dessus de la moyenne','plus de 2 t CO₂e par an'],
+    ['moyenne','Dans la moyenne française','environ 2 t'],
+    ['dessous','Sous la moyenne','autour de 1 t, profil flexitarien'],
+    ['budget','Dans le budget soutenable','700 kg ou moins']]},
+
+  {k:'objSet', q:'Définir des objectifs ?', opts:[
+    ['oui','Oui','Une cible annuelle et un rythme végétal'],
+    ['non','Pas maintenant','On pourra y revenir']]},
+
+  {k:'objKg', q:'Quelle cible annuelle ?', range:{min:700, max:2500, step:50},
+   only:st => st.objSet === 'oui'},
+
+  {k:'objVege', q:'Combien de repas végétaux par semaine ?', range:{min:0, max:14, step:1},
+   only:st => st.objSet === 'oui'},
+];
+
+/* étapes réellement affichées, une fois les conditions appliquées */
+const profSteps = () => PROFQ.filter(q => !q.only || q.only(S.prof));
+
+function profDefault(q){
+  if(q.k === 'objKg'){
+    const a = agg();
+    if(a.nd >= 3) return Math.min(2500, Math.max(700, Math.round(a.avg * 365 * 0.8 / 50) * 50));
+    return PROF_ANCRE[S.prof.situe] ? Math.max(700, PROF_ANCRE[S.prof.situe] - 400) : 1600;
+  }
+  if(q.k === 'objVege'){
+    return /veget/.test(S.prof.regime || '') ? 14 : S.prof.regime === 'flexitarien' ? 5 : 3;
+  }
+  return null;
+}
+
+function profSave(k, v){
+  S.prof[k] = v;
+  S.prof.at = new Date().toISOString();
+  if(k === 'situe') S.prof.situeAt = S.prof.at;
+  save();
+}
+
+function profQuiz(i){
+  const steps = profSteps();
+  if(i < 0) return profileSheet();
+  if(i >= steps.length){
+    S.prof.done = true; save();
+    return profileSheet();
+  }
+  const q = steps[i], cur = S.prof[q.k];
+  const bar = steps.map((_, j) =>
+    `<i class="${j < i ? 'on' : j === i ? 'now' : ''}"></i>`).join('');
+
+  let corps = '';
+  if(q.opts){
+    corps = q.opts.map(([v, lab, sub]) => `
+      <button class="qopt" data-v="${v}" aria-pressed="${cur === v}">
+        <span class="qn">${lab}${sub ? `<span class="qs">${sub}</span>` : ''}</span>
+        <span class="qk">✓</span>
+      </button>`).join('');
+  } else if(q.txt){
+    corps = `<input class="search" id="q_txt" placeholder="${q.txt}" maxlength="40"
+               value="${esc(cur || '')}" style="margin-top:4px">`;
+  } else if(q.range){
+    const val = cur != null ? cur : profDefault(q);
+    corps = `
+      <div class="qbig" id="q_out"></div>
+      <input class="qrange" type="range" id="q_rng"
+             min="${q.range.min}" max="${q.range.max}" step="${q.range.step}" value="${val}">
+      <div class="qends"><span id="q_lo"></span><span id="q_hi"></span></div>
+      <div class="src" id="q_hint" style="margin-top:10px"></div>`;
+  }
+
+  openSheet(`
+    <div class="unit">Profil · ${i + 1} sur ${steps.length}</div>
+    <div class="qbar">${bar}</div>
+    <h3 style="margin:0 0 ${q.note ? '6' : '10'}px">${q.q}</h3>
+    ${q.note ? `<p class="small mute" style="margin-bottom:10px">${q.note}</p>` : ''}
+    ${corps}
+    <div class="actions" style="margin-top:14px">
+      ${q.opts ? '' : `<button class="btn btn-1" id="q_next">${i === steps.length - 1 ? 'Terminer' : 'Suivant ›'}</button>`}
+      <button class="btn btn-2" id="q_skip">${cur != null && cur !== '' ? 'Garder, suivant' : 'Passer'}</button>
+    </div>
+    <button class="backlink" id="q_back" style="margin-top:6px">${i === 0 ? '‹ Retour au profil' : '‹ Question précédente'}</button>`);
+
+  /* choix : sélectionne et avance, un seul geste par question */
+  $('#sheet').querySelectorAll('.qopt').forEach(b => b.onclick = () => {
+    profSave(q.k, b.dataset.v);
+    profQuiz(i + 1);
+  });
+
+  const tx = $('#q_txt');
+  if(tx){
+    const go = () => { profSave(q.k, tx.value.trim()); profQuiz(i + 1); };
+    $('#q_next').onclick = go;
+    tx.onkeydown = e => { if(e.key === 'Enter') go(); };
+  }
+
+  const rg = $('#q_rng');
+  if(rg){
+    const paint = () => {
+      const v = +rg.value;
+      if(q.k === 'objKg'){
+        const f = DB.facts;
+        $('#q_out').innerHTML = `${n0(v)} <small>kg CO₂e / an</small>`;
+        $('#q_lo').textContent = 'budget 700';
+        $('#q_hi').textContent = 'moyenne FR ' + n0(f.foodAbs);
+        const dur = /carnivore|proteine/.test(S.prof.regime || '') && v < 1200;
+        const a = agg();
+        $('#q_hint').innerHTML = dur
+          ? 'Cible exigeante pour le régime déclaré : sous 1 200 kg, un apport animal à chaque repas ne rentre arithmétiquement pas.'
+          : a.nd >= 3
+            ? `À votre rythme actuel vous êtes sur ${n0(a.avg * 365)} kg par an.`
+            : 'La moyenne française pour l’alimentation est de 2 000 kg, le budget soutenable de 700 kg.';
+      } else {
+        $('#q_out').innerHTML = `${v} <small>repas / semaine</small>`;
+        $('#q_lo').textContent = '0';
+        $('#q_hi').textContent = '14 · tous';
+        $('#q_hint').textContent = v === 0
+          ? 'Aucun repas végétal visé.'
+          : `Soit ${(v / 14 * 100).toFixed(0)} % de vos repas, sur deux repas par jour.`;
+      }
+    };
+    rg.oninput = paint; paint();
+    $('#q_next').onclick = () => { profSave(q.k, +rg.value); profQuiz(i + 1); };
+  }
+
+  $('#q_skip').onclick = () => profQuiz(i + 1);
+  $('#q_back').onclick = () => profQuiz(i - 1);
+}
+
+/* résumé du profil, affiché dans la fenêtre de la pastille */
+function profRows(){
+  const L = {
+    gout:{t:'Goût', v:{sucre:'Sucré', sale:'Salé', deux:'Les deux'}},
+    cuisine:{t:'Cuisine', v:{traditionnelle:'Traditionnelle', francaise:'Française',
+      mediterraneenne:'Méditerranéenne', italienne:'Italienne', asiatique:'Asiatique'}},
+    regime:{t:'Régime', v:{vegetalien:'Végétalien', vegetarien:'Végétarien',
+      flexitarien:'Flexitarien', proteine:'Tout pour la prot', carnivore:'Carnivore'}},
+  };
+  const r = [];
+  if(S.prof.gout) r.push([L.gout.t, L.gout.v[S.prof.gout]]);
+  if(S.prof.plat) r.push(['Plat', S.prof.plat]);
+  if(S.prof.dessert) r.push(['Dessert', S.prof.dessert]);
+  if(S.prof.cuisine) r.push([L.cuisine.t, L.cuisine.v[S.prof.cuisine]]);
+  if(S.prof.regime) r.push([L.regime.t, L.regime.v[S.prof.regime]]);
+  if(S.prof.situe) r.push(['Estimation', {dessus:'Au-dessus de la moyenne',
+    moyenne:'Dans la moyenne', dessous:'Sous la moyenne',
+    budget:'Dans le budget'}[S.prof.situe] + ' · ' + n0(PROF_ANCRE[S.prof.situe]) + ' kg']);
+  if(S.prof.objKg != null) r.push(['Cible', n0(S.prof.objKg) + ' kg / an']);
+  if(S.prof.objVege != null) r.push(['Végétal', S.prof.objVege + ' repas / sem.']);
+  return r;
+}
+
+/* L'écart entre l'estimation et la mesure : la seule chose que ce
+   questionnaire produit d'analytique. Affiché seulement quand il y a de quoi
+   mesurer — une semaine de saisies. */
+function profEcart(){
+  if(!S.prof.situe) return '';
+  const a = agg();
+  const dit = PROF_ANCRE[S.prof.situe];
+  if(a.nd < 7) return `<div class="src" style="margin-top:8px">Vous vous estimiez
+    « ${{dessus:'au-dessus de la moyenne', moyenne:'dans la moyenne', dessous:'sous la moyenne',
+        budget:'dans le budget'}[S.prof.situe]} ». Encore ${7 - a.nd} jour(s)
+    de saisie et l’app pourra confronter cette estimation à la mesure.</div>`;
+  const vrai = a.avg * 365, d = vrai - dit;
+  return `<div class="hr"></div>
+    <div class="stagelist">
+      <span class="unit">Estimé</span><span class="small">${n0(dit)} kg / an</span><span></span>
+      <span class="unit">Mesuré</span><span class="small">${n0(vrai)} kg / an sur ${a.nd} jours</span><span></span>
+    </div>
+    <div class="src" style="margin-top:8px">${Math.abs(d) < 200
+      ? 'Estimation juste, à moins de 200 kg près.'
+      : d < 0 ? `Vous mangez ${n0(-d)} kg de moins que vous ne le pensiez.`
+              : `Vous mangez ${n0(d)} kg de plus que vous ne le pensiez.`}</div>`;
+}
+
+/* Fenêtre de profil : unique point d'entrée du compte. Elle remplace la carte
+   qui vivait dans le Tracker — deux portes vers la même chose se contredisent
+   tôt ou tard. */
+function profileSheet(){
+  if(!SB.ready()) return toast('Comptes non configurés sur cette copie');
+  const hex = `<svg viewBox="0 0 100 112" style="width:62px;height:70px;overflow:visible" aria-hidden="true">
+      <polygon points="50,4 92,29 92,79 50,104 8,79 8,29"
+        fill="var(--active)" stroke="${SESS ? 'var(--straw)' : 'var(--line)'}" stroke-width="3"/>
+      <g fill="${SESS ? 'var(--forest)' : 'var(--line)'}">
+        <circle cx="50" cy="44" r="12.5"/>
+        <path d="M27 88c0-12.7 10.3-23 23-23s23 10.3 23 23z"/>
+      </g>
+    </svg>`;
+
+  if(SESS){
+    const ls = S.lastSync
+      ? 'Dernière synchro ' + new Date(S.lastSync).toLocaleString('fr-FR',
+          {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})
+      : 'Pas encore synchronisé';
+    openSheet(`
+      <div style="display:flex;align-items:center;gap:14px">
+        ${hex}
+        <div style="min-width:0">
+          <div class="unit">Connecté</div>
+          <h3 style="margin:2px 0 3px">${esc(SESS.username)}</h3>
+          <div class="small mute">${esc(ls)}</div>
+        </div>
+      </div>
+      <div class="hr"></div>
+      <div class="stagelist">
+        <span class="unit">Repas</span><span class="small">${S.hist.length} dans ce compte</span><span></span>
+      </div>
+      ${profBlock()}
+      <div class="actions" style="margin-top:14px">
+        <button class="btn btn-1" id="ac_sync">Synchroniser</button>
+        <button class="btn btn-2" id="ac_out">Se déconnecter</button>
+      </div>
+      <div class="src" style="margin-top:10px">La synchro se fait aussi seule à l'ouverture et après
+        chaque saisie. Vous restez connecté jusqu'à ce que vous vous déconnectiez.</div>`);
+  } else {
+    openSheet(`
+      <div style="display:flex;align-items:center;gap:14px">
+        ${hex}
+        <div style="min-width:0">
+          <div class="unit">Aucun compte</div>
+          <h3 style="margin:2px 0 3px">Profil</h3>
+          <div class="small mute">Vos repas vivent dans ce navigateur</div>
+        </div>
+      </div>
+      ${profBlock()}
+      <div class="hr"></div>
+      <p class="small">Un compte permet de retrouver son historique sur un autre appareil.
+        Pseudo et mot de passe uniquement — aucune adresse e-mail n'est demandée.</p>
+      <input class="search" id="ac_p" placeholder="Pseudo" autocomplete="username">
+      <input class="search" id="ac_m" type="password" placeholder="Mot de passe"
+             autocomplete="current-password" style="margin-top:7px">
+      <div class="actions">
+        <button class="btn btn-1" id="ac_in">Se connecter</button>
+        <button class="btn btn-2" id="ac_up">Créer un compte</button>
+      </div>
+      <button class="backlink" id="ac_lost" style="margin-top:6px">Mot de passe oublié ›</button>`);
+  }
+  bindAccount();
+  const pg = $('#pf_go');
+  if(pg) pg.onclick = () => profQuiz(0);
+}
+
+/* Bloc profil de la fenêtre : invitation tant que rien n'est rempli, résumé
+   ensuite. Le profil vit sans compte — c'est une préférence, pas une identité. */
+function profBlock(){
+  const r = profRows();
+  const tot = profSteps().length;
+  const n = profSteps().filter(q => { const v = S.prof[q.k]; return v != null && v !== ''; }).length;
+
+  if(!n) return `
+    <div class="hr"></div>
+    <p class="small">Huit questions rapides sur vos goûts et vos objectifs. Facultatif,
+      interruptible, et rien n'est publié ni comparé à qui que ce soit.</p>
+    <button class="btn btn-2" id="pf_go" style="margin-top:4px">Renseigner mon profil</button>`;
+
+  return `
+    <div class="hr"></div>
+    <div class="unit" style="margin-bottom:6px">Profil · ${n} sur ${tot}</div>
+    <div class="stagelist">
+      ${r.map(([k, v]) => `<span class="unit">${k}</span><span class="small">${esc(String(v))}</span><span></span>`).join('')}
+    </div>
+    ${profEcart()}
+    <button class="btn btn-2" id="pf_go" style="margin-top:10px">Modifier mon profil</button>`;
+}
+
+/* état de la pastille : grisée sans compte, ourlée de paille une fois connecté */
+function paintAva(){
+  const a = document.getElementById('topAva');
+  if(!a) return;
+  a.dataset.on = SESS ? '1' : '0';
+  a.setAttribute('aria-label', SESS ? 'Profil · ' + SESS.username : 'Profil, aucun compte');
 }
 
 function accountCard(){
@@ -1914,7 +2274,7 @@ function bindAccount(){
   const sy = $('#ac_sync');
   if(sy) sy.onclick = async () => {
     sy.disabled = true; sy.textContent = 'Synchro…';
-    await syncNow(false); renderTracker();
+    await syncNow(false); closeSheet(); go(S.tab);
   };
   const out = $('#ac_out'); if(out) out.onclick = logoutSheet;
 
@@ -1928,10 +2288,10 @@ function bindAccount(){
       inb.disabled = false; inb.textContent = 'Se connecter';
       return toast(r.status === 0 ? 'Hors ligne' : 'Pseudo ou mot de passe incorrect');
     }
-    load(); renderTracker();
+    load(); go(S.tab);
     const a = anonPayload();
     if(!S.hist.length && a) offerImport();
-    await syncNow(true); renderTracker();
+    await syncNow(true); go(S.tab);
   };
   const up = $('#ac_up');
   if(up) up.onclick = () => {
@@ -1952,7 +2312,6 @@ function renderTracker(){
     <div class="seg">${tabs.map(([k,l]) =>
       `<button data-tv="${k}" aria-pressed="${S.tv===k}"><b>${l}</b></button>`).join('')}</div>
     <div id="tv"></div>
-    ${accountCard()}
     <h2 class="sec">Sauvegarde locale</h2>
     <div class="card">
       <p class="small">${SESS ? 'Utile en complément du compte : une copie que vous gardez, indépendante du serveur.'
@@ -1963,7 +2322,6 @@ function renderTracker(){
       </div>
     </div>`;
   view.querySelectorAll('[data-tv]').forEach(b => b.onclick = () => { S.tv = b.dataset.tv; renderTracker(); });
-  bindAccount();
   ({repas:tvRepas, an:tvAn, cumule:tvCumule})[S.tv](a);
 
   const dump = () => JSON.stringify({v:1, favs:S.favs, hist:S.hist});
@@ -2857,6 +3215,7 @@ function streakSheet(){
 }
 
 function topbar(){
+  paintAva();
   const t = S.hist.filter(e => e.d === today()).reduce((a,e) => a + kgOf(e.l), 0);
   $('#topToday').innerHTML = `Aujourd’hui<b>${n2(t)} kg</b>`;
   const st = logStreak(), el = $('#topStreak');
@@ -2872,6 +3231,8 @@ S.favs.forEach(f => { if(f.std && !Array.isArray(f.m)) f.m = ['dej','din']; });
 themeMode = readTheme(); applyTheme(themeMode);
 const gear = document.getElementById('gear');
 if(gear) gear.onclick = themeSheet;
+const avaBtn = document.getElementById('topAva');
+if(avaBtn) avaBtn.onclick = profileSheet;
 SB.readSess();
 load();
 if(!S.stdInit) addStandards();
