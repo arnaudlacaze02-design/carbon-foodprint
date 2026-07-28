@@ -1,7 +1,7 @@
 name: Ping Supabase
 on:
   schedule:
-    - cron: '0 6 * * 1,4'     # lundi et jeudi, 6h UTC
+    - cron: '0 6 * * 1,4'
   workflow_dispatch:
 
 jobs:
@@ -9,9 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Reveiller le projet
+        env:
+          URL: https://ioqjkssonvrxzymicmlz.supabase.co
+          KEY: sb_publishable_N8nnjn5EIZffCKRCcpUASw_dLc0DX6w
         run: |
-          code=$(curl -s -o /dev/null -w '%{http_code}' \
-            "https://ioqjkssonvrxzymicmlz.supabase.co" \
-            -H "sb_publishable_N8nnjn5EIZffCKRCcpUASw_dLc0DX6w")
+          code=$(curl -s -o body.txt -w '%{http_code}' "$URL/rest/v1/profiles?select=id&limit=1" -H "apikey: $KEY")
           echo "HTTP $code"
+          cat body.txt
           test "$code" = "200"
