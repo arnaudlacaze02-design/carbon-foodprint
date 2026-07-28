@@ -104,8 +104,23 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 
 /* Logo complet, posé sur le fond de page : encre verte en thème clair,
    crème en thème sombre. Illisible sous 90 px de large, d'où cette taille. */
+/* ---------------- réglette des deux seuils ----------------
+   Le cadran dit où l'on en est, la réglette dit par rapport à quoi. Les deux
+   repères y sont nommés et chiffrés, ce que des encoches sur un anneau ne
+   peuvent pas faire. Un libellé au-dessus, l'autre en dessous : ils ne se
+   chevauchent jamais, même quand budget et objectif sont proches. */
+.rgl{margin:6px 0 2px}
+.rgl .lbl{position:relative; height:15px; font-family:var(--mono); font-size:9px;
+  letter-spacing:.04em; color:var(--mute)}
+.rgl .lbl b{position:absolute; transform:translateX(-50%); white-space:nowrap; font-weight:400}
+.rgl .bar{position:relative; height:12px; border-radius:6px; background:var(--track); overflow:hidden}
+.rgl .bar i{position:absolute; inset:0 auto 0 0; border-radius:6px}
+.rgl .mk{position:absolute; top:-3px; bottom:-3px; width:2.5px; border-radius:2px; transform:translateX(-50%)}
+.rgl .wrap{position:relative}
+.rgl .cap{font-family:var(--mono); font-size:9px; color:var(--mute); margin-top:6px; line-height:1.4}
+
 /* ---------------- deux cadrans, jour et semaine ---------------- */
-.duo{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:4px}
+.duo{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px}
 .dcell{aspect-ratio:1; background:var(--card); border:1px solid var(--line); border-radius:var(--r);
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
   padding:10px 8px; text-align:center; font-family:inherit; color:var(--ink); cursor:pointer}
@@ -564,6 +579,10 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .tip{display:flex; gap:10px; align-items:flex-start; background:var(--kpi-good);
   border:1px solid var(--forest-2); border-radius:10px; padding:11px 12px; margin-top:12px}
 .tip.warn{background:var(--note-bg); border-color:var(--note-line-2)}
+.tip.good{background:var(--kpi-good); border-color:var(--forest)}
+.tip.bad{background:var(--note-bg); border-color:var(--brick)}
+.tip.bad .ic{color:var(--brick)}
+.tip.good .ic{color:var(--forest)}
 .tip .ic{font-family:var(--mono); font-size:13px; line-height:1.3}
 .tip .tx{font-size:12.5px; line-height:1.45; color:var(--ink)}
 .tip .tx b{font-weight:600}
@@ -2984,6 +3003,26 @@ function donut(o){
 
 /* Les données des deux cadrans, calculées une fois et réutilisées par les
    fiches de détail. */
+/* Réglette : barre remplie du réalisé, deux repères nommés. L'échelle englobe
+   les trois valeurs, sinon un repère sortirait du cadre. */
+function reglette(o){
+  const sc = Math.max(o.bud, o.obj || 0, o.tot) * 1.08;
+  const pos = v => Math.max(2, Math.min(98, v / sc * 100));
+  const col = o.tot <= (o.obj != null ? Math.min(o.obj, o.bud) : o.bud) ? 'var(--forest)'
+            : o.tot <= Math.max(o.obj || 0, o.bud) ? 'var(--s4)' : 'var(--brick)';
+  return `<div class="rgl">
+    <div class="lbl"><b style="left:${pos(o.bud)}%">budget ${n2(o.bud)}</b></div>
+    <div class="wrap">
+      <div class="bar"><i style="width:${pos(o.tot)}%;background:${col}"></i></div>
+      <div class="mk" style="left:${pos(o.bud)}%;background:var(--ink)"></div>
+      ${o.obj != null ? `<div class="mk" style="left:${pos(o.obj)}%;background:var(--straw)"></div>` : ''}
+    </div>
+    <div class="lbl" style="height:14px;margin-top:3px">${o.obj != null
+      ? `<b style="left:${pos(o.obj)}%;color:var(--straw)">objectif ${n2(o.obj)}</b>` : ''}</div>
+    <div class="cap">${o.cap || ''}</div>
+  </div>`;
+}
+
 function duoData(a){
   const t = today(), od = objDay();
 
@@ -3024,6 +3063,37 @@ function duoData(a){
   week.scale = Math.max(week.bud, week.obj || 0, week.tot) * 1.06;
   week.over  = week.tot > week.pace;               /* en avance sur l'allure = mauvais */
   return {day, week, t};
+}
+
+/* Verdict du soir. Ne s'affiche qu'une fois le dîner enregistré : avant, la
+   journée n'est pas jouée et tout message serait prématuré. La consolation
+   hebdomadaire est taboue le dimanche — la semaine est finie, il n'y a plus
+   rien à rattraper. */
+function dayVerdict(a){
+  const t = today();
+  const es = S.hist.filter(e => e.d === t);
+  if(!es.some(e => e.m === 'din')) return '';
+  const kg = es.reduce((x,e) => x + kgOf(e.l), 0);
+  const od = objDay(), B = BUDGET_J;
+  const g = x => n0(Math.abs(x) * 1000) + ' g';
+
+  /* rattrapage hebdomadaire : où en est la semaine par rapport à l'allure */
+  const dow = (new Date(t + 'T12:00').getDay() + 6) % 7;   /* 0 = lundi */
+  const w = duoData(a).week;
+  const reste = 6 - dow;
+  let hebdo = '';
+  if(dow < 6 && od != null){
+    hebdo = w.tot <= w.pace
+      ? ` La semaine reste dans les temps : ${n1(w.tot)} kg pour ${n1(w.pace)} attendus.`
+      : ` Il reste ${reste} jour${reste>1?'s':''} pour rattraper ${n1(w.tot - w.pace)} kg sur la semaine.`;
+  }
+
+  if(kg <= B) return {c:'good', ic:'✓', tx:`Bravo, journée dans le budget 2050 : ${g(kg)} pour ${g(B)}. C’est le rythme d’une alimentation soutenable — le plus dur des deux seuils.`};
+  if(od == null) return {c:'warn', ic:'•', tx:`Journée à ${g(kg)}, soit ${g(kg - B)} au-dessus du budget 2050. Fixez un objectif dans votre profil et ce message vous dira où vous en êtes par rapport à lui.`};
+  if(kg <= od) return {c:'good', ic:'✓', tx:`Bravo, objectif du jour tenu : ${g(kg)} pour ${g(od)}. Le budget 2050 est plus exigeant, il demanderait ${g(kg - B)} de moins.${hebdo}`};
+  const ecart = kg - od;
+  if(ecart <= od * 0.15) return {c:'warn', ic:'≈', tx:`Dommage, il ne manquait que ${g(ecart)} pour tenir l’objectif du jour.${hebdo || ' '}`};
+  return {c:'bad', ic:'!', tx:`Journée à ${g(kg)}, soit ${g(ecart)} au-dessus de votre objectif.${hebdo || ' Demain repart de zéro.'}`};
 }
 
 function duoCards(a){
@@ -3085,10 +3155,31 @@ function duoBind(a){
   };
 
   const dd = $('#dqDay');
-  if(dd) dd.onclick = () => fiche('Aujourd’hui · ' + dLabel(today()), day);
+  if(dd) dd.onclick = () => fiche('Aujourd’hui · ' + dLabel(today()), day, `
+    ${reglette({tot:day.tot, bud:day.bud, obj:day.obj,
+      cap:'Barre pleine : votre journée. Trait sombre : le budget 2050. Trait paille : votre objectif.'})}
+    <div class="hr"></div>
+    <div class="unit" style="margin-bottom:6px">Où vous en êtes</div>
+    <div class="stagelist">
+      <span class="unit">Budget 2050</span><span class="small">${n2(day.bud)} kg
+        · ${day.tot <= day.bud ? `${n0((day.bud-day.tot)*1000)} g de marge`
+                               : `dépassé de ${n0((day.tot-day.bud)*1000)} g`}</span><span></span>
+      ${day.obj != null ? `<span class="unit">Votre objectif</span><span class="small">${n2(day.obj)} kg
+        · ${day.tot <= day.obj ? `${n0((day.obj-day.tot)*1000)} g de marge`
+                               : `dépassé de ${n0((day.tot-day.obj)*1000)} g`}</span><span></span>`
+        : `<span class="unit">Votre objectif</span><span class="small">non fixé</span><span></span>`}
+      <span class="unit">Repas saisis</span><span class="small">${
+        new Set(S.hist.filter(e => e.d === today()).map(e => e.m)).size} sur 4</span><span></span>
+    </div>
+    <div class="src" style="margin-top:10px">Le budget 2050 est un seuil physique : ${n0(BUDGET_J*1000)} g
+      par jour, soit 700 kg par an, ce que l’alimentation peut représenter dans un monde à deux tonnes
+      par personne. Votre objectif est le palier que vous vous êtes donné pour y aller — il peut être
+      au-dessus, c’est même son intérêt.</div>`);
 
   const dw = $('#dqWeek');
   if(dw) dw.onclick = () => fiche('Semaine du ' + dLabel(week.days[0]), week, `
+    ${reglette({tot:week.tot, bud:week.bud, obj:week.obj,
+      cap:'Barre pleine : la semaine. Traits : budget 2050 et objectif, sur sept jours.'})}
     <div class="hr"></div>
     <div class="unit" style="margin-bottom:6px">Où vous devriez en être</div>
     <div class="stagelist">
@@ -3146,9 +3237,13 @@ function tvRepas(a){
       })()}</div>
       ${(() => {
         if(d.tot === 0) return '';
+        const v = dayVerdict(a);
+        if(v) return `<div class="tip ${v.c}"><span class="ic">${v.ic}</span><span class="tx">${v.tx}</span></div>`;
         const tip = budgetTip(BUDGET_J - d.tot);
         return `<div class="tip ${tip.cls}"><span class="ic">${tip.ic}</span><span class="tx">${tip.tx}</span></div>`;
       })()}
+      ${reglette({tot:d.tot, bud:BUDGET_J, obj:objDay(),
+        cap:'Barre pleine : votre journée. Trait sombre : le budget 2050. Trait paille : votre objectif.'})}
     </div>
 
     <h2 class="sec">Moyenne / jour</h2>
@@ -3655,6 +3750,9 @@ const TROPHIES = [
   {s:'Premier jour dans le budget', n:'Premier jour dans le budget 2050', e:'🎯', need:1, u:'journée', pal:'green',
    d:`Une journée révolue sous ${n0(BUDGET_J*1000)} g CO₂e, avec au moins deux repas principaux enregistrés — le budget alimentaire quotidien compatible avec 2050.`,
    m:sc => budgetDayCount(sc)},
+  {s:'5 jours d’affilée', n:'Cinq jours de saisie d’affilée', e:'📅', need:5, u:'jours', pal:'sky',
+   d:'Cinq journées consécutives renseignées. La mesure ne vaut que si elle est continue — un historique troué ne se compare à rien.',
+   m:() => bestLogStreak()},
   {s:'Journée sans viande', n:'Journée sans viande', e:'🥗', need:1, u:'journée', pal:'sky',
    d:'Une journée entière sans viande ni poisson, avec au moins deux repas principaux enregistrés.',
    m:sc => vegDayCount(sc)},
