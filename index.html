@@ -1066,6 +1066,11 @@ function stamp(){
    Pas de SDK : l'app est autonome et fonctionne hors ligne, une balise script
    vers un CDN lui coûterait les deux. Les quatre appels nécessaires — jeton,
    renouvellement, fonction, table — tiennent en quelques dizaines de lignes. */
+/* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
+   savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
+   doute a coûté plusieurs allers-retours. */
+const BUILD = 'cfp-49';
+
 const SB = {
   url: 'https://ioqjkssonvrxzymicmlz.supabase.co',
   key: 'sb_publishable_N8nnjn5EIZffCKRCcpUASw_dLc0DX6w',
@@ -1123,9 +1128,18 @@ SB.signIn = async (pseudo, password) => {
    seule la synchro attend, l'app continue de fonctionner sur sa copie locale.
    Un 400 ou 401, en revanche, signifie un jeton définitivement mort — on
    oublie la session sans jamais toucher aux données. */
-SB.fresh = async () => {
+/* Échéance réelle du jeton, lue dans le jeton. La date rangée à côté peut
+   dériver — horloge, session recopiée, écriture manquée — et s'y fier laissait
+   partir un jeton mort. Celle-ci ne peut pas mentir. */
+SB.expiry = () => {
+  const c = SB.claims();
+  if(c && c.exp) return c.exp * 1000;
+  return (SESS && SESS.expires_at) || 0;
+};
+
+SB.fresh = async (force) => {
   if(!SESS) return null;
-  if(Date.now() < SESS.expires_at - 60000) return SESS.access_token;
+  if(!force && Date.now() < SB.expiry() - 60000) return SESS.access_token;
   const r = await SB.call('/auth/v1/token?grant_type=refresh_token', {method:'POST',
     body: JSON.stringify({refresh_token:SESS.refresh_token})});
   if(r.ok && r.body && r.body.access_token){
@@ -1135,16 +1149,36 @@ SB.fresh = async () => {
     SB.keepSess();
     return SESS.access_token;
   }
-  if(r.status === 400 || r.status === 401){ SESS = null; SB.keepSess(); }
+  /* Refus franc du serveur : le jeton de rafraîchissement est mort lui aussi,
+     la session est irrécupérable. On l'oublie sans toucher aux données. */
+  if(r.status === 400 || r.status === 401){
+    SESS = null; SB.keepSess(); SB._uid = null;
+    toast('Session expirée : reconnectez-vous depuis votre profil');
+  }
   return null;
 };
 
 SB.rest = async (path, opts) => {
-  const t = await SB.fresh();
-  if(!t) return {ok:false, status:0, body:{error:'hors_session'}};
   opts = opts || {};
-  return SB.call('/rest/v1/' + path, {...opts,
+  let t = await SB.fresh();
+  if(!t) return {ok:false, status:0, body:{error:'hors_session'}};
+  let r = await SB.call('/rest/v1/' + path, {...opts,
     headers:{Authorization:'Bearer ' + t, ...(opts.headers||{})}});
+
+  /* Le serveur seul sait si un jeton est encore valable. S'il le refuse, on
+     renouvelle de force et on réessaie une fois — jamais deux, pour ne pas
+     boucler sur un refus durable. C'est ce garde-fou qui manquait : un jeton
+     périmé produisait un 401 que rien ne rattrapait, et dont le message était
+     interprété comme un refus de droits. */
+  const perime = r.status === 401 ||
+    /PGRST303|JWT expired|jwt expired/i.test(JSON.stringify(r.body || ''));
+  if(perime){
+    t = await SB.fresh(true);
+    if(!t) return r;
+    r = await SB.call('/rest/v1/' + path, {...opts,
+      headers:{Authorization:'Bearer ' + t, ...(opts.headers||{})}});
+  }
+  return r;
 };
 
 SB.signOut = () => { SESS = null; SB.keepSess(); SB._uid = null; };
@@ -3411,6 +3445,7 @@ async function diagSheet(){
     <div class="unit">Diagnostic</div>
     <h3 style="margin:2px 0 10px">${manquantes.length ? 'Schéma incomplet' : 'Serveur conforme'}</h3>
     <div class="stagelist">
+      <span class="unit">Version</span><span class="small">${BUILD}</span><span></span>
       <span class="unit">Session</span><span class="small">${SESS ? esc(SESS.username) : 'déconnecté'}</span><span></span>
       <span class="unit">Amis acceptés</span><span class="small">${nAmis}</span><span></span>
       <span class="unit">Badges acquis</span><span class="small">${acquis}</span><span></span>
