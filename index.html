@@ -1000,6 +1000,55 @@ function load(){
   return false;
 }
 
+/* Déplacement du seau de données quand l'identité change. Renommer la clé sans
+   déplacer son contenu vidait le profil, les favoris et les contacts — seul
+   l'historique revenait, parce qu'il est le seul à être synchronisé. */
+function rebase(oldUid, newUid){
+  if(!oldUid || !newUid || oldUid === newUid) return;
+  const from = KEY_ANON + '.' + oldUid, to = KEY_ANON + '.' + newUid;
+  try{
+    const src = localStorage.getItem(from);
+    if(!src) return;
+    const dst = localStorage.getItem(to);
+    if(!dst){ localStorage.setItem(to, src); return; }
+    /* Les deux seaux existent. On complète ce qui manque à destination plutôt
+       que d'écraser : rien ne dit lequel est le plus récent. */
+    const a = JSON.parse(src), b = JSON.parse(dst);
+    const gard = (x, y) => (Array.isArray(y) && y.length) ? y : (Array.isArray(x) ? x : (y || []));
+    localStorage.setItem(to, JSON.stringify({
+      favs:    gard(a.favs, b.favs),
+      hist:    gard(a.hist, b.hist),
+      tomb:    gard(a.tomb, b.tomb),
+      starred: gard(a.starred, b.starred),
+      people:  gard(a.people, b.people),
+      stdInit: b.stdInit || a.stdInit,
+      lastSync: b.lastSync || a.lastSync,
+      prof:    Object.keys(b.prof || {}).length ? b.prof : (a.prof || {}),
+    }));
+  }catch(e){}
+}
+
+/* Rattrapage au démarrage. Si le seau du compte est vide alors qu'un autre
+   contient des réponses, on les adopte : c'est ce qui répare les installations
+   déjà abîmées par le défaut ci-dessus, sans rien demander à l'utilisateur. */
+function recover(){
+  if(!SESS) return false;
+  if(Object.keys(S.prof).length || S.hist.length || S.favs.length) return false;
+  try{
+    const prefixe = KEY_ANON + '.';
+    for(const k of Object.keys(localStorage)){
+      if(!k.startsWith(prefixe) || k === dataKey()) continue;
+      const o = JSON.parse(localStorage.getItem(k) || '{}');
+      if(Object.keys(o.prof || {}).length || (o.hist || []).length || (o.favs || []).length){
+        rebase(k.slice(prefixe.length), SESS.uid);
+        load();
+        return true;
+      }
+    }
+  }catch(e){}
+  return false;
+}
+
 /* Les repas antérieurs à la synchro n'ont ni horodatage de modification ni
    installation d'origine. On les leur attribue une fois, en datant du midi de
    leur propre journée : c'est stable d'un appareil à l'autre, alors qu'un
@@ -1098,7 +1147,31 @@ SB.rest = async (path, opts) => {
     headers:{Authorization:'Bearer ' + t, ...(opts.headers||{})}});
 };
 
-SB.signOut = () => { SESS = null; SB.keepSess(); };
+SB.signOut = () => { SESS = null; SB.keepSess(); SB._uid = null; };
+
+/* Identité de référence pour toute écriture. On ne se fie pas à ce que contient
+   le stockage local : la base comparera l'auteur envoyé à l'identité du jeton,
+   c'est donc celle-ci qu'il faut employer. Vérifiée une fois par session puis
+   mise en cache.
+
+   Sans cette précaution, un uid absent ou périmé partait tel quel, « author »
+   valait NULL, la comparaison author = auth.uid() devenait fausse et Postgres
+   répondait « new row violates row-level security policy » — un message qui
+   accuse la policy alors que le fautif est la donnée envoyée. */
+SB._uid = null;
+SB.uid = async () => {
+  if(SB._uid) return SB._uid;
+  const srv = await SB.whoami();
+  if(srv){
+    if(SESS && SESS.uid !== srv){
+      const ancien = SESS.uid;
+      SESS.uid = srv; SB.keepSess();
+      rebase(ancien, srv); load();
+    }
+    SB._uid = srv; return srv;
+  }
+  return (SESS && SESS.uid) || null;   /* hors ligne : au mieux ce qu'on a */
+};
 
 /* Qui le serveur croit-il que nous sommes ? C'est cette identité, et non celle
    rangée dans le stockage local, que la base compare dans ses policies. Les
@@ -1121,8 +1194,10 @@ SB.syncIdentity = async () => {
   if(!id) return true;                 /* hors ligne : on ne touche à rien */
   if(id === SESS.uid) return true;
   console.warn('identité réalignée :', SESS.uid, '→', id);
+  const ancien = SESS.uid;
   SESS.uid = id; SB.keepSess();
-  load();                              /* le stockage est nommé par uid */
+  rebase(ancien, id);                  /* le stockage est nommé par uid : on déménage */
+  load();
   return false;
 };
 
@@ -1408,9 +1483,12 @@ async function badgeShare(t){
   if(S.fr.state !== 'ok') await frLoad(true);
   if(!S.fr.friends.length) return toast('Aucun ami accepté à qui l’envoyer');
 
+  const auteur = await SB.uid();
+  if(!auteur) return toast('Identité indisponible : rechargez l’app ou reconnectez-vous');
+
   const post = await SB.rest('posts?select=id', {method:'POST',
     headers:{Prefer:'return=representation'},
-    body: JSON.stringify({author:SESS.uid, kind:'badge',
+    body: JSON.stringify({author:auteur, kind:'badge',
       body:{key:t.s, label:t.n, emoji:t.e}})});
   if(!post.ok || !post.body || !post.body.length){
     /* Ne pas masquer la cause : sans la table des publications, le serveur
@@ -1428,7 +1506,7 @@ async function badgeShare(t){
   }
   const id = post.body[0].id;
   const cibles = S.fr.friends.map(x => ({post:id,
-    person: x.requester === SESS.uid ? x.addressee : x.requester}));
+    person: x.requester === auteur ? x.addressee : x.requester}));
   const r = await SB.rest('post_people', {method:'POST',
     headers:{Prefer:'return=minimal'}, body: JSON.stringify(cibles)});
   if(!r.ok){
@@ -1646,7 +1724,7 @@ function chalCreate(){
     const c = await SB.rest('challenges?select=id', {method:'POST',
       headers:{Prefer:'return=representation'},
       body: JSON.stringify({kind:q.kind, label:CHAL[q.kind].l, starts:today(), ends:iso(fin),
-                            created_by:SESS.uid})});
+                            created_by:(await SB.uid()) || SESS.uid})});
     if(!c.ok || !c.body || !c.body.length){
       console.error('chalCreate:', c.status, JSON.stringify(c.body || {}));
       go.disabled = false; go.textContent = 'Lancer le défi';
@@ -3267,15 +3345,18 @@ async function diagSheet(){
     else { ident = 'DIVERGENTE'; tonId = 'var(--brick)'; }
   }
   out.push(['Identité locale / serveur', ident, tonId]);
+  out.push(['Auteur envoyé', (SESS && SESS.uid) ? String(SESS.uid).slice(0,18) + '…' : 'VIDE',
+            (SESS && SESS.uid) ? 'var(--forest)' : 'var(--brick)']);
 
   /* Test d'écriture réel : les lectures ci-dessus ne prouvent rien sur les
      droits d'écriture, qui sont précisément ce qui bloque le partage. On insère
      une publication sonde, puis on la retire. */
   let ecriture = 'non testée', tonEcr = 'var(--mute)';
   if(SESS){
+    const auteur = await SB.uid();
     const w = await SB.rest('posts?select=id', {method:'POST',
       headers:{Prefer:'return=representation'},
-      body: JSON.stringify({author:SESS.uid, kind:'badge', body:{key:'__sonde__', label:'Test'}})});
+      body: JSON.stringify({author:auteur, kind:'badge', body:{key:'__sonde__', label:'Test'}})});
     if(w.ok && w.body && w.body.length){
       ecriture = 'ok'; tonEcr = 'var(--forest)';
       await SB.rest('posts?id=eq.' + w.body[0].id, {method:'DELETE'});
@@ -4654,14 +4735,19 @@ const avaBtn = document.getElementById('topAva');
 if(avaBtn) avaBtn.onclick = profileSheet;
 SB.readSess();
 load();
+/* Rattrapage avant addStandards : les six favoris standards, posés d'office au
+   premier lancement, feraient croire à un seau déjà peuplé. */
+const rattrape = recover();
+if(!S.stdInit) addStandards();
+go('saisie');
+if(rattrape) toast('Profil et favoris récupérés');
 if(SESS && SB.ready()){
   SB.syncIdentity().then(ok => {
     if(!ok) toast('Session réalignée sur le serveur');
+    if(recover()){ go(S.tab); toast('Profil et favoris récupérés'); }
     tastePull(); frLoad(true);
   });
 }
-if(!S.stdInit) addStandards();
-go('saisie');
 /* synchro d'ouverture, discrète : un échec hors ligne ne doit rien signaler */
 if(SESS) syncNow(true).then(ok => { if(ok && S.tab === 'tracker') renderTracker(); });
 </script>
