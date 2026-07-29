@@ -444,6 +444,19 @@ p{margin:0 0 9px}
 .btn-1{background:var(--forest); color:#fff}
 .btn-2{background:var(--card); border:1px solid var(--line); color:var(--ink)}
 .btn[disabled]{opacity:.4}
+
+/* Bandeau de validation d'un service. Il fallait qu'il se distingue des autres
+   boutons sans crier : un liseré de paille et une ombre teintée suffisent à le
+   faire ressortir, la couleur de fond restant celle de l'app.
+   L'accent n'apparaît que lorsqu'il y a réellement quelque chose à valider —
+   sur un service vide le bouton dit « Passer », et souligner un geste neutre
+   n'aurait fait qu'user l'effet. */
+.btn-go{position:relative; background:var(--forest-2);
+  box-shadow:inset 0 0 0 1.5px var(--straw), 0 2px 10px rgba(217,192,91,.28)}
+.btn-go::after{content:''; position:absolute; left:14px; right:14px; bottom:6px; height:1.5px;
+  border-radius:1px; background:var(--straw); opacity:.55}
+.btn-go:active{background:var(--forest)}
+:root[data-theme="dark"] .btn-go{box-shadow:inset 0 0 0 1.5px var(--straw), 0 2px 12px rgba(217,192,91,.20)}
 .toast{
   position:fixed; left:50%; bottom:104px; transform:translate(-50%,14px); z-index:60;
   background:var(--toast-bg); color:#fff; padding:11px 17px; border-radius:999px; font-size:13px;
@@ -2524,7 +2537,7 @@ function renderSaisie(){
       c.k === S.course ? 'on' : (S.draft.some(l => (l[2]||'plat') === c.k) ? 'done' : '')
       }" data-jump="${c.k}">${c.l}</span>`).join('')}</div>
     <div class="actions" style="margin:10px 0 2px">
-      <button class="btn btn-1" id="wizNext">${inStep.length
+      <button class="btn btn-1${inStep.length ? ' btn-go' : ''}" id="wizNext">${inStep.length
         ? `Valider ${step.label.toLowerCase()} ›`
         : (nextCourse(step.k)
             ? `Passer, pas ${/^[aeéiouh]/i.test(step.label) ? 'd’' : 'de '}${step.label.toLowerCase()} ›`
