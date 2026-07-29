@@ -1329,9 +1329,12 @@ async function badgeShare(t){
     console.error('badgeShare — posts:', post.status, msg);
     if(/PGRST205|schema cache|does not exist/i.test(msg))
       return toast('Table des publications absente : le schéma social n’est pas installé');
+    const motif = (post.body && (post.body.message || post.body.hint || post.body.code)) || '';
+    if(post.status === 401) return toast('Session expirée : rechargez l’app');
+    if(post.status === 403 || /42501|row-level/i.test(motif))
+      return toast('Refusé : ' + (motif ? String(motif).slice(0,90) : 'droits insuffisants sur les publications'));
     return toast(post.status === 0 ? 'Hors ligne'
-      : post.status === 401 || post.status === 403 ? 'Refusé par le serveur'
-      : 'Partage impossible · ' + post.status);
+      : 'Partage impossible · ' + post.status + (motif ? ' · ' + String(motif).slice(0,70) : ''));
   }
   const id = post.body[0].id;
   const cibles = S.fr.friends.map(x => ({post:id,
@@ -1525,7 +1528,7 @@ function chalCreate(){
     <div class="hr"></div>
     <div class="unit" style="margin-bottom:6px">Durée</div>
     <div class="seg">${CHAL_DUREE.map(([j,l]) =>
-      `<button data-j="${j}" class="${q.jours === j ? 'on' : ''}">${l}</button>`).join('')}</div>
+      `<button data-j="${j}" aria-pressed="${q.jours === j}">${l}</button>`).join('')}</div>
     <div class="hr"></div>
     <div class="unit" style="margin-bottom:6px">Inviter · ${q.invites.length} sur ${amis.length}</div>
     ${amis.map(a => `
@@ -2463,7 +2466,7 @@ function renderSaisie(){
       ? 'Touchez un verre pour l’ajouter, deux fois s’il y en a eu deux. Les volumes se corrigent plus bas.'
       : 'Touchez la tasse prise en fin de repas. Rien de tout cela ? Passez l’étape.'}</div>` : ''}
 
-  <div class="paths">
+  ${step && QUICK[step.k] ? '' : `<div class="paths">
     <button data-path="types"   aria-pressed="${S.path==='types'}">Plats types</button>
     <button data-path="compose" aria-pressed="${S.path==='compose'}">Composer</button>
   </div>
@@ -2503,6 +2506,7 @@ function renderSaisie(){
       <button class="go" id="cadd">Ajouter</button>
     </div>
   </div>` : ''}
+`}
 
   ${inStep.length ? `<div class="card" style="margin-top:12px">
     ${(step ? inStep.map(l => ({l, i:S.draft.indexOf(l)})) : S.draft.map((l,i) => ({l, i})))
@@ -2518,7 +2522,7 @@ function renderSaisie(){
           : `${Math.round(draftKg/BUDGET_J*100)} % du budget du jour.`}</div></div>
       <div class="v">${n2(step ? stepKg : draftKg)} <span class="unit">kg</span></div>
     </div>
-    ${step && inStep.length >= 2 ? `<button class="btn btn-2" data-savecourse="${S.comCat}"
+    ${step && !QUICK[step.k] && inStep.length >= 2 ? `<button class="btn btn-2" data-savecourse="${S.comCat}"
       style="margin-top:10px">Enregistrer ${step.label.toLowerCase()} dans les plats types</button>` : ''}
   </div>` : ''}
 
@@ -3157,6 +3161,28 @@ async function diagSheet(){
   }
 
   const manquantes = out.filter(x => x[1] === 'TABLE ABSENTE').map(x => x[0]);
+
+  /* Test d'écriture réel : les lectures ci-dessus ne prouvent rien sur les
+     droits d'écriture, qui sont précisément ce qui bloque le partage. On insère
+     une publication sonde, puis on la retire. */
+  let ecriture = 'non testée', tonEcr = 'var(--mute)';
+  if(SESS){
+    const w = await SB.rest('posts?select=id', {method:'POST',
+      headers:{Prefer:'return=representation'},
+      body: JSON.stringify({author:SESS.uid, kind:'badge', body:{key:'__sonde__', label:'Test'}})});
+    if(w.ok && w.body && w.body.length){
+      ecriture = 'ok'; tonEcr = 'var(--forest)';
+      await SB.rest('posts?id=eq.' + w.body[0].id, {method:'DELETE'});
+    } else {
+      const m = (w.body && (w.body.message || w.body.code)) || '';
+      ecriture = w.status === 0 ? 'hors ligne'
+        : /PGRST205|schema cache/i.test(JSON.stringify(w.body||{})) ? 'TABLE ABSENTE'
+        : (w.status + (m ? ' · ' + String(m).slice(0,54) : ''));
+      tonEcr = 'var(--brick)';
+    }
+  }
+  out.push(['Écrire une publication', ecriture, tonEcr]);
+
   const nAmis = S.fr.friends.length;
   const acquis = TROPHIES.filter((t,i) => troValue(t, scoring()) >= t.need).length;
 
@@ -3180,12 +3206,14 @@ async function diagSheet(){
            Le partage de badge a besoin de <b>Publications</b> et <b>Destinataires</b>, créées par
            <b>social_schema.sql</b>. Passez ce fichier dans Supabase, puis relancez ce diagnostic.`
         : !SESS ? `Aucune session : connectez-vous depuis votre profil.`
-        : nAmis === 0 ? `Tout est en place, mais aucune amitié <b>acceptée</b>. Un badge est adressé
+        : ecriture !== 'ok' && ecriture !== 'non testée' ? `Les lectures passent mais <b>l’écriture est refusée</b> :
+           <i>${esc(String(ecriture))}</i>. C’est ce qui bloque le partage — la cause est côté droits
+           ou policy sur la table des publications, pas côté application.`
+        : nAmis === 0 ? `L’écriture fonctionne, mais aucune amitié <b>acceptée</b>. Un badge est adressé
            nominativement : sans destinataire, personne ne le verrait. Une demande en attente ne compte pas.`
-        : acquis === 0 ? `Tout est en place, mais aucun badge acquis pour l’instant — le bouton de partage
+        : acquis === 0 ? `Tout fonctionne, mais aucun badge acquis pour l’instant — le bouton de partage
            n’apparaît que sur un badge obtenu.`
-        : `Rien ne s’oppose au partage. S’il échoue encore, le message d’erreur en bas de l’écran
-           donnera le code renvoyé par le serveur.`}</div>
+        : `Rien ne s’oppose au partage : l’écriture d’essai a réussi et a été effacée.`}</div>
     <button class="btn btn-2" id="dg_again" style="margin-top:12px">Relancer</button>`);
   const b = $('#dg_again');
   if(b) b.onclick = diagSheet;
