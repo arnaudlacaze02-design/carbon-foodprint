@@ -1149,6 +1149,24 @@ SB.rest = async (path, opts) => {
 
 SB.signOut = () => { SESS = null; SB.keepSess(); SB._uid = null; };
 
+/* Lecture des revendications du jeton, sans en vérifier la signature : on ne
+   cherche pas à l'authentifier, seulement à savoir ce que la base va y lire.
+   « role » détermine quelles policies s'appliquent, « sub » est ce que
+   auth.uid() renverra. Un jeton dont le role n'est pas authenticated, ou dont
+   le sub diffère de l'auteur envoyé, explique à lui seul un refus d'écriture
+   alors que la lecture paraît passer — car une lecture sans identité renvoie
+   zéro ligne, ce qui ressemble à un succès. */
+SB.claims = () => {
+  try{
+    const t = SESS && SESS.access_token;
+    if(!t) return null;
+    const p = t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const j = decodeURIComponent(atob(p).split('').map(c =>
+      '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    return JSON.parse(j);
+  }catch(e){ return null; }
+};
+
 /* Identité de référence pour toute écriture. On ne se fie pas à ce que contient
    le stockage local : la base comparera l'auteur envoyé à l'identité du jeton,
    c'est donc celle-ci qu'il faut employer. Vérifiée une fois par session puis
@@ -3348,6 +3366,22 @@ async function diagSheet(){
   out.push(['Auteur envoyé', (SESS && SESS.uid) ? String(SESS.uid).slice(0,18) + '…' : 'VIDE',
             (SESS && SESS.uid) ? 'var(--forest)' : 'var(--brick)']);
 
+  /* Ce que la base lira dans le jeton : la comparaison décisive. */
+  const cl = SB.claims();
+  if(SESS && !cl) out.push(['Jeton', 'illisible', 'var(--brick)']);
+  else if(cl){
+    out.push(['Jeton · role', String(cl.role || 'absent'),
+              cl.role === 'authenticated' ? 'var(--forest)' : 'var(--brick)']);
+    out.push(['Jeton · sub', cl.sub ? String(cl.sub).slice(0,18) + '…' : 'ABSENT',
+              (cl.sub && SESS && cl.sub === SESS.uid) ? 'var(--forest)' : 'var(--brick)']);
+    const exp = cl.exp ? new Date(cl.exp * 1000) : null;
+    out.push(['Jeton · expiration', exp
+      ? (exp > new Date()
+          ? 'valide jusqu’à ' + exp.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})
+          : 'EXPIRÉ à ' + exp.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}))
+      : 'inconnue', (exp && exp > new Date()) ? 'var(--forest)' : 'var(--brick)']);
+  }
+
   /* Test d'écriture réel : les lectures ci-dessus ne prouvent rien sur les
      droits d'écriture, qui sont précisément ce qui bloque le partage. On insère
      une publication sonde, puis on la retire. */
@@ -3387,8 +3421,23 @@ async function diagSheet(){
         <span class="small" style="color:${c}">${v}</span><span></span>`).join('')}
     </div>
     <div class="hr"></div>
-    <div class="small">${
-      manquantes.length
+    <div class="small">${(() => {
+        const c = SB.claims();
+        if(SESS && c && c.role !== 'authenticated')
+          return `<b>Le jeton porte le rôle « ${esc(String(c.role))} » et non « authenticated ».</b>
+            Aucune policy ne s’applique donc à vos écritures, d’où le refus, tandis que les lectures
+            renvoient zéro ligne sans erreur apparente. Déconnectez-vous et reconnectez-vous ; si cela
+            persiste, le jeton n’est pas celui qu’attend le projet.`;
+        if(SESS && c && !c.sub)
+          return `<b>Le jeton ne contient aucun identifiant (« sub »).</b> La base ne peut donc pas
+            savoir qui écrit, et toute insertion contrôlée sur l’auteur échoue.`;
+        if(SESS && c && SESS.uid && c.sub !== SESS.uid)
+          return `<b>Le jeton désigne ${esc(String(c.sub).slice(0,12))}… alors que l’app envoie
+            ${esc(String(SESS.uid).slice(0,12))}…</b> C’est cet écart que la policy refuse.
+            Reconnectez-vous pour les réaligner.`;
+        return '';
+      })() ||
+      (manquantes.length
         ? `Il manque ${manquantes.length} table${manquantes.length>1?'s':''} : <b>${manquantes.join(', ')}</b>.
            Le partage de badge a besoin de <b>Publications</b> et <b>Destinataires</b>, créées par
            <b>social_schema.sql</b>. Passez ce fichier dans Supabase, puis relancez ce diagnostic.`
@@ -3404,7 +3453,7 @@ async function diagSheet(){
            nominativement : sans destinataire, personne ne le verrait. Une demande en attente ne compte pas.`
         : acquis === 0 ? `Tout fonctionne, mais aucun badge acquis pour l’instant — le bouton de partage
            n’apparaît que sur un badge obtenu.`
-        : `Rien ne s’oppose au partage : l’écriture d’essai a réussi et a été effacée.`}</div>
+        : `Rien ne s’oppose au partage : l’écriture d’essai a réussi et a été effacée.`)}</div>
     <button class="btn btn-2" id="dg_again" style="margin-top:12px">Relancer</button>`);
   const b = $('#dg_again');
   if(b) b.onclick = diagSheet;
