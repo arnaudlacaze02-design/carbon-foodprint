@@ -916,7 +916,7 @@ const dLabel = s => { const d = new Date(s+'T12:00');
    aux vingt-cinq endroits qui appellent kgOf. Une ligne sans mode vaut 1, donc
    l'historique déjà saisi reste inchangé. */
 const MODE = {
-  frais:   {k:1.00, l:'Frais / maison', s:'ingrédients bruts, cuisson domestique'},
+  frais:   {k:1.00, l:'Frais / Maison', s:'ingrédients bruts, cuisson domestique'},
   surgele: {k:1.15, l:'Surgelé',        s:'transformation, surgélation, stockage à −18 °C, transport frigorifique, emballage'},
   resto:   {k:1.10, l:'Restaurant',     s:'pertes de cuisine et de retour d’assiette, nettement plus élevées qu’à domicile'},
 };
@@ -979,7 +979,7 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
          tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined,
-         fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:'frais'};
+         fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:null};
 
 function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
@@ -1254,7 +1254,9 @@ function modeBar(){
       `<button data-mode="${k}" aria-pressed="${S.mode === k}"><b>${v.l}</b>${
         v.k === 1 ? '' : `<small>+${Math.round((v.k-1)*100)} %</small>`}</button>`).join('')}
   </div>
-  <div class="src" style="margin:-4px 0 10px">${esc(MODE[S.mode].s)}</div>`;
+  <div class="src" style="margin:-4px 0 10px">${S.mode
+    ? esc(MODE[S.mode].s)
+    : 'Choisissez d’abord la provenance : le coefficient en dépend, et l’oublier fausserait le calcul.'}</div>`;
 }
 
 /* ============================ onglet — feed ============================
@@ -2484,6 +2486,7 @@ function renderSaisie(){
     view.querySelectorAll('[data-meal]').forEach(b => b.onclick = () => {
       S.meal = b.dataset.meal;
       const wiz = S.meal === 'dej' || S.meal === 'din';
+      S.mode = null;                     /* un nouveau repas redemande le mode */
       if(wiz) return openCourse('boisson');
       S.comCat = 'plat'; S.path = 'types'; S.dishQ = '';
       S.step = 'saisie';
@@ -2557,7 +2560,7 @@ function renderSaisie(){
       ? 'Touchez un verre pour l’ajouter, deux fois s’il y en a eu deux. Les volumes se corrigent plus bas.'
       : 'Touchez la tasse prise en fin de repas. Rien de tout cela ? Passez l’étape.'}</div>` : ''}
 
-  ${step && QUICK[step.k] ? '' : modeBar() + `<div class="paths">
+  ${step && QUICK[step.k] ? '' : modeBar() + (!S.mode ? '' : `<div class="paths">
     <button data-path="types"   aria-pressed="${S.path==='types'}">Plats types</button>
     <button data-path="compose" aria-pressed="${S.path==='compose'}">Composer</button>
   </div>
@@ -2597,7 +2600,7 @@ function renderSaisie(){
       <button class="go" id="cadd">Ajouter</button>
     </div>
   </div>` : ''}
-`}
+`)}
 
   ${inStep.length ? `<div class="card" style="margin-top:12px">
     ${(step ? inStep.map(l => ({l, i:S.draft.indexOf(l)})) : S.draft.map((l,i) => ({l, i})))
