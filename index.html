@@ -1522,10 +1522,10 @@ async function tasteSheet(uid, nom){
   };
 }
 
-/* Partage d'un badge. Deux écritures : la publication, puis un destinataire par
-   ami. Sans destinataire, la publication existe mais personne ne la voit — la
-   RLS n'accorde la lecture qu'à l'auteur, aux membres d'une communauté visée ou
-   aux personnes nommées. */
+/* Partage d'un badge. Une seule écriture : visibility='friends' rend le post
+   visible de tous les amis actuels de l'auteur, calculé à la volée par la RLS
+   (can_see_post) — pas besoin d'insérer une ligne post_people par ami, et les
+   amis acceptés après ce partage voient aussi le post rétroactivement. */
 async function badgeShare(t){
   if(!SESS) return toast('Il faut un compte pour partager');
 
@@ -1540,7 +1540,7 @@ async function badgeShare(t){
 
   const post = await SB.rest('posts?select=id', {method:'POST',
     headers:{Prefer:'return=representation'},
-    body: JSON.stringify({author:auteur, kind:'badge',
+    body: JSON.stringify({author:auteur, kind:'badge', visibility:'friends',
       body:{key:t.s, label:t.n, emoji:t.e}})});
   if(!post.ok || !post.body || !post.body.length){
     /* Ne pas masquer la cause : sans la table des publications, le serveur
@@ -1556,16 +1556,7 @@ async function badgeShare(t){
     return toast(post.status === 0 ? 'Hors ligne'
       : 'Partage impossible · ' + post.status + (motif ? ' · ' + String(motif).slice(0,70) : ''));
   }
-  const id = post.body[0].id;
-  const cibles = S.fr.friends.map(x => ({post:id,
-    person: x.requester === auteur ? x.addressee : x.requester}));
-  const r = await SB.rest('post_people', {method:'POST',
-    headers:{Prefer:'return=minimal'}, body: JSON.stringify(cibles)});
-  if(!r.ok){
-    console.error('badgeShare — post_people:', r.status, JSON.stringify(r.body || {}));
-    return toast('Publication créée mais non distribuée · ' + r.status);
-  }
-  toast(`Badge partagé avec ${cibles.length} ami${cibles.length>1?'s':''}`);
+  toast(`Badge partagé avec ${S.fr.friends.length} ami${S.fr.friends.length>1?'s':''}`);
   frPosts();
 }
 
@@ -3424,7 +3415,8 @@ async function diagSheet(){
     const auteur = await SB.uid();
     const w = await SB.rest('posts?select=id', {method:'POST',
       headers:{Prefer:'return=representation'},
-      body: JSON.stringify({author:auteur, kind:'badge', body:{key:'__sonde__', label:'Test'}})});
+      body: JSON.stringify({author:auteur, kind:'badge', visibility:'friends',
+        body:{key:'__sonde__', label:'Test'}})});
     if(w.ok && w.body && w.body.length){
       ecriture = 'ok'; tonEcr = 'var(--forest)';
       await SB.rest('posts?id=eq.' + w.body[0].id, {method:'DELETE'});
@@ -3474,8 +3466,9 @@ async function diagSheet(){
       })() ||
       (manquantes.length
         ? `Il manque ${manquantes.length} table${manquantes.length>1?'s':''} : <b>${manquantes.join(', ')}</b>.
-           Le partage de badge a besoin de <b>Publications</b> et <b>Destinataires</b>, créées par
-           <b>social_schema.sql</b>. Passez ce fichier dans Supabase, puis relancez ce diagnostic.`
+           Le partage de badge a besoin de <b>Publications</b>, créée par <b>social_schema.sql</b>,
+           et de la colonne <b>visibility</b> ajoutée par la migration du feed d’amis. Passez ces
+           fichiers dans Supabase, puis relancez ce diagnostic.`
         : !SESS ? `Aucune session : connectez-vous depuis votre profil.`
         : ident === 'DIVERGENTE' ? `<b>L’identité locale ne correspond plus à celle du serveur.</b>
            Toute écriture sera refusée avec « new row violates row-level security policy », puisque la
