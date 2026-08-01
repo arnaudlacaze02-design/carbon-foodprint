@@ -979,7 +979,8 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
          tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined,
-         fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:null};
+         fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:null,
+         fv:'actu'};
 
 function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
@@ -1069,7 +1070,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-49';
+const BUILD = 'cfp-50';
 
 const SB = {
   url: 'https://ioqjkssonvrxzymicmlz.supabase.co',
@@ -1436,7 +1437,12 @@ async function frLoad(silent){
 function paintFeedCount(){
   const b = document.querySelector('#tabbar .bub');
   if(!b) return;
-  const n = (SESS && S.fr.in) ? S.fr.in.length : 0;
+  /* Deux choses réclament une réponse : une demande d'ami et une invitation à
+     un défi. Les compter ensemble, sinon l'une des deux passe inaperçue. */
+  const t0 = today();
+  const inv = (SESS && S.chal) ? S.chal.filter(ch => ch.ends >= t0 &&
+    (ch.parts.find(x => x.member === SESS.uid) || {}).status === 'invited').length : 0;
+  const n = ((SESS && S.fr.in) ? S.fr.in.length : 0) + inv;
   b.dataset.n = n;
   const c = b.querySelector('.cnt');
   if(c) c.textContent = n > 9 ? '9+' : String(n);
@@ -1522,51 +1528,101 @@ async function tasteSheet(uid, nom){
   };
 }
 
-/* Partage d'un badge. Deux écritures : la publication, puis un destinataire par
-   ami. Sans destinataire, la publication existe mais personne ne la voit — la
-   RLS n'accorde la lecture qu'à l'auteur, aux membres d'une communauté visée ou
-   aux personnes nommées. */
-async function badgeShare(t){
-  if(!SESS) return toast('Il faut un compte pour partager');
-
-  /* La liste d'amis n'est peuplée qu'en entrant dans le Feed. Sans ce
-     chargement à la demande, partager depuis les Trophées sans être passé par
-     le Feed répondait « aucun ami » alors qu'on en a. */
-  if(S.fr.state !== 'ok') await frLoad(true);
-  if(!S.fr.friends.length) return toast('Aucun ami accepté à qui l’envoyer');
+/* Publier. UNE seule écriture désormais : la visibilité se calcule à la lecture
+   à partir de l'amitié, elle ne se matérialise plus en destinataires. L'ancien
+   schéma exigeait une seconde écriture dans post_people ; quand elle échouait,
+   la publication existait sans que personne ne la voie, et le partage semblait
+   « ne pas marcher » alors qu'il avait à moitié réussi. La ligne de rappel est
+   conservée en best-effort pour les bases où l'ancienne policy tourne encore :
+   son échec n'est plus une panne. */
+async function postNew(kind, corps){
+  if(!SESS) return {ok:false, msg:'Il faut un compte pour partager'};
 
   const auteur = await SB.uid();
-  if(!auteur) return toast('Identité indisponible : rechargez l’app ou reconnectez-vous');
+  if(!auteur) return {ok:false, msg:'Identité indisponible : rechargez l’app ou reconnectez-vous'};
 
   const post = await SB.rest('posts?select=id', {method:'POST',
     headers:{Prefer:'return=representation'},
-    body: JSON.stringify({author:auteur, kind:'badge',
-      body:{key:t.s, label:t.n, emoji:t.e}})});
+    body: JSON.stringify({author:auteur, kind, body:corps})});
+
   if(!post.ok || !post.body || !post.body.length){
-    /* Ne pas masquer la cause : sans la table des publications, le serveur
-       répond PGRST205, et « partage impossible » ne dit pas où chercher. */
-    const msg = JSON.stringify((post.body || {}));
-    console.error('badgeShare — posts:', post.status, msg);
-    if(/PGRST205|schema cache|does not exist/i.test(msg))
-      return toast('Table des publications absente : le schéma social n’est pas installé');
+    /* Ne jamais masquer la cause : table absente, jeton périmé, policy et
+       contrainte de type donnent le même « ça ne marche pas » et appellent
+       quatre remèdes différents. */
+    const brut = JSON.stringify(post.body || {});
+    console.error('postNew ·', kind, '·', post.status, brut);
     const motif = (post.body && (post.body.message || post.body.hint || post.body.code)) || '';
-    if(post.status === 401) return toast('Session expirée : rechargez l’app');
-    if(post.status === 403 || /42501|row-level/i.test(motif))
-      return toast('Refusé : ' + (motif ? String(motif).slice(0,90) : 'droits insuffisants sur les publications'));
-    return toast(post.status === 0 ? 'Hors ligne'
-      : 'Partage impossible · ' + post.status + (motif ? ' · ' + String(motif).slice(0,70) : ''));
+    if(/PGRST205|schema cache|does not exist/i.test(brut))
+      return {ok:false, msg:'Table des publications absente : le schéma social n’est pas installé'};
+    if(/check constraint|posts_kind/i.test(brut))
+      return {ok:false, msg:'Type de publication refusé : feed_visibility.sql n’a pas été passé'};
+    if(post.status === 401) return {ok:false, msg:'Session expirée : rechargez l’app'};
+    if(post.status === 403 || /42501|row-level/i.test(brut))
+      return {ok:false, msg:'Refusé · ' + (motif ? String(motif).slice(0,90) : 'droits insuffisants')};
+    return {ok:false, msg: post.status === 0 ? 'Hors ligne'
+      : 'Publication impossible · ' + post.status + (motif ? ' · ' + String(motif).slice(0,70) : '')};
   }
+
   const id = post.body[0].id;
   const cibles = S.fr.friends.map(x => ({post:id,
     person: x.requester === auteur ? x.addressee : x.requester}));
-  const r = await SB.rest('post_people', {method:'POST',
-    headers:{Prefer:'return=minimal'}, body: JSON.stringify(cibles)});
-  if(!r.ok){
-    console.error('badgeShare — post_people:', r.status, JSON.stringify(r.body || {}));
-    return toast('Publication créée mais non distribuée · ' + r.status);
+  if(cibles.length){
+    const r = await SB.rest('post_people', {method:'POST',
+      headers:{Prefer:'return=minimal'}, body: JSON.stringify(cibles)});
+    if(!r.ok) console.warn('post_people ignoré ·', r.status, JSON.stringify(r.body || {}));
   }
-  toast(`Badge partagé avec ${cibles.length} ami${cibles.length>1?'s':''}`);
+  return {ok:true, id, amis:cibles.length};
+}
+
+/* Partage d'un badge depuis sa fiche. Ne plus refuser faute d'ami : la
+   publication est d'abord la vôtre, et la voir apparaître dans Actu est la
+   seule preuve que le geste a abouti. */
+async function badgeShare(t){
+  if(!SESS) return toast('Il faut un compte pour partager');
+  if(S.fr.state !== 'ok') await frLoad(true);
+
+  const r = await postNew('badge', {key:t.s, label:t.n, emoji:t.e});
+  if(!r.ok) return toast(r.msg);
+
+  toast(r.amis
+    ? `Badge publié · visible de ${r.amis} ami${r.amis > 1 ? 's' : ''}`
+    : 'Badge publié dans Actu · aucun ami pour l’instant, vous seul le voyez');
+  S.fv = 'actu';
   frPosts();
+}
+
+/* Idée de recette : texte libre, deux blocs. Rien n'est calculé, rien n'est
+   joint — c'est une conversation, pas une donnée. */
+function recipeSheet(){
+  if(!SESS) return toast('Il faut un compte pour publier');
+  openSheet(`
+    <div class="unit">Idée de recette</div>
+    <h3 style="margin:2px 0 10px">Qu’est-ce qui était bon ?</h3>
+    <input class="search" id="rc_t" maxlength="80" autocomplete="off"
+           placeholder="Titre — ex. Dahl de lentilles corail">
+    <textarea class="search" id="rc_x" rows="6" maxlength="900"
+      style="font-family:inherit;resize:vertical"
+      placeholder="Ce qu’il faut, comment vous faites, où vous l’avez trouvée…"></textarea>
+    <div class="actions" style="margin-top:6px">
+      <button class="btn btn-1" id="rc_go">Publier</button>
+      <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
+    </div>
+    <div class="src" style="margin-top:8px">Visible de vos amis, comme un badge partagé.
+      Aucun repas, aucune estimation n’y est jointe.</div>`);
+  const go = $('#rc_go');
+  go.onclick = async () => {
+    const titre = ($('#rc_t').value || '').trim();
+    const texte = ($('#rc_x').value || '').trim();
+    if(titre.length < 3) return toast('Il faut un titre');
+    go.disabled = true; go.textContent = 'Publication…';
+    const r = await postNew('recipe', {title:titre, text:texte});
+    if(!r.ok){ go.disabled = false; go.textContent = 'Publier'; return toast(r.msg); }
+    closeSheet();
+    toast(r.amis ? `Recette publiée · visible de ${r.amis} ami${r.amis > 1 ? 's' : ''}`
+                 : 'Recette publiée dans Actu');
+    S.fv = 'actu';
+    frPosts();
+  };
 }
 
 /* Publications visibles : les miennes et celles qu'on m'a adressées. La RLS fait
@@ -1672,6 +1728,7 @@ async function chalLoad(silent){
     parts:  parts.filter(x => x.challenge === ch.id),
     scores: scores.filter(x => x.challenge === ch.id)}));
   await chalPublish();
+  paintFeedCount();
   renderFeed();
 }
 
@@ -1812,53 +1869,61 @@ async function chalDrop(ch){
   toast('Défi supprimé'); await chalLoad(true);
 }
 
-function renderFeed(){
-  if(!SB.ready()){
-    view.innerHTML = `<h2 class="sec">Feed</h2>
-      <div class="card"><p class="small">Le volet social nécessite la configuration du serveur
-        sur cette copie de l’app.</p></div>`;
-    return;
-  }
-  if(!SESS){
-    view.innerHTML = `
-      <h2 class="sec">Feed</h2>
-      <div class="card">
-        <p class="lede">Retrouver les autres</p>
-        <p class="small">Chercher quelqu’un par son pseudo, lui envoyer une demande, et bientôt
-          monter des communautés pour y partager badges, idées de recettes et défis.</p>
-        <div class="hr"></div>
-        <p class="small mute">Il faut un compte : c’est votre pseudo qui vous rend trouvable.</p>
-        <button class="btn btn-1" id="f_login" style="margin-top:4px">Ouvrir mon profil</button>
-      </div>`;
-    $('#f_login').onclick = profileSheet;
-    return;
-  }
-  if(S.fr.state === 'vide'){ frLoad(); }
-  if(S.chal === undefined){ S.chal = null; chalLoad(true); }
+/* ==================== rendu du feed ====================
+   Trois sections, comme le tracker. La version précédente empilait tout sur une
+   seule page : recherche, demandes, amis, puis — tout en bas et seulement s'il y
+   en avait déjà — les publications. Rien n'indiquait donc où regarder tant que
+   rien n'avait été partagé, ce qui faisait passer un partage réussi pour une
+   panne. */
+const FEED_TABS = [['actu','Actu'], ['defis','Défis'], ['amis','Amis']];
 
-  const t0 = today();
-  const chals = S.chal || [];
-  const moi = ch => ch.parts.find(x => x.member === SESS.uid);
-  const enCours = chals.filter(ch => ch.ends >= t0 && (moi(ch) || {}).status === 'in');
-  const invites = chals.filter(ch => ch.ends >= t0 && (moi(ch) || {}).status === 'invited');
-  const finis   = chals.filter(ch => ch.ends < t0 && (moi(ch) || {}).status === 'in');
-
-  const r = S.fres, trouve = r && typeof r === 'object';
-  const F = S.fr;
-  const dejaLie = id => [...F.in, ...F.out, ...F.friends, ...(F.refuses||[])]
-    .some(x => x.requester === id || x.addressee === id);
-
-  const ligne = (nom, slug, boutons) => `
-    <div class="draft-line">
-      <span class="nm">${esc(nom)}<i class="small mute" style="font-style:normal">  ·  ${esc(slug)}</i></span>
-      ${boutons}
+function postLigne(x){
+  const b = x.body || {};
+  const qui = x.author === SESS.uid ? 'vous' : ((x.aut || {}).username || '—');
+  const quand = new Date(x.created_at).toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
+  const titre = x.kind === 'recipe'
+    ? '🍲 ' + esc(b.title || 'Idée de recette')
+    : (b.emoji || '🏅') + ' ' + esc(b.label || b.key || 'Badge');
+  return `<div class="draft-line">
+      <span class="nm">${titre}<i class="small mute" style="font-style:normal">  ·  ${esc(qui)} · ${quand}</i>${
+        x.kind === 'recipe' && b.text
+          ? `<br><span class="small mute">${esc(b.text)}</span>` : ''}</span>
+      ${x.author === SESS.uid ? `<button class="rm" data-pdel="${x.id}">×</button>` : ''}
     </div>`;
+}
 
-  view.innerHTML = `
+function feedActu(){
+  const P = S.posts;
+  return `
+    <div class="card">
+      <p class="lede">Ce que publient vos amis</p>
+      <p class="small">Badges décrochés et idées de recettes, du plus récent au plus ancien.
+        Vos repas ne passent jamais par ici : seul ce que vous publiez explicitement s’y trouve.</p>
+      <div class="actions">
+        <button class="btn btn-1" id="ac_rec">Partager une idée de recette</button>
+        <button class="btn btn-2" id="ac_ref">Rafraîchir</button>
+      </div>
+      <div class="src" style="margin-top:8px">Un badge se partage depuis sa fiche, dans Trophées.</div>
+    </div>
+
+    ${P === null ? `
+      <div class="card" style="margin-top:12px"><p class="small mute">Chargement…</p></div>`
+    : !P.length ? `
+      <div class="card" style="margin-top:12px">
+        <p class="small mute">Rien encore. C’est ici qu’apparaîtront vos partages et ceux de vos amis.</p>
+        ${S.fr.friends.length ? '' : `<div class="src" style="margin-top:8px">Vous n’avez pas encore d’ami accepté.
+          Ce que vous publiez existe quand même, mais vous seul le voyez.</div>`}
+      </div>`
+    : `<div class="card" style="margin-top:12px">${P.map(postLigne).join('')}</div>`}`;
+}
+
+function feedDefis(ctx){
+  const {enCours, invites, finis, chals} = ctx;
+  return `
     ${enCours.map(chalNeon).join('')}
 
     ${invites.length ? `
-      <h2 class="sec">Invitations à un défi · ${invites.length}</h2>
+      <h2 class="sec">Invitations · ${invites.length}</h2>
       <div class="card">
         ${invites.map((ch,i) => `
           <div class="draft-line">
@@ -1870,23 +1935,56 @@ function renderFeed(){
           </div>`).join('')}
       </div>` : ''}
 
-    <h2 class="sec">Défis</h2>
+    <h2 class="sec">Lancer un défi</h2>
     <div class="card">
-      ${enCours.length || finis.length ? `<div class="stagelist">
-        ${enCours.map(ch => `<span class="unit">En cours</span><span class="small">${esc(CHAL[ch.kind].l)}
-          · fin le ${dLabel(ch.ends)}</span><span></span>`).join('')}
-        ${finis.map(ch => { const rows = chalRows(ch), gagnant = rows.find(x => x.ok);
-          return `<span class="unit">Terminé</span><span class="small">${esc(CHAL[ch.kind].l)}
-          · ${gagnant ? (gagnant.member === SESS.uid ? 'vous l’emportez' : esc(gagnant.nom) + ' l’emporte')
-                      : 'sans classement'}</span><span></span>`; }).join('')}
-      </div>` : `<p class="small mute">Aucun défi. Lancez-en un avec vos amis : l’app calcule les scores
-        depuis vos saisies, il n’y a rien à déclarer.</p>`}
-      <button class="btn btn-2" id="ch_new" style="margin-top:10px"
-        ${S.fr.friends.length ? '' : 'disabled'}>${S.fr.friends.length
-        ? 'Lancer un défi' : 'Lancer un défi — il faut un ami'}</button>
-      ${chals.some(ch => ch.created_by === SESS.uid) ? `<div class="src" style="margin-top:8px">Vous pouvez
-        supprimer un défi que vous avez lancé depuis sa fête, en haut.</div>` : ''}
+      <p class="small">${S.fr.friends.length
+        ? 'L’app calcule les scores depuis vos saisies : il n’y a rien à déclarer, et rien à vérifier.'
+        : 'Il faut au moins un ami accepté. Passez par la section Amis pour en chercher un.'}</p>
+      <button class="btn btn-1" id="ch_new" style="margin-top:6px"
+        ${S.fr.friends.length ? '' : 'disabled'}>Lancer un défi</button>
     </div>
+
+    ${finis.length ? `
+      <h2 class="sec">Terminés</h2>
+      <div class="card">
+        <div class="stagelist">
+        ${finis.map(ch => { const rows = chalRows(ch), gagnant = rows.find(x => x.ok);
+          return `<span class="unit">${dLabel(ch.ends)}</span><span class="small">${esc(CHAL[ch.kind].l)}
+            · ${gagnant ? (gagnant.member === SESS.uid ? 'vous l’emportez' : esc(gagnant.nom) + ' l’emporte')
+                        : 'sans classement'}</span><span></span>`; }).join('')}
+        </div>
+      </div>` : ''}
+
+    ${!enCours.length && !invites.length && !finis.length ? `
+      <div class="card" style="margin-top:12px">
+        <p class="small mute">Aucun défi pour l’instant. Trois formats : le plus de points, le plus de
+          repas sans viande rouge, ou le plus proche du budget 2050 — celui-là se gagne en visant juste,
+          pas en mangeant le moins.</p>
+      </div>` : ''}
+
+    ${chals.some(ch => ch.created_by === SESS.uid) ? `<div class="src" style="margin-top:10px">Un défi que
+      vous avez lancé se supprime depuis sa fiche, en haut.</div>` : ''}`;
+}
+
+function feedAmis(ctx){
+  const {F} = ctx;
+  const r = S.fres, trouve = r && typeof r === 'object';
+  const dejaLie = id => [...F.in, ...F.out, ...F.friends, ...(F.refuses || [])]
+    .some(x => x.requester === id || x.addressee === id);
+  const ligne = (nom, slug, boutons) => `
+    <div class="draft-line">
+      <span class="nm">${esc(nom)}<i class="small mute" style="font-style:normal">  ·  ${esc(slug)}</i></span>
+      ${boutons}
+    </div>`;
+
+  return `
+    ${F.in.length ? `
+      <h2 class="sec">Demandes reçues · ${F.in.length}</h2>
+      <div class="card">
+        ${F.in.map((x,i) => ligne(x.dem.username, x.dem.username_slug,
+          `<button class="rm" data-yes="${i}" style="color:var(--forest);font-size:13px">Accepter</button>
+           <button class="rm" data-no="${i}">Refuser</button>`)).join('')}
+      </div>` : ''}
 
     <h2 class="sec">Trouver quelqu’un</h2>
     <div class="card">
@@ -1922,14 +2020,6 @@ function renderFeed(){
     ${F.state === 'hors-ligne' ? `<div class="card" style="margin-top:12px"><p class="small mute">Hors ligne :
       demandes et amis indisponibles. Ils réapparaîtront au retour du réseau.</p></div>` : ''}
 
-    ${F.in.length ? `
-      <h2 class="sec">Demandes reçues · ${F.in.length}</h2>
-      <div class="card">
-        ${F.in.map((x,i) => ligne(x.dem.username, x.dem.username_slug,
-          `<button class="rm" data-yes="${i}" style="color:var(--forest);font-size:13px">Accepter</button>
-           <button class="rm" data-no="${i}">Refuser</button>`)).join('')}
-      </div>` : ''}
-
     ${F.out.length ? `
       <h2 class="sec">Demandes envoyées · ${F.out.length}</h2>
       <div class="card">
@@ -1963,48 +2053,76 @@ function renderFeed(){
            <button class="rm" data-old="${i}">×</button>`)).join('')}
       </div>` : ''}
 
-    ${S.posts && S.posts.length ? `
-      <h2 class="sec">Sur le feed</h2>
-      <div class="card">
-        ${S.posts.map(x => `
-          <div class="draft-line">
-            <span class="nm">${x.body.emoji || '🏅'} ${esc(x.body.label || x.body.key || '')}
-              <i class="small mute" style="font-style:normal">  ·  ${
-                x.author === SESS.uid ? 'vous' : esc((x.aut||{}).username || '')} ·
-                ${new Date(x.created_at).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</i></span>
-            ${x.author === SESS.uid ? `<button class="rm" data-pdel="${x.id}">×</button>` : ''}
-          </div>`).join('')}
-      </div>` : ''}
-
     <h2 class="sec">La suite</h2>
     <div class="card">
       <p class="small">Ce que l’étape suivante ouvrira :</p>
       <div class="stagelist" style="margin-top:8px">
         <span class="unit">Communautés</span><span class="small">plusieurs groupes, entrée sur code d’invitation</span><span></span>
-        <span class="unit">Partages</span><span class="small">badges, idées de recettes, défis</span><span></span>
         <span class="unit">Portée</span><span class="small">une communauté, plusieurs, ou des amis choisis</span><span></span>
       </div>
       <div class="src" style="margin-top:10px">Rien de ce que vous mangez ne sera partagé : les repas
-        restent hors du volet social. Seuls y circulent ce que vous publiez explicitement.</div>
+        restent hors du volet social.</div>
     </div>`;
+}
 
-  $('#f_go').onclick = feedSearch;
-  const fq = $('#fq');
-  fq.onkeydown = e => { if(e.key === 'Enter') feedSearch(); };
-  fq.oninput = () => { S.fq = fq.value; };
-  const ask = $('#f_ask');
-  if(ask && !ask.disabled) ask.onclick = () => frAsk(r.id, r.username);
+function renderFeed(){
+  if(!SB.ready()){
+    view.innerHTML = `<h2 class="sec">Feed</h2>
+      <div class="card"><p class="small">Le volet social nécessite la configuration du serveur
+        sur cette copie de l’app.</p></div>`;
+    return;
+  }
+  if(!SESS){
+    view.innerHTML = `
+      <h2 class="sec">Feed</h2>
+      <div class="card">
+        <p class="lede">Retrouver les autres</p>
+        <p class="small">Chercher quelqu’un par son pseudo, lui envoyer une demande, puis partager
+          badges, idées de recettes et défis.</p>
+        <div class="hr"></div>
+        <p class="small mute">Il faut un compte : c’est votre pseudo qui vous rend trouvable.</p>
+        <button class="btn btn-1" id="f_login" style="margin-top:4px">Ouvrir mon profil</button>
+      </div>`;
+    $('#f_login').onclick = profileSheet;
+    return;
+  }
+  if(S.fr.state === 'vide'){ frLoad(); }
+  if(S.chal === undefined){ S.chal = null; chalLoad(true); }
+  if(S.posts === undefined){ S.posts = null; frPosts(); }
 
-  view.querySelectorAll('[data-yes]').forEach(b => b.onclick = () => frDecide(F.in[+b.dataset.yes], 'accepted'));
-  view.querySelectorAll('[data-no]').forEach(b => b.onclick = () => frDecide(F.in[+b.dataset.no], 'declined'));
-  view.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => frDrop(F.out[+b.dataset.cancel], 'Demande annulée'));
-  view.querySelectorAll('[data-un]').forEach(b => b.onclick = () => frDrop(F.friends[+b.dataset.un], 'Ami retiré'));
+  const t0 = today();
+  const chals = S.chal || [];
+  const mien = ch => ch.parts.find(x => x.member === SESS.uid);
+  const enCours = chals.filter(ch => ch.ends >= t0 && (mien(ch) || {}).status === 'in');
+  const invites = chals.filter(ch => ch.ends >= t0 && (mien(ch) || {}).status === 'invited');
+  const finis   = chals.filter(ch => ch.ends <  t0 && (mien(ch) || {}).status === 'in');
+  const F = S.fr;
+  const ctx = {t0, chals, enCours, invites, finis, F};
+
+  /* Une pastille par section : ce qui réclame une réponse doit être visible
+     sans changer d'onglet. */
+  const attente = {actu:0, defis:invites.length, amis:F.in.length};
+
+  view.innerHTML = `
+    <div class="seg" style="margin-bottom:12px">${FEED_TABS.map(([k,l]) =>
+      `<button data-fv="${k}" aria-pressed="${S.fv === k}"><b>${l}${
+        attente[k] ? ' · ' + attente[k] : ''}</b></button>`).join('')}</div>
+    ${({actu:feedActu, defis:feedDefis, amis:feedAmis})[S.fv](ctx)}`;
+
+  view.querySelectorAll('[data-fv]').forEach(b => b.onclick = () => {
+    S.fv = b.dataset.fv; renderFeed();
+  });
+
+  /* ---------- Actu ---------- */
+  const rec = $('#ac_rec'); if(rec) rec.onclick = recipeSheet;
+  const ref = $('#ac_ref'); if(ref) ref.onclick = () => { frPosts(); toast('Actualisé'); };
   view.querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => postDrop(b.dataset.pdel));
+
+  /* ---------- Défis ---------- */
   const cn = $('#ch_new');
   if(cn && !cn.disabled) cn.onclick = chalCreate;
   view.querySelectorAll('[data-cyes]').forEach(b => b.onclick = () => chalAnswer(invites[+b.dataset.cyes], 'in'));
   view.querySelectorAll('[data-cno]').forEach(b => b.onclick = () => chalAnswer(invites[+b.dataset.cno], 'out'));
-  /* la fête est cliquable : détail et suppression pour son auteur */
   view.querySelectorAll('[data-chal]').forEach(el => el.onclick = () => {
     const ch = chals.find(x => x.id === el.dataset.chal);
     const rows = chalRows(ch), def = CHAL[ch.kind];
@@ -2031,6 +2149,22 @@ function renderFeed(){
     const ou = $('#ch_out');
     if(ou) ou.onclick = () => { closeSheet(); chalAnswer(ch, 'out'); };
   });
+
+  /* ---------- Amis ---------- */
+  const fgo = $('#f_go');
+  if(fgo){
+    fgo.onclick = feedSearch;
+    const fq = $('#fq');
+    fq.onkeydown = e => { if(e.key === 'Enter') feedSearch(); };
+    fq.oninput = () => { S.fq = fq.value; };
+  }
+  const ask = $('#f_ask');
+  if(ask && !ask.disabled) ask.onclick = () => frAsk(S.fres.id, S.fres.username);
+
+  view.querySelectorAll('[data-yes]').forEach(b => b.onclick = () => frDecide(F.in[+b.dataset.yes], 'accepted'));
+  view.querySelectorAll('[data-no]').forEach(b => b.onclick = () => frDecide(F.in[+b.dataset.no], 'declined'));
+  view.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => frDrop(F.out[+b.dataset.cancel], 'Demande annulée'));
+  view.querySelectorAll('[data-un]').forEach(b => b.onclick = () => frDrop(F.friends[+b.dataset.un], 'Ami retiré'));
   view.querySelectorAll('[data-fiche]').forEach(b => b.onclick = () => {
     const x = F.friends[+b.dataset.fiche], a = frAutre(x);
     tasteSheet(x.requester === SESS.uid ? x.addressee : x.requester, a.username);
@@ -2039,9 +2173,9 @@ function renderFeed(){
   /* migration des anciens contacts locaux : on retrouve l'identifiant par le
      pseudo, puis on envoie une demande en règle */
   view.querySelectorAll('[data-mig]').forEach(b => b.onclick = async () => {
-    const p = S.people[+b.dataset.mig];
+    const pl = S.people[+b.dataset.mig];
     const q = await SB.rest('profiles?select=id,username&username_slug=eq.' +
-      encodeURIComponent(p.slug) + '&limit=1');
+      encodeURIComponent(pl.slug) + '&limit=1');
     if(!q.ok || !q.body || !q.body.length) return toast('Ce compte n’existe plus');
     await frAsk(q.body[0].id, q.body[0].username);
     S.people.splice(+b.dataset.mig, 1); save(); renderFeed();
