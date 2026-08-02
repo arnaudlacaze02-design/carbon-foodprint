@@ -1086,7 +1086,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-53';
+const BUILD = 'cfp-54';
 
 const SB = {
   url: 'https://ioqjkssonvrxzymicmlz.supabase.co',
@@ -4528,8 +4528,8 @@ const monday = d => { const t = new Date(d+'T12:00'); t.setDate(t.getDate() - ((
 const CHALS = [
   {t:'Repas végétarien',        p:5,   r:'Un déjeuner ou un dîner sans viande ni poisson. Le petit-déjeuner ne compte pas : il est déjà végétarien neuf fois sur dix.'},
   {t:'Repas de légumineuses',   p:8,   r:'Lentilles, pois chiches, haricots ou tofu dans l’assiette. Le geste le plus efficace du référentiel, et le plus rarement encouragé.'},
-  {t:'Journée sans viande',     p:10,  r:'Bonus, en plus des repas. Deux repas principaux enregistrés au minimum, sinon la journée ne compte pas.'},
-  {t:'Journée dans le budget',  p:8,   r:'Journée révolue sous le budget quotidien, deux repas principaux au minimum. Se cumule avec les autres : c’est la seule épreuve qui juge la quantité émise, non la composition de l’assiette.'},
+  {t:'Journée sans viande',     p:10,  r:'Bonus, en plus des repas. Déjeuner et dîner tous deux enregistrés, sinon la journée ne compte pas.'},
+  {t:'Journée dans le budget',  p:8,   r:'Journée révolue sous le budget quotidien, déjeuner et dîner tous deux enregistrés. Se cumule avec les autres : c’est la seule épreuve qui juge la quantité émise, non la composition de l’assiette.'},
   {t:'Semaine sans viande rouge', p:40, r:'Cinq jours complets enregistrés, aucun bœuf, veau, kebab ni cheeseburger.'},
   {t:'Semaine sans viande',     p:100, r:'Bonus. Cinq jours complets enregistrés, aucune viande ni poisson.'},
   {t:'Semaine sous budget',     p:150, r:'Sept jours sur sept enregistrés et budget hebdomadaire tenu. La seule épreuve qui mesure vraiment l’objectif.'},
@@ -4612,17 +4612,19 @@ function shiftMonth(m, n){
   return iso(d).slice(0,7);
 }
 function dayFlags(x){
-  const complete = x && x.main.size >= 2;
+  /* Même règle que les badges : déjeuner ET dîner saisis. « Deux repas
+     principaux » laissait passer un petit-déjeuner suivi d'un déjeuner. */
+  const complete = !!(x && dayComplete(x));
   return {
-    vegm: !!(x && x.vegMeal),                       // au moins un repas végé
-    veg:  !!(complete && x.veg),                    // journée entière sans viande
-    bud:  !!(complete && x.kg <= BUDGET_J),         // journée dans le budget
+    vegm:  !!(x && x.vegMeal),                      // au moins un repas végé
+    nored: !!(complete && !x.red),                  // aucune viande rouge sur la journée
+    bud:   !!(complete && x.kg <= BUDGET_J),        // journée dans le budget
   };
 }
 const DOTS = [
-  {k:'veg',  c:'#5BC8F5', l:'Journée sans viande'},
-  {k:'bud',  c:'#FF7A1A', l:'Journée dans le budget'},
-  {k:'vegm', c:'#46C87C', l:'Repas végétarien'},
+  {k:'nored', c:'#5BC8F5', l:'Journée sans viande rouge'},
+  {k:'bud',   c:'#FF7A1A', l:'Journée dans le budget'},
+  {k:'vegm',  c:'#46C87C', l:'Repas végétarien'},
 ];
 function calCells(sc, month, clickable){
   const first = new Date(month + '-01T12:00');
@@ -5072,8 +5074,9 @@ function renderJeux(){
     <div class="l">Viande rouge</div><div class="v">${cw.noRed ? 'aucune' : 'détectée'}</div>
     <div class="l">Viande ou poisson</div><div class="v">${cw.noMeat ? 'aucun' : 'détecté'}</div>
     <div class="l">Journée en cours</div>
-    <div class="v">${td.main.size >= 2 && td.veg ? '+10 à minuit'
-      : td.main.size < 2 ? `${td.main.size} / 2 repas` : 'viande enregistrée'}</div>
+    <div class="v">${dayComplete(td) && td.veg ? '+10 à minuit'
+      : !dayComplete(td) ? `${['dej','din'].filter(m => td.main.has(m)).length} / 2 repas`
+      : 'viande enregistrée'}</div>
     <div class="tr" style="background:none;height:0"></div>
     <div class="l small mute" style="grid-column:1/-1">${
       cw.full >= 7 && cw.kg <= wBud ? 'Semaine sous budget acquise : 150 points.'
@@ -5085,7 +5088,7 @@ function renderJeux(){
   <div class="card">
     ${badgeBlock(sc)}
     <div class="src" style="margin-top:13px">Journées réussies sur journées nécessaires. Une journée
-      ne compte que si deux repas principaux au moins y sont enregistrés.</div>
+      ne compte que si le déjeuner et le dîner y sont tous deux enregistrés.</div>
   </div>
 
   `;
