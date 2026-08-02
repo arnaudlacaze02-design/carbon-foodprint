@@ -995,7 +995,7 @@ let S = {tab:'feed', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[]
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
          tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined,
          fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:null,
-         fv:'actu', notif:{on:false, vu:{}, lastPost:null}};
+         fv:'actu', notif:{on:false, vu:{}, lastPost:null, luPost:null}};
 
 function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
@@ -1004,14 +1004,14 @@ function save(){
 }
 function load(){
   S.favs=[]; S.hist=[]; S.tomb=[]; S.starred=[]; S.stdInit=false; S.lastSync=null; S.prof={};
-  S.people=[]; S.notif={on:false, vu:{}, lastPost:null};
+  S.people=[]; S.notif={on:false, vu:{}, lastPost:null, luPost:null};
   try{
     const raw = localStorage.getItem(dataKey());
     if(raw){ const o = JSON.parse(raw);
       S.favs=o.favs||[]; S.hist=o.hist||[]; S.tomb=o.tomb||[];
       S.stdInit=!!o.stdInit; S.starred=o.starred||[]; S.lastSync=o.lastSync||null;
       S.prof=o.prof||{}; S.people=o.people||[];
-      S.notif=Object.assign({on:false, vu:{}, lastPost:null}, o.notif||{});
+      S.notif=Object.assign({on:false, vu:{}, lastPost:null, luPost:null}, o.notif||{});
       stamp(); return true; }
   }catch(e){}
   return false;
@@ -1086,7 +1086,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-51';
+const BUILD = 'cfp-52';
 
 const SB = {
   url: 'https://ioqjkssonvrxzymicmlz.supabase.co',
@@ -1450,15 +1450,54 @@ async function frLoad(silent){
   renderFeed();
 }
 
+/* Ce qui réclame une réponse, calculé en un seul endroit. La pastille de la
+   barre d'onglets, celles des trois sections du feed et le badge de l'icône
+   doivent compter la même chose : trois calculs séparés finiraient par se
+   contredire, et un compteur qui ment ne se rattrape pas. */
+function attentes(){
+  if(!SESS) return {actu:0, defis:0, amis:0, total:0};
+  const t0 = today();
+  const defis = (S.chal || []).filter(ch => ch.ends >= t0 &&
+    (ch.parts.find(x => x.member === SESS.uid) || {}).status === 'invited').length;
+  const amis = (S.fr.in || []).length;
+  const lu = S.notif.luPost;
+  const actu = (S.posts || []).filter(x => x.author !== SESS.uid && (!lu || x.created_at > lu)).length;
+  return {actu, defis, amis, total: actu + defis + amis};
+}
+
+/* Badge de l'icône. Disponible seulement sur une app ajoutée à l'écran
+   d'accueil, iOS 16.4 ou plus, notifications autorisées — ailleurs la méthode
+   n'existe simplement pas et la détection suffit.
+
+   Il ne peut bouger que pendant que l'app tourne : sans serveur d'envoi, le
+   service worker ne se réveille jamais. Mais le dernier chiffre posé survit à
+   la fermeture, d'où l'appel au moment où l'app passe en arrière-plan. Le
+   compte est donc juste à l'instant où l'on quitte l'app, puis figé jusqu'à la
+   prochaine ouverture — c'est une limite, pas un bug. */
+async function badgeSync(){
+  if(!('setAppBadge' in navigator)) return;
+  try{
+    const n = S.notif.on ? attentes().total : 0;
+    if(n > 0) await navigator.setAppBadge(n);
+    else await navigator.clearAppBadge();
+  }catch(e){ /* permission retirée côté système : rien à signaler */ }
+}
+
+/* Marquer l'Actu comme lue. Le repère est l'horodatage de la publication la
+   plus récente qui ne soit pas la mienne : mes propres partages ne peuvent pas
+   être « non lus ». */
+function actuLue(){
+  if(!SESS || !S.posts) return;
+  const eux = S.posts.filter(x => x.author !== SESS.uid);
+  if(!eux.length || S.notif.luPost === eux[0].created_at) return;
+  S.notif.luPost = eux[0].created_at; save();
+}
+
 function paintFeedCount(){
+  badgeSync();
   const b = document.querySelector('#tabbar .bub');
   if(!b) return;
-  /* Deux choses réclament une réponse : une demande d'ami et une invitation à
-     un défi. Les compter ensemble, sinon l'une des deux passe inaperçue. */
-  const t0 = today();
-  const inv = (SESS && S.chal) ? S.chal.filter(ch => ch.ends >= t0 &&
-    (ch.parts.find(x => x.member === SESS.uid) || {}).status === 'invited').length : 0;
-  const n = ((SESS && S.fr.in) ? S.fr.in.length : 0) + inv;
+  const n = attentes().total;
   b.dataset.n = n;
   const c = b.querySelector('.cnt');
   if(c) c.textContent = n > 9 ? '9+' : String(n);
@@ -1664,7 +1703,12 @@ function postsAlerte(){
   if(!eux.length) return;
   const dernier = eux[0].created_at;
   const vu = S.notif.lastPost;
-  S.notif.lastPost = dernier; save();
+  S.notif.lastPost = dernier;
+  /* Premier chargement : on part de zéro non-lu plutôt que d'annoncer
+     l'historique entier sur l'icône le jour de l'installation. */
+  if(S.notif.luPost == null) S.notif.luPost = dernier;
+  save();
+  badgeSync();
   if(!vu || dernier <= vu) return;
   const neufs = eux.filter(x => x.created_at > vu);
   if(!neufs.length) return;
@@ -2143,7 +2187,7 @@ function renderFeed(){
 
   /* Une pastille par section : ce qui réclame une réponse doit être visible
      sans changer d'onglet. */
-  const attente = {actu:0, defis:invites.length, amis:F.in.length};
+  const attente = attentes();
 
   view.innerHTML = `
     <div class="seg" style="margin-bottom:12px">${FEED_TABS.map(([k,l]) =>
@@ -2156,6 +2200,9 @@ function renderFeed(){
   });
 
   /* ---------- Actu ---------- */
+  /* Après le rendu, pas avant : la pastille doit s'être affichée une fois,
+     sinon on ne saurait jamais combien il y avait de nouveautés. */
+  if(S.fv === 'actu'){ actuLue(); paintFeedCount(); }
   const rec = $('#ac_rec'); if(rec) rec.onclick = recipeSheet;
   const ref = $('#ac_ref'); if(ref) ref.onclick = () => { frPosts(); toast('Actualisé'); };
   view.querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => postDrop(b.dataset.pdel));
@@ -5062,13 +5109,13 @@ async function notifMontre(titre, corps, tag){
 }
 
 async function notifBascule(){
-  if(S.notif.on){ S.notif.on = false; save(); profileSheet(); return toast('Rappels coupés'); }
+  if(S.notif.on){ S.notif.on = false; save(); badgeSync(); profileSheet(); return toast('Rappels coupés'); }
   if(typeof Notification === 'undefined') return toast('Ce navigateur ne gère pas les notifications');
   if(Notification.permission === 'denied')
     return toast('Refusées au niveau du téléphone : à réactiver dans ses réglages');
   const r = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
   if(r !== 'granted') return toast('Sans autorisation, pas de rappel');
-  S.notif.on = true; save(); profileSheet();
+  S.notif.on = true; save(); badgeSync(); profileSheet();
   notifMontre('Rappels activés', 'Un mot le matin, un autre le soir si la journée est incomplète.', 'test');
 }
 
@@ -5129,7 +5176,10 @@ function notifBlock(){
     <button class="btn btn-2" id="pf_notif" style="margin-top:8px" ${dispo && !refus ? '' : 'disabled'}>${
       S.notif.on ? 'Couper les rappels' : 'Activer les rappels'}</button>
     <div class="src" style="margin-top:8px">Les rappels partent quand l’app a tourné dans la journée.
-      Une notification app fermée demandera un serveur d’envoi, ce n’est pas encore en place.</div>`;
+      Une notification app fermée demandera un serveur d’envoi, ce n’est pas encore en place.${
+      'setAppBadge' in navigator
+        ? ' L’icône porte le nombre de choses en attente ; il est juste au moment où vous quittez l’app, puis figé jusqu’à la prochaine ouverture.'
+        : ' Le badge sur l’icône demande l’app ajoutée à l’écran d’accueil, sur iPhone — il n’est pas disponible ici.'}</div>`;
 }
 
 /* Ouverture sur le feed — mais seulement s'il a quelque chose à montrer :
@@ -5157,10 +5207,14 @@ setInterval(() => {
   frPosts();
 }, 90000);
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState !== 'visible') return;
+  if(document.visibilityState !== 'visible'){ badgeSync(); return; }
   notifTick();
   if(SESS && SB.ready()) frPosts();
 });
+/* Dernière occasion d'écrire le chiffre avant que la page ne soit gelée :
+   c'est celui-là qui restera sur l'icône. */
+window.addEventListener('pagehide', badgeSync);
+badgeSync();
 /* synchro d'ouverture, discrète : un échec hors ligne ne doit rien signaler */
 if(SESS) syncNow(true).then(ok => { if(ok && S.tab === 'tracker') renderTracker(); });
 </script>
