@@ -417,6 +417,21 @@ p{margin:0 0 9px}
 .dish .bar i{display:block;height:100%}
 .pick{position:relative}
 .pick input{width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:var(--field); font-size:16px}
+/* Croix d'effacement. Sur mobile, vider un champ demandait une dizaine
+   d'appuis sur la touche retour — un geste pour rien, répété tous les jours. */
+.srchw{position:relative}
+.srchw.mb{margin:2px 0 10px}
+.srchw > .search{margin:0}
+.srchw > input{padding-right:40px}
+.srchx{
+  position:absolute; right:7px; top:50%; transform:translateY(-50%);
+  width:25px; height:25px; padding:0; border:0; border-radius:50%;
+  background:var(--seg-bg); color:var(--mute);
+  font-family:var(--mono); font-size:14px; line-height:1;
+  display:none; align-items:center; justify-content:center;
+}
+.srchw.on > .srchx{display:flex}
+.srchx:active{background:var(--active); color:var(--ink)}
 .sugg{position:absolute; top:calc(100% + 5px); left:0; right:0; z-index:25; background:var(--card);
   border:1px solid var(--line); border-radius:11px; overflow:hidden auto; max-height:264px;
   box-shadow:var(--shadow)}
@@ -974,28 +989,29 @@ const CLIENT_ID = (() => {
 let SESS = null;    /* {uid, slug, username, access_token, refresh_token, expires_at} */
 const dataKey = () => SESS ? KEY_ANON + '.' + SESS.uid : KEY_ANON;
 
-let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
+let S = {tab:'feed', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false,
          dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
          tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined,
          fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:null,
-         fv:'actu'};
+         fv:'actu', notif:{on:false, vu:{}, lastPost:null}};
 
 function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
         tomb:S.tomb, stdInit:S.stdInit, starred:S.starred, lastSync:S.lastSync,
-        prof:S.prof, people:S.people})); }catch(e){}
+        prof:S.prof, people:S.people, notif:S.notif})); }catch(e){}
 }
 function load(){
   S.favs=[]; S.hist=[]; S.tomb=[]; S.starred=[]; S.stdInit=false; S.lastSync=null; S.prof={};
-  S.people=[];
+  S.people=[]; S.notif={on:false, vu:{}, lastPost:null};
   try{
     const raw = localStorage.getItem(dataKey());
     if(raw){ const o = JSON.parse(raw);
       S.favs=o.favs||[]; S.hist=o.hist||[]; S.tomb=o.tomb||[];
       S.stdInit=!!o.stdInit; S.starred=o.starred||[]; S.lastSync=o.lastSync||null;
       S.prof=o.prof||{}; S.people=o.people||[];
+      S.notif=Object.assign({on:false, vu:{}, lastPost:null}, o.notif||{});
       stamp(); return true; }
   }catch(e){}
   return false;
@@ -1070,7 +1086,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-50';
+const BUILD = 'cfp-51';
 
 const SB = {
   url: 'https://ioqjkssonvrxzymicmlz.supabase.co',
@@ -1632,7 +1648,33 @@ async function frPosts(){
   const r = await SB.rest('posts?select=id,author,kind,body,created_at,' +
     'aut:profiles!posts_author_fkey(username)&order=created_at.desc&limit=40');
   S.posts = r.ok ? (r.body || []) : null;
-  renderFeed();
+  postsAlerte();
+  /* La veille de fond appelle cette fonction toutes les 90 s : re-rendre sans
+     condition écraserait l'écran de saisie en cours de frappe. */
+  if(S.tab === 'feed') renderFeed();
+}
+
+/* Nouveauté d'un ami. La comparaison porte sur l'horodatage le plus récent des
+   publications qui ne sont pas les miennes ; au tout premier chargement on
+   pose simplement le repère, sans rien annoncer — sinon l'app notifierait
+   l'historique entier à l'installation. */
+function postsAlerte(){
+  if(!S.posts || !S.posts.length) return;
+  const eux = S.posts.filter(x => x.author !== SESS.uid);
+  if(!eux.length) return;
+  const dernier = eux[0].created_at;
+  const vu = S.notif.lastPost;
+  S.notif.lastPost = dernier; save();
+  if(!vu || dernier <= vu) return;
+  const neufs = eux.filter(x => x.created_at > vu);
+  if(!neufs.length) return;
+  const un = neufs[0], b = un.body || {}, qui = (un.aut || {}).username || 'Un ami';
+  notifMontre(
+    neufs.length > 1 ? `${neufs.length} nouvelles publications` : `${qui} a partagé quelque chose`,
+    neufs.length > 1 ? 'Sur le feed de Carbon FOODprint'
+      : un.kind === 'recipe' ? '🍲 ' + (b.title || 'Une idée de recette')
+      : (b.emoji || '🏅') + ' ' + (b.label || 'Un badge'),
+    'feed');
 }
 
 async function postDrop(id){
@@ -2254,7 +2296,10 @@ function renderBiblio(){
   </div>
 
   <h2 class="sec">Les ${DB.foods.length} aliments de référence</h2>
-  <input class="search" id="q" placeholder="Chercher un aliment" value="${esc(S.q)}">
+  <div class="srchw mb${S.q ? ' on' : ''}">
+    <input class="search" id="q" placeholder="Chercher un aliment" value="${esc(S.q)}">
+    <button class="srchx" id="qx" type="button" aria-label="Effacer la recherche">✕</button>
+  </div>
   <div class="chips">
     <button class="chip" aria-pressed="${!S.group}" data-g="">Tout</button>
     ${groups.map(g => `<button class="chip" aria-pressed="${S.group===g}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}
@@ -2274,6 +2319,8 @@ function renderBiblio(){
   $('#knowToggle').onclick = () => { S.knowOpen = !S.knowOpen; renderBiblio(); };
   $('#q').oninput = e => { S.q = e.target.value; const p = e.target.selectionStart; renderBiblio();
     const q2 = $('#q'); q2.focus(); q2.setSelectionRange(p,p); };
+  const qx = $('#qx');
+  if(qx) qx.onclick = () => { S.q = ''; renderBiblio(); const n = $('#q'); if(n) n.focus(); };
   view.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { S.group = b.dataset.g; renderBiblio(); });
   view.querySelectorAll('[data-food]').forEach(b => b.onclick = () => foodSheet(b.dataset.food));
 }
@@ -2499,6 +2546,7 @@ function bindCompose(){
     const f = F.get(slug);
     S.pickSlug = slug; S.pickQ = f.n;
     cf.value = f.n; cq.value = comPortion(slug);
+    cf.parentNode.classList.add('on');
     sg.hidden = true; sg.innerHTML = '';
     $('#chint').textContent = `${f.n} · ${n1(f.t)} kg CO₂e/kg · ${comLabel(slug)}`;
   };
@@ -2532,7 +2580,15 @@ function bindCompose(){
     renderSaisie();
     const nx = $('#cf'); if(nx) nx.focus();
   };
-  cf.oninput = () => { S.pickSlug = null; S.pickQ = cf.value; paint(); };
+  const croix = () => cf.parentNode.classList.toggle('on', !!cf.value);
+  cf.oninput = () => { S.pickSlug = null; S.pickQ = cf.value; croix(); paint(); };
+  const cfx = $('#cfx');
+  if(cfx) cfx.onclick = () => {
+    cf.value = ''; cq.value = ''; S.pickQ = ''; S.pickSlug = null;
+    sg.hidden = true; sg.innerHTML = '';
+    $('#chint').textContent = `${DB.foods.length} aliments. Trois lettres suffisent.`;
+    croix(); cf.focus();
+  };
   cf.onkeydown = e => {
     if(e.key === 'Enter'){ e.preventDefault(); const r = find(cf.value); if(r.length) choose(r[0].s); }
     if(e.key === 'Escape'){ sg.hidden = true; }
@@ -2830,7 +2886,10 @@ function renderSaisie(){
   </div>
 
   ${S.path === 'types' ? `
-    <input class="search" id="dq" placeholder="Chercher un plat" value="${esc(S.dishQ)}" style="margin:2px 0 10px">
+    <div class="srchw mb${S.dishQ ? ' on' : ''}">
+      <input class="search" id="dq" placeholder="Chercher un plat" value="${esc(S.dishQ)}">
+      <button class="srchx" id="dqx" type="button" aria-label="Effacer la recherche">✕</button>
+    </div>
     <div class="list">
     ${items.length ? items.map(d => `<div class="dish">
       <div class="top">
@@ -2850,9 +2909,10 @@ function renderSaisie(){
   </div>` : ''}
 
   ${S.path === 'compose' ? `<div class="card">
-    <div class="pick">
+    <div class="pick srchw${S.pickQ ? ' on' : ''}">
       <input id="cf" type="text" inputmode="search" autocomplete="off" autocapitalize="off"
              spellcheck="false" placeholder="Tapez les premières lettres" value="${esc(S.pickQ)}">
+      <button class="srchx" id="cfx" type="button" aria-label="Effacer la recherche">✕</button>
       <div class="sugg" id="sugg" hidden></div>
     </div>
     <div class="compose">
@@ -2904,6 +2964,8 @@ function renderSaisie(){
   const dqEl = $('#dq');
   if(dqEl) dqEl.oninput = e => { S.dishQ = e.target.value; const p = e.target.selectionStart;
     renderSaisie(); const n = $('#dq'); if(n){ n.focus(); n.setSelectionRange(p,p); } };
+  const dqx = $('#dqx');
+  if(dqx) dqx.onclick = () => { S.dishQ = ''; renderSaisie(); const n = $('#dq'); if(n) n.focus(); };
 
   view.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => setMode(b.dataset.mode));
   view.querySelectorAll('[data-path]').forEach(b => b.onclick = () => { S.path = b.dataset.path; renderSaisie(); });
@@ -3403,6 +3465,7 @@ function profileSheet(){
         <span class="unit">Repas</span><span class="small">${S.hist.length} dans ce compte</span><span></span>
       </div>
       ${profBlock()}
+      ${notifBlock()}
       <div class="actions" style="margin-top:14px">
         <button class="btn btn-1" id="ac_sync">Synchroniser</button>
         <button class="btn btn-2" id="ac_out">Se déconnecter</button>
@@ -3420,6 +3483,7 @@ function profileSheet(){
         </div>
       </div>
       ${profBlock()}
+      ${notifBlock()}
       <div class="hr"></div>
       <p class="small">Un compte permet de retrouver son historique sur un autre appareil.
         Pseudo et mot de passe uniquement — aucune adresse e-mail n'est demandée.</p>
@@ -3437,6 +3501,8 @@ function profileSheet(){
   if(pg) pg.onclick = () => profQuiz(0);
   const pd = $('#pf_diag');
   if(pd) pd.onclick = diagSheet;
+  const pn = $('#pf_notif');
+  if(pn && !pn.disabled) pn.onclick = notifBascule;
   const ps = $('#pf_share');
   if(ps) ps.onclick = async () => {
     S.tasteShared = !S.tasteShared;
@@ -4419,11 +4485,11 @@ function scoring(){
   });
   const T = today();
   dk.forEach(d => {
-    if(d < T && days[d].main.size >= 2 && days[d].veg) ev.push({d, t:'Journée sans viande', n:'', p:10});
+    if(d < T && dayComplete(days[d]) && days[d].veg) ev.push({d, t:'Journée sans viande', n:'', p:10});
     /* Journée révolue seulement : une journée en cours est sous le budget dès le
        petit-déjeuner. Et deux repas principaux au minimum, sinon une pomme
        déclarée seule rapporterait autant qu'une journée réellement tenue. */
-    if(d < T && days[d].main.size >= 2 && days[d].kg <= BUDGET_J)
+    if(d < T && dayComplete(days[d]) && days[d].kg <= BUDGET_J)
       ev.push({d, t:'Journée dans le budget', n:'', p:8});
   });
 
@@ -4601,8 +4667,14 @@ function bestVegWeek(){
   const v = Object.values(w);
   return v.length ? Math.max(...v) : 0;
 }
+/* Journée complète. « Au moins deux repas principaux » ne suffisait pas :
+   un petit-déjeuner suivi d'un déjeuner passait le test, et une journée dont
+   le dîner manque est mécaniquement sous le budget. Le badge se décrochait
+   donc sur une journée à moitié saisie. Il faut le déjeuner ET le dîner. */
+const dayComplete = x => x.main.has('dej') && x.main.has('din');
+
 function vegDayCount(sc){
-  return Object.values(sc.days).filter(x => x.main.size >= 2 && x.veg).length;
+  return Object.values(sc.days).filter(x => dayComplete(x) && x.veg).length;
 }
 
 /* Repas principaux végétariens, tous cumulés. */
@@ -4610,14 +4682,14 @@ function vegMealCount(){
   return S.hist.filter(e => (e.m === 'dej' || e.m === 'din') && isVeg(e)).length;
 }
 
-/* Journées entières sous le budget quotidien. Deux garde-fous : au moins deux
-   repas principaux enregistrés, sinon une pomme déclarée seule décrocherait le
-   badge, et la journée doit être révolue — une journée en cours est toujours
-   sous le budget au petit-déjeuner. */
+/* Journées entières sous le budget quotidien. Deux garde-fous : déjeuner et
+   dîner tous deux saisis, sinon une journée à moitié renseignée décroche le
+   badge sans rien prouver, et la journée doit être révolue — une journée en
+   cours est toujours sous le budget au petit-déjeuner. */
 function budgetDayCount(sc){
   const T = today();
   return Object.entries(sc.days)
-    .filter(([d, x]) => d < T && x.main.size >= 2 && x.kg <= BUDGET_J).length;
+    .filter(([d, x]) => d < T && dayComplete(x) && x.kg <= BUDGET_J).length;
 }
 
 const TROPHIES = [
@@ -4625,13 +4697,13 @@ const TROPHIES = [
    d:'Un déjeuner ou un dîner sans viande ni poisson. Le geste le plus simple, et de loin le plus efficace.',
    m:() => vegMealCount()},
   {s:'Premier jour dans le budget', n:'Premier jour dans le budget 2050', e:'🎯', need:1, u:'journée', pal:'green',
-   d:`Une journée révolue sous ${n0(BUDGET_J*1000)} g CO₂e, avec au moins deux repas principaux enregistrés — le budget alimentaire quotidien compatible avec 2050.`,
+   d:`Une journée révolue sous ${n0(BUDGET_J*1000)} g CO₂e, déjeuner et dîner tous deux enregistrés — le budget alimentaire quotidien compatible avec 2050.`,
    m:sc => budgetDayCount(sc)},
   {s:'5 jours d’affilée', n:'Cinq jours de saisie d’affilée', e:'📅', need:5, u:'jours', pal:'sky',
    d:'Cinq journées consécutives renseignées. La mesure ne vaut que si elle est continue — un historique troué ne se compare à rien.',
    m:() => bestLogStreak()},
   {s:'Journée sans viande', n:'Journée sans viande', e:'🥗', need:1, u:'journée', pal:'sky',
-   d:'Une journée entière sans viande ni poisson, avec au moins deux repas principaux enregistrés.',
+   d:'Une journée entière sans viande ni poisson, déjeuner et dîner tous deux enregistrés.',
    m:sc => vegDayCount(sc)},
   {s:'7 végé en 1 semaine', n:'Sept repas végé en une semaine', e:'🌱', need:7, u:'repas', pal:'green',
    d:'Sept déjeuners ou dîners végétariens dans une même semaine civile.',
@@ -4957,15 +5029,138 @@ load();
    premier lancement, feraient croire à un seau déjà peuplé. */
 const rattrape = recover();
 if(!S.stdInit) addStandards();
-go('saisie');
+
+/* ==================== rappels ====================
+   Une limite à dire franchement plutôt qu'à laisser découvrir : sans serveur
+   de push, rien ne peut être délivré téléphone verrouillé et app fermée. Ce
+   module arme des minuteries tant que la page vit, et rattrape au lancement ce
+   qui a été manqué dans la journée, avec une péremption — un « aujourd'hui
+   sera peut-être le jour » reçu à 23 h ne veut plus rien dire. Sur un usage où
+   l'app est ouverte au moins une fois par jour, cela suffit. Pour une vraie
+   notification à 9 h 30 sans ouvrir l'app, il faudra une Edge Function
+   planifiée et une paire de clés VAPID. */
+
+const RAPPELS = [
+  {k:'matin', deb: 9*60 + 30, fin: 14*60,      f: () => rappelMatin()},
+  {k:'soir',  deb: 21*60,     fin: 23*60 + 59, f: () => rappelSoir()},
+];
+
+const notifPret = () => typeof Notification !== 'undefined' && Notification.permission === 'granted';
+
+async function notifMontre(titre, corps, tag){
+  if(!S.notif.on || !notifPret()) return false;
+  const opts = {body:corps, tag, icon:'./icon-192.png', badge:'./icon-192.png',
+                data:{tab: tag === 'feed' ? 'feed' : 'saisie'}};
+  try{
+    /* Passer par le service worker : c'est la seule voie qui fonctionne en PWA
+       installée sur iOS, et la seule qui survive à la fermeture de l'onglet. */
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if(reg && reg.showNotification){ await reg.showNotification(titre, opts); return true; }
+    new Notification(titre, opts);
+    return true;
+  }catch(e){ console.warn('notification refusée :', e); return false; }
+}
+
+async function notifBascule(){
+  if(S.notif.on){ S.notif.on = false; save(); profileSheet(); return toast('Rappels coupés'); }
+  if(typeof Notification === 'undefined') return toast('Ce navigateur ne gère pas les notifications');
+  if(Notification.permission === 'denied')
+    return toast('Refusées au niveau du téléphone : à réactiver dans ses réglages');
+  const r = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+  if(r !== 'granted') return toast('Sans autorisation, pas de rappel');
+  S.notif.on = true; save(); profileSheet();
+  notifMontre('Rappels activés', 'Un mot le matin, un autre le soir si la journée est incomplète.', 'test');
+}
+
+/* Matin : le premier badge encore à portée, du plus facile au plus exigeant.
+   Les trois acquis, on cesse de répéter et on parle de la série. */
+function rappelMatin(){
+  const sc = scoring();
+  const cible = vegMealCount() === 0     ? 'votre premier repas végétarien'
+              : vegDayCount(sc) === 0    ? 'votre première journée sans viande'
+              : budgetDayCount(sc) === 0 ? 'votre premier jour dans le budget 2050'
+              : null;
+  if(cible) return {t:'Aujourd’hui sera peut-être le jour', b:'de ' + cible + '.'};
+  const st = logStreak();
+  return {t:'Nouvelle journée', b: st
+    ? `${st} jour${st > 1 ? 's' : ''} d’affilée. Déjeuner et dîner saisis, et la série tient.`
+    : 'Déjeuner et dîner saisis, et la journée comptera.'};
+}
+
+/* Soir : ne rappeler que ce qui manque réellement. Une journée complète n'a
+   pas besoin qu'on lui écrive. */
+function rappelSoir(){
+  const T = today();
+  const m = new Set(S.hist.filter(e => e.d === T && e.m !== 'encas').map(e => e.m));
+  if(m.has('dej') && m.has('din')) return null;
+  const manque = !m.has('dej') && !m.has('din') ? 'Le déjeuner et le dîner manquent'
+               : !m.has('dej') ? 'Le déjeuner manque' : 'Le dîner manque';
+  const st = logStreak();
+  return {t: manque, b: st
+    ? `Saisissez la journée pour garder votre éclair — ${st} jour${st > 1 ? 's' : ''} d’affilée.`
+    : 'Saisissez la journée pour lancer votre série.'};
+}
+
+function notifTick(){
+  if(!S.notif.on || !notifPret()) return;
+  const T = today(), now = new Date();
+  const mn = now.getHours() * 60 + now.getMinutes();
+  RAPPELS.forEach(r => {
+    if(S.notif.vu[r.k] === T || mn < r.deb) return;
+    S.notif.vu[r.k] = T; save();          /* marqué d'abord : jamais deux fois */
+    if(mn > r.fin) return;                /* trop tard, le message n'a plus de sens */
+    const msg = r.f();
+    if(msg) notifMontre(msg.t, msg.b, r.k);
+  });
+}
+
+function notifBlock(){
+  const dispo = typeof Notification !== 'undefined';
+  const refus = dispo && Notification.permission === 'denied';
+  return `
+    <div class="hr"></div>
+    <div class="total" style="margin-top:0">
+      <div style="min-width:0"><div class="unit">Rappels</div>
+        <div class="small mute">${!dispo ? 'Non gérés par ce navigateur.'
+          : refus ? 'Refusés au niveau du téléphone.'
+          : S.notif.on ? '9 h 30 et 21 h, plus les publications de vos amis.'
+          : 'Coupés. Aucune notification n’est envoyée.'}</div></div>
+    </div>
+    <button class="btn btn-2" id="pf_notif" style="margin-top:8px" ${dispo && !refus ? '' : 'disabled'}>${
+      S.notif.on ? 'Couper les rappels' : 'Activer les rappels'}</button>
+    <div class="src" style="margin-top:8px">Les rappels partent quand l’app a tourné dans la journée.
+      Une notification app fermée demandera un serveur d’envoi, ce n’est pas encore en place.</div>`;
+}
+
+/* Ouverture sur le feed — mais seulement s'il a quelque chose à montrer :
+   accueillir un nouveau venu par « il faut un compte » serait une porte fermée
+   au premier pas. Sans compte, on ouvre sur la saisie, qui est ce que l'app
+   sait faire sans rien demander. */
+S.tab = (SESS && SB.ready()) ? 'feed' : 'saisie';
+go(S.tab);
 if(rattrape) toast('Profil et favoris récupérés');
 if(SESS && SB.ready()){
   SB.syncIdentity().then(ok => {
     if(!ok) toast('Session réalignée sur le serveur');
     if(recover()){ go(S.tab); toast('Profil et favoris récupérés'); }
-    tastePull(); frLoad(true);
+    tastePull(); frLoad(true); frPosts(); chalLoad(true);
   });
 }
+
+/* Minuteries. Une passe par minute pour les rappels horaires, une toutes les
+   90 s pour les publications — et rien du tout quand l'écran est éteint ou
+   l'app en arrière-plan, où ces requêtes ne serviraient personne. */
+notifTick();
+setInterval(notifTick, 60000);
+setInterval(() => {
+  if(document.visibilityState !== 'visible' || !SESS || !SB.ready()) return;
+  frPosts();
+}, 90000);
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState !== 'visible') return;
+  notifTick();
+  if(SESS && SB.ready()) frPosts();
+});
 /* synchro d'ouverture, discrète : un échec hors ligne ne doit rien signaler */
 if(SESS) syncNow(true).then(ok => { if(ok && S.tab === 'tracker') renderTracker(); });
 </script>
@@ -4973,6 +5168,13 @@ if(SESS) syncNow(true).then(ok => { if(ok && S.tab === 'tracker') renderTracker(
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+  /* le worker dit sur quel onglet se poser quand on a cliqué une notification */
+  navigator.serviceWorker.addEventListener('message', e => {
+    if(e.data && e.data.cfp === 'ouvrir' && typeof go === 'function'){
+      if(e.data.tab === 'feed') S.fv = 'actu';
+      go(e.data.tab);
+    }
   });
 }
 </script>
