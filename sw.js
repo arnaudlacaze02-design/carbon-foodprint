@@ -8,11 +8,14 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-3.8.0';
+const VERSION = 'cfp-3.9.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
-  './logo-mark.png', './logo-wide.png'
+  './logo-mark.png', './logo-wide.png',
+  /* illustrations de badges : mises en cache pour rester visibles hors ligne */
+  './b-carotte.png', './b-tomate.png', './b-brocoli.png',
+  './b-france.png', './b-rome.png', './b-ny.png'
 ];
 
 self.addEventListener('install', e => {
