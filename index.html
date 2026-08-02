@@ -419,6 +419,38 @@ p{margin:0 0 9px}
 .pick input{width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:var(--field); font-size:16px}
 /* Croix d'effacement. Sur mobile, vider un champ demandait une dizaine
    d'appuis sur la touche retour — un geste pour rien, répété tous les jours. */
+/* barre d'actions d'une publication */
+.pact{display:flex; align-items:center; gap:6px; padding:8px 9px 9px; border-top:1px solid var(--line-soft)}
+.pa{display:flex; align-items:center; gap:6px; border:0; background:none; color:var(--mute);
+  padding:6px 9px; border-radius:9px; font-size:13px}
+.pa b{font-family:var(--mono); font-size:11.5px; font-weight:400}
+.pa:active{background:var(--active)}
+.pa.on{color:var(--brick)}
+.pa.keep{margin-left:auto; color:var(--forest); font-weight:600; font-size:12.5px}
+
+/* fil de commentaires */
+.cmt{display:flex; gap:9px; padding:10px 2px; border-bottom:1px solid var(--line-soft)}
+.cmt .av{width:26px; height:26px; border-radius:50%; background:var(--seg-bg); color:var(--forest);
+  display:flex; align-items:center; justify-content:center; font-weight:600; font-size:11.5px; flex:0 0 auto}
+.cmt .bd{min-width:0; flex:1}
+.cmt .bd b{font-size:13px}
+.cmt .bd i{font-style:normal; font-family:var(--mono); font-size:9px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--mute); margin-left:6px}
+.cmt .bd p{margin:2px 0 0; font-size:14px; line-height:1.45; word-break:break-word}
+.cmt .rm{color:var(--mute); font-family:var(--mono); font-size:15px; padding:0 3px; border:0; background:none}
+
+/* composition d'une recette : une ligne par ingrédient */
+.rqline{display:grid; grid-template-columns:1fr 68px auto auto; gap:8px; align-items:center;
+  padding:8px 0; border-bottom:1px solid var(--line-soft)}
+.rqline .nm{font-size:14px; line-height:1.25}
+.rqline input{width:100%; padding:8px; border:1px solid var(--line); border-radius:9px;
+  background:var(--field); text-align:right; font-size:15px}
+.rqline .kg{font-family:var(--serif); font-variant-numeric:tabular-nums; font-size:15px}
+.rqline .rm{color:var(--brick); font-family:var(--mono); font-size:16px; padding:0 3px; border:0; background:none}
+.rqpers{display:flex; align-items:center; gap:9px; margin:2px 0 10px}
+.rqpers input{width:64px; padding:9px; border:1px solid var(--line); border-radius:9px;
+  background:var(--field); text-align:center; font-size:16px}
+
 /* ---- publications du feed ---- */
 .post{border:1px solid var(--line); border-radius:16px; overflow:hidden; background:var(--card); margin-bottom:12px}
 .post .ph{display:flex; align-items:center; gap:9px; padding:10px 12px}
@@ -1037,7 +1069,8 @@ let S = {tab:'feed', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[]
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
          tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined,
          fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:null,
-         fv:'actu', notif:{on:false, vu:{}, lastPost:null, luPost:null}};
+         fv:'actu', notif:{on:false, vu:{}, lastPost:null, luPost:null},
+         plike:{}, pcom:{}, rq:null, rtab:'ing'};
 
 function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
@@ -1128,7 +1161,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-55';
+const BUILD = 'cfp-56';
 
 const SB = {
   url: 'https://ioqjkssonvrxzymicmlz.supabase.co',
@@ -1408,6 +1441,20 @@ function toast(msg){
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
   clearTimeout(toast.t); toast.t = setTimeout(()=>t.classList.remove('on'), 2100);
 }
+/* Normalisation partagée : accents, casse et ligature œ. Elle n'existait qu'en
+   local dans le composer, la recherche d'ingrédients d'une recette en a besoin
+   aussi. */
+const nrmT = t => String(t).toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '').replace(/œ/g, 'oe');
+
+const COEUR = plein => `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
+  style="vertical-align:-2px"><path d="M12 20.6 4.1 12.7a4.9 4.9 0 0 1 6.9-6.9l1 1 1-1a4.9 4.9 0 0 1 6.9 6.9z"
+  fill="${plein ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
+
+const BULLE = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
+  style="vertical-align:-2px"><path d="M20.5 12a7.5 7.5 0 0 1-10.9 6.7L4 20l1.4-4.3A7.5 7.5 0 1 1 20.5 12z"
+  fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
+
 function openSheet(html){
   $('#sheet').innerHTML = `<div class="grab"></div>` + html;
   $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
@@ -1688,51 +1735,270 @@ async function badgeShare(t){
   frPosts();
 }
 
-/* Idée de recette. Quatre champs plutôt qu'un pavé : ce qui est structuré à la
-   saisie peut être présenté proprement à la lecture, et une liste de courses
-   ne se lit pas comme une marche à suivre. */
+/* Composition d'une recette. Les ingrédients se choisissent dans la base, pas
+   au clavier : la recette devient mesurable à la publication, elle affiche son
+   empreinte par personne, et l'enregistrer en plat type ne demande plus aucune
+   devinette. Ce qui n'existe pas dans la base — épices, herbes, sel — part dans
+   « Autres », en texte libre et hors du calcul. */
 function recipeSheet(){
   if(!SESS) return toast('Il faut un compte pour publier');
+  S.rq = S.rq || {title:'', pers:2, ing:[], autres:'', prep:'', url:'', q:''};
+  const q = S.rq;
+
+  /* Relire les champs avant tout re-rendu, sinon ajouter un ingrédient effacerait
+     ce qui vient d'être tapé ailleurs. */
+  const collecte = () => {
+    const v = id => { const el = $(id); return el ? el.value : null; };
+    const t = v('#rq_t'); if(t !== null) q.title  = t;
+    const a = v('#rq_a'); if(a !== null) q.autres = a;
+    const p = v('#rq_p'); if(p !== null) q.prep   = p;
+    const u = v('#rq_u'); if(u !== null) q.url    = u;
+    const n = v('#rq_n'); if(n !== null) q.pers   = Math.max(1, Math.min(30, Math.round(+n) || 1));
+  };
+
+  const peint = () => {
+    const kg = kgOf(q.ing), pers = Math.max(1, q.pers);
+    openSheet(`
+      <div class="unit">Idée de recette</div>
+      <h3 style="margin:2px 0 10px">Qu’est-ce qui était bon ?</h3>
+
+      <input class="search" id="rq_t" maxlength="90" autocomplete="off"
+             value="${esc(q.title)}" placeholder="Titre — ex. Dahl de lentilles corail">
+
+      <div class="rqpers">
+        <span class="small">Recette pour</span>
+        <input id="rq_n" type="number" inputmode="numeric" min="1" max="30" value="${pers}">
+        <span class="small">personne${pers > 1 ? 's' : ''}</span>
+      </div>
+
+      <div class="unit" style="margin:8px 0 4px">Ingrédients</div>
+      <div class="pick srchw${q.q ? ' on' : ''}">
+        <input id="rq_q" type="text" inputmode="search" autocomplete="off" autocapitalize="off"
+               spellcheck="false" value="${esc(q.q)}" placeholder="Chercher dans la base — ex. lentilles">
+        <button class="srchx" id="rq_qx" type="button" aria-label="Effacer">✕</button>
+        <div class="sugg" id="rq_sg" hidden></div>
+      </div>
+
+      ${q.ing.length ? q.ing.map((l, k) => `<div class="rqline">
+          <span class="nm">${esc(F.get(l[0]).n)}</span>
+          <input type="number" inputmode="numeric" min="1" max="5000" value="${l[1]}" data-rqg="${k}">
+          <span class="kg">${n2(kgOf([l]))}</span>
+          <button class="rm" data-rqrm="${k}" aria-label="Retirer">×</button>
+        </div>`).join('')
+        : `<div class="src">Aucun ingrédient. Cherchez-en un ci-dessus : c’est ce qui rend la recette
+            mesurable et enregistrable en plat type.</div>`}
+
+      ${q.ing.length ? `<div class="total">
+          <div><div class="unit">Empreinte</div>
+            <div class="small mute">${n2(kg)} kg pour ${pers} · quantités totales, non par personne</div></div>
+          <div class="v">${n2(kg / pers)}<span style="font-size:14px"> kg/pers</span></div>
+        </div>` : ''}
+
+      <div class="unit" style="margin:12px 0 4px">Autres · un par ligne, hors calcul</div>
+      <textarea class="search" id="rq_a" rows="2" maxlength="600"
+        style="font-family:inherit;resize:vertical"
+        placeholder="sel, poivre&#10;quelques feuilles de coriandre">${esc(q.autres)}</textarea>
+
+      <div class="unit" style="margin:4px 0 4px">Préparation · une étape par ligne</div>
+      <textarea class="search" id="rq_p" rows="5" maxlength="2500"
+        style="font-family:inherit;resize:vertical"
+        placeholder="Faire revenir l’oignon cinq minutes.&#10;Ajouter les lentilles et le lait de coco.&#10;Laisser mijoter vingt minutes à couvert.">${esc(q.prep)}</textarea>
+
+      <input class="search" id="rq_u" maxlength="300" inputmode="url" autocapitalize="off"
+             value="${esc(q.url)}" placeholder="Lien vers la recette (facultatif)">
+
+      <div class="actions" style="margin-top:6px">
+        <button class="btn btn-1" id="rq_go">Publier</button>
+        <button class="btn btn-2" id="rq_no">Annuler</button>
+      </div>
+      <div class="src" style="margin-top:8px">Visible de vos amis, qui pourront l’enregistrer dans leurs
+        plats types. Ce qui figure dans « Autres » ne compte pas dans l’empreinte : elle est donc minorante.</div>`);
+
+    const qi = $('#rq_q'), sg = $('#rq_sg');
+    const peintSugg = () => {
+      const t = nrmT(qi.value.trim());
+      const l = t.length >= 2
+        ? DB.foods.filter(f => nrmT(f.n).includes(t) || nrmT(f.g).includes(t)).slice(0, 8) : [];
+      sg.innerHTML = l.map(f => `<button type="button" data-radd="${esc(f.s)}">
+          <span class="nm">${esc(f.n)}${f.x ? '<span class="tag">estimé</span>' : ''}<i>${esc(f.g)}</i></span>
+          <b>${n2(f.t * f.p / 1000)}</b></button>`).join('');
+      sg.hidden = !l.length;
+      sg.querySelectorAll('[data-radd]').forEach(btn => btn.onclick = () => {
+        collecte();
+        const sl = btn.dataset.radd;
+        if(!q.ing.some(x => x[0] === sl)) q.ing.push([sl, F.get(sl).p]);
+        q.q = ''; peint();
+      });
+    };
+    qi.oninput = () => { q.q = qi.value; qi.parentNode.classList.toggle('on', !!qi.value); peintSugg(); };
+    $('#rq_qx').onclick = () => { qi.value = ''; q.q = ''; qi.parentNode.classList.remove('on');
+                                  sg.hidden = true; sg.innerHTML = ''; qi.focus(); };
+    peintSugg();
+
+    $('#sheet').querySelectorAll('[data-rqg]').forEach(el => el.onchange = () => {
+      collecte();
+      q.ing[+el.dataset.rqg][1] = Math.max(1, Math.min(5000, Math.round(+el.value) || 1));
+      peint();
+    });
+    $('#sheet').querySelectorAll('[data-rqrm]').forEach(btn => btn.onclick = () => {
+      collecte(); q.ing.splice(+btn.dataset.rqrm, 1); peint();
+    });
+    const np = $('#rq_n'); if(np) np.onchange = () => { collecte(); peint(); };
+
+    $('#rq_no').onclick = () => { S.rq = null; closeSheet(); };
+
+    const go = $('#rq_go');
+    go.onclick = async () => {
+      collecte();
+      if((q.title || '').trim().length < 3) return toast('Il faut un titre');
+      const decoupe = v => (v || '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 40);
+      let url = (q.url || '').trim();
+      if(url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+      go.disabled = true; go.textContent = 'Publication…';
+      const r = await postNew('recipe', {
+        title: q.title.trim(), pers: q.pers, ing: q.ing.map(l => [l[0], l[1]]),
+        autres: decoupe(q.autres), prep: decoupe(q.prep), url: url || null});
+      if(!r.ok){ go.disabled = false; go.textContent = 'Publier'; return toast(r.msg); }
+
+      S.rq = null; closeSheet();
+      toast(r.amis ? `Recette publiée · visible de ${r.amis} ami${r.amis > 1 ? 's' : ''}`
+                   : 'Recette publiée dans Actu');
+      S.fv = 'actu';
+      frPosts();
+    };
+  };
+  peint();
+}
+
+/* Reprendre la recette d'un ami dans ses propres plats types. Un plat type vaut
+   pour une portion : les quantités sont donc ramenées à une personne. Aucun
+   rapprochement à faire, les ingrédients pointent déjà vers la base. */
+function recSave(id){
+  const x = (S.posts || []).find(y => y.id === id);
+  if(!x) return;
+  const b = x.body || {};
+  if(!recStruct(b))
+    return toast('Recette en texte libre, antérieure aux ingrédients mesurés : rien à convertir');
+
+  const pers = recPers(b);
+  const lignes = b.ing.filter(l => F.get(l[0])).map(([s, g]) => [s, Math.max(1, Math.round(g / pers))]);
+  if(!lignes.length) return toast('Aucun ingrédient exploitable');
+  const autres = recAutres(b);
+  const nomDef = (b.title || 'Recette').slice(0, 60);
+
   openSheet(`
-    <div class="unit">Idée de recette</div>
-    <h3 style="margin:2px 0 10px">Qu’est-ce qui était bon ?</h3>
-    <input class="search" id="rc_t" maxlength="90" autocomplete="off"
-           placeholder="Titre — ex. Dahl de lentilles corail">
-    <div class="unit" style="margin:8px 0 4px">Ingrédients · un par ligne</div>
-    <textarea class="search" id="rc_i" rows="5" maxlength="1200"
-      style="font-family:inherit;resize:vertical"
-      placeholder="200 g de lentilles corail&#10;1 oignon&#10;400 ml de lait de coco&#10;1 c. à c. de curcuma"></textarea>
-    <div class="unit" style="margin:8px 0 4px">Préparation · une étape par ligne</div>
-    <textarea class="search" id="rc_p" rows="6" maxlength="2500"
-      style="font-family:inherit;resize:vertical"
-      placeholder="Faire revenir l’oignon cinq minutes.&#10;Ajouter les lentilles, le curcuma et le lait de coco.&#10;Laisser mijoter vingt minutes à couvert."></textarea>
-    <input class="search" id="rc_u" maxlength="300" inputmode="url" autocapitalize="off"
-           placeholder="Lien vers la recette (facultatif)">
-    <div class="actions" style="margin-top:6px">
-      <button class="btn btn-1" id="rc_go">Publier</button>
+    <div class="unit">Enregistrer en plat type</div>
+    <h3 style="margin:2px 0 4px">${esc(nomDef)}</h3>
+    <div class="small mute">Recalculé pour une personne, depuis une recette pour ${pers}.</div>
+    <div class="hr"></div>
+    ${lignes.map(l => `<div class="draft-line">
+        <span class="nm">${esc(F.get(l[0]).n)}</span>
+        <span class="q">${l[1]} g</span>
+        <span class="kg">${n2(kgOf([l]))}</span>
+      </div>`).join('')}
+    <div class="total">
+      <div><div class="unit">Une portion</div>
+        <div class="small mute">${lignes.length} ingrédient${lignes.length>1?'s':''}</div></div>
+      <div class="v">${n2(kgOf(lignes))}<span style="font-size:14px"> kg</span></div>
+    </div>
+    ${autres.length ? `<div class="src" style="margin-top:10px">Non repris, faute d’exister dans la base :
+      ${autres.map(a => esc(a)).join(' · ')}.</div>` : ''}
+    <input class="search" id="rs_n" style="margin-top:12px" maxlength="70" value="${esc(nomDef)}">
+    <div class="actions">
+      <button class="btn btn-1" id="rs_ok">Ajouter à mes plats types</button>
       <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
     </div>
-    <div class="src" style="margin-top:8px">Visible de vos amis. Rien n’est calculé et aucun repas n’y est
-      joint : c’est une conversation, pas une donnée.</div>`);
+    <div class="src" style="margin-top:8px">Le plat rejoindra vos favoris, en tête de la liste des plats
+      types. C’est une reconstitution de la recette d’un ami, pas une mesure de ce que vous avez mangé.</div>`);
 
-  const go = $('#rc_go');
-  go.onclick = async () => {
-    const titre = ($('#rc_t').value || '').trim();
-    if(titre.length < 3) return toast('Il faut un titre');
-    const decoupe = v => (v || '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 40);
-    let url = ($('#rc_u').value || '').trim();
-    if(url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
-
-    go.disabled = true; go.textContent = 'Publication…';
-    const r = await postNew('recipe', {title:titre, ing:decoupe($('#rc_i').value),
-                                       prep:decoupe($('#rc_p').value), url:url || null});
-    if(!r.ok){ go.disabled = false; go.textContent = 'Publier'; return toast(r.msg); }
+  $('#rs_ok').onclick = () => {
+    const nom = ($('#rs_n').value || nomDef).trim().slice(0, 70) || nomDef;
+    if(S.favs.some(f => f.n === nom)) return toast('Un plat type porte déjà ce nom');
+    S.favs.unshift({n:nom, m:['dej','din'], l:lignes});
+    save();
+    if(SESS) syncNow(true);
     closeSheet();
-    toast(r.amis ? `Recette publiée · visible de ${r.amis} ami${r.amis > 1 ? 's' : ''}`
-                 : 'Recette publiée dans Actu');
-    S.fv = 'actu';
-    frPosts();
+    toast(`« ${nom} » ajouté à vos plats types`);
   };
+}
+
+async function frSocial(){
+  if(!SESS || !SB.ready()) return;
+  const [l, c] = await Promise.all([
+    SB.rest('post_likes?select=post,member&limit=2000'),
+    SB.rest('post_comments?select=id,post,author,body,created_at,' +
+            'aut:profiles!post_comments_author_fkey(username)&order=created_at.asc&limit=500')
+  ]);
+
+  const absent = r => /PGRST205|schema cache|does not exist/i.test(JSON.stringify(r.body || {}));
+  if(!l.ok && absent(l)){
+    /* Le dire une fois, pas à chaque sondage de 90 secondes. */
+    if(!S.socialWarn){ S.socialWarn = true;
+      toast('Likes et commentaires indisponibles : feed_social.sql n’est pas passé'); }
+    return;
+  }
+  const gl = {}, gc = {};
+  if(l.ok) (l.body || []).forEach(x => (gl[x.post] = gl[x.post] || []).push(x.member));
+  if(c.ok) (c.body || []).forEach(x => (gc[x.post] = gc[x.post] || []).push(x));
+  if(l.ok) S.plike = gl;
+  if(c.ok) S.pcom  = gc;
+}
+
+const likeList = id => S.plike[id] || [];
+const comList  = id => S.pcom[id]  || [];
+
+/* Le cœur doit répondre au doigt, pas au réseau : on bascule l'affichage tout
+   de suite et on recale sur le serveur seulement s'il refuse. */
+async function postLike(id, apres){
+  if(!SESS) return toast('Il faut un compte');
+  const liste = likeList(id), mien = liste.includes(SESS.uid);
+  S.plike[id] = mien ? liste.filter(x => x !== SESS.uid) : [...liste, SESS.uid];
+  if(S.tab === 'feed') renderFeed();
+  if(apres) apres();
+
+  const r = mien
+    ? await SB.rest(`post_likes?post=eq.${encodeURIComponent(id)}&member=eq.${encodeURIComponent(SESS.uid)}`,
+        {method:'DELETE'})
+    : await SB.rest('post_likes', {method:'POST', headers:{Prefer:'return=minimal'},
+        body: JSON.stringify({post:id, member:SESS.uid})});
+
+  if(!r.ok){
+    const brut = JSON.stringify(r.body || {});
+    console.warn('like ·', r.status, brut);
+    toast(/PGRST205|does not exist/i.test(brut)
+      ? 'Likes indisponibles : feed_social.sql n’est pas passé'
+      : 'Ce like n’a pas pu être enregistré');
+    await frSocial();
+    if(S.tab === 'feed') renderFeed();
+    if(apres) apres();
+  }
+}
+
+async function comAdd(id, texte){
+  const body = (texte || '').trim();
+  if(body.length < 1) return false;
+  const r = await SB.rest('post_comments?select=id,post,author,body,created_at,' +
+      'aut:profiles!post_comments_author_fkey(username)',
+    {method:'POST', headers:{Prefer:'return=representation'},
+     body: JSON.stringify({post:id, author:SESS.uid, body:body.slice(0, 800)})});
+  if(!r.ok || !r.body || !r.body.length){
+    const brut = JSON.stringify(r.body || {});
+    console.error('commentaire ·', r.status, brut);
+    toast(/PGRST205|does not exist/i.test(brut)
+      ? 'Commentaires indisponibles : feed_social.sql n’est pas passé'
+      : 'Commentaire non publié · ' + r.status);
+    return false;
+  }
+  (S.pcom[id] = S.pcom[id] || []).push(r.body[0]);
+  return true;
+}
+
+async function comDrop(cid, pid){
+  const r = await SB.rest('post_comments?id=eq.' + encodeURIComponent(cid), {method:'DELETE'});
+  if(!r.ok) return toast('Suppression impossible');
+  S.pcom[pid] = comList(pid).filter(c => c.id !== cid);
+  return true;
 }
 
 async function frPosts(){
@@ -1740,6 +2006,7 @@ async function frPosts(){
   const r = await SB.rest('posts?select=id,author,kind,body,created_at,' +
     'aut:profiles!posts_author_fkey(username)&order=created_at.desc&limit=40');
   S.posts = r.ok ? (r.body || []) : null;
+  if(r.ok) await frSocial();
   postsAlerte();
   /* La veille de fond appelle cette fonction toutes les 90 s : re-rendre sans
      condition écraserait l'écran de saisie en cours de frappe. */
@@ -2050,11 +2317,35 @@ function lien(txt){
 
 const recLines = v => (Array.isArray(v) ? v : String(v || '').split('\n'))
   .map(x => String(x).trim()).filter(Boolean);
-const recIng   = b => recLines(b.ing);
-/* Compatibilité : les premières recettes n'avaient qu'un bloc de texte libre,
-   qui n'était ni des ingrédients ni des étapes. Le lire comme une préparation
-   est le moins faux. */
-const recPrep  = b => recLines(b.prep && b.prep.length ? b.prep : b.text);
+
+/* Depuis que les ingrédients sont choisis dans la base, `ing` est une liste de
+   couples [slug, grammes] et la recette devient mesurable. Les publications
+   antérieures portaient du texte libre : on les reconnaît à la forme et on les
+   affiche sans chiffre plutôt que de les perdre. */
+const recStruct = b => Array.isArray(b.ing) && b.ing.length && Array.isArray(b.ing[0]);
+const recPers   = b => Math.max(1, Math.round(+b.pers || 1));
+const recAutres = b => recLines(b.autres);
+const recPrep   = b => recLines(b.prep && b.prep.length ? b.prep : b.text);
+const recKg     = b => recStruct(b) ? kgOf(b.ing.filter(l => F.get(l[0]))) : null;
+
+function recIng(b){
+  if(recStruct(b)) return b.ing.filter(l => F.get(l[0]))
+    .map(([s, g]) => ({slug:s, nom:F.get(s).n, g}));
+  return recLines(b.ing).map(t => ({slug:null, nom:t, g:null}));
+}
+
+function pactBar(x){
+  const l = likeList(x.id), mien = SESS && l.includes(SESS.uid), c = comList(x.id);
+  const b = x.body || {};
+  return `<div class="pact">
+    <button class="pa${mien ? ' on' : ''}" data-like="${esc(x.id)}"
+      aria-pressed="${!!mien}" aria-label="J’aime">${COEUR(mien)}${l.length ? `<b>${l.length}</b>` : ''}</button>
+    <button class="pa" data-popen="${esc(x.id)}" data-ptab="com"
+      aria-label="Commentaires">${BULLE}${c.length ? `<b>${c.length}</b>` : ''}</button>
+    ${x.kind === 'recipe' && recStruct(b)
+      ? `<button class="pa keep" data-psave="${esc(x.id)}">Enregistrer le plat</button>` : ''}
+  </div>`;
+}
 
 /* Une publication occupe une carte entière, pas une ligne de liste : un badge
    décroché se regarde, il ne se survole pas. */
@@ -2069,21 +2360,24 @@ function postCard(x){
     </div>`;
 
   if(x.kind === 'recipe'){
-    const ing = recIng(b), prep = recPrep(b);
+    const ing = recIng(b), prep = recPrep(b), autres = recAutres(b);
+    const kg = recKg(b), pers = recPers(b);
     return `<div class="post">${tete}
       <button class="rcard" data-popen="${esc(x.id)}">
         <div class="band">
-          <div class="k">Idée de recette</div>
+          <div class="k">Idée de recette${kg != null ? ` · ${n2(kg / pers)} kg CO₂e par personne` : ''}</div>
           <h4>${esc(b.title || 'Sans titre')}</h4>
         </div>
         <div class="rchips">
-          ${ing.length  ? `<span class="rchip">${ing.length} ingrédient${ing.length>1?'s':''}</span>` : ''}
-          ${prep.length ? `<span class="rchip">${prep.length} étape${prep.length>1?'s':''}</span>` : ''}
-          ${b.url       ? `<span class="rchip">source liée</span>` : ''}
-          ${!ing.length && !prep.length ? `<span class="rchip">sans détail</span>` : ''}
+          ${recStruct(b)   ? `<span class="rchip">pour ${pers} personne${pers>1?'s':''}</span>` : ''}
+          ${ing.length     ? `<span class="rchip">${ing.length} ingrédient${ing.length>1?'s':''}</span>` : ''}
+          ${prep.length    ? `<span class="rchip">${prep.length} étape${prep.length>1?'s':''}</span>` : ''}
+          ${autres.length  ? `<span class="rchip">+ ${autres.length} non mesuré${autres.length>1?'s':''}</span>` : ''}
+          ${b.url          ? `<span class="rchip">source liée</span>` : ''}
         </div>
         <div class="rmore">Voir la recette ›</div>
       </button>
+      ${pactBar(x)}
     </div>`;
   }
 
@@ -2095,38 +2389,104 @@ function postCard(x){
       <h4>${t ? '' : esc(b.emoji || '🏅') + ' '}${esc(b.label || b.key || 'Badge')}</h4>
       <p>${esc(t ? t.d : 'Trophée décroché.')}</p>
     </div>
+    ${pactBar(x)}
   </div>`;
 }
 
-/* Fiche recette : deux onglets, parce qu'on ne lit pas une liste de courses et
-   une marche à suivre au même moment ni de la même façon. */
-function postOpen(id){
+function comBloc(x){
+  const cs = comList(x.id);
+  return `
+    ${cs.length ? cs.map(c => {
+      const nom = c.author === SESS.uid ? (SESS.username || 'Vous') : ((c.aut || {}).username || '—');
+      const mien = c.author === SESS.uid || x.author === SESS.uid;
+      return `<div class="cmt">
+        <span class="av">${esc((nom[0] || '?').toUpperCase())}</span>
+        <span class="bd"><b>${esc(nom)}</b><i>${new Date(c.created_at)
+          .toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</i>
+          <p>${lien(c.body)}</p></span>
+        ${mien ? `<button class="rm" data-cdel="${esc(c.id)}" aria-label="Supprimer">×</button>` : ''}
+      </div>`; }).join('')
+      : `<div class="empty">Aucun commentaire. Soyez le premier.</div>`}
+    <textarea class="search" id="cm_t" rows="2" maxlength="800" style="font-family:inherit;resize:vertical;margin-top:12px"
+      placeholder="Écrire un commentaire…"></textarea>
+    <button class="btn btn-1" id="cm_go">Publier</button>`;
+}
+
+/* Fiche d'une publication. Pour une recette, trois onglets : on ne lit pas une
+   liste de courses, une marche à suivre et une conversation de la même façon. */
+function postOpen(id, tab){
   const x = (S.posts || []).find(y => y.id === id);
   if(!x) return;
-  const b = x.body || {}, ing = recIng(b), prep = recPrep(b);
-  const qui = x.author === SESS.uid ? 'vous' : ((x.aut || {}).username || '—');
-  S.rtab = S.rtab === 'prep' ? 'prep' : 'ing';
+  const b = x.body || {};
+  if(tab) S.rtab = tab;
+  const rec = x.kind === 'recipe';
+  if(!rec) S.rtab = 'com';
+  if(!['ing','prep','com'].includes(S.rtab)) S.rtab = 'ing';
 
   const peint = () => {
+    const ing = recIng(b), prep = recPrep(b), autres = recAutres(b);
+    const kg = recKg(b), pers = recPers(b);
+    const qui = x.author === SESS.uid ? 'vous' : ((x.aut || {}).username || '—');
+    const l = likeList(x.id), mien = l.includes(SESS.uid);
+    const t = TROPHIES.find(y => y.s === b.key);
+
     openSheet(`
-      <div class="unit">Idée de recette · ${esc(qui)}</div>
-      <h3 style="margin:2px 0 3px">${esc(b.title || 'Sans titre')}</h3>
-      <div class="small mute">${ing.length} ingrédient${ing.length>1?'s':''} ·
-        ${prep.length} étape${prep.length>1?'s':''}</div>
-      <div class="rtabs">
+      <div class="unit">${rec ? 'Idée de recette' : 'Trophée partagé'} · ${esc(qui)}</div>
+      <h3 style="margin:2px 0 3px">${esc(rec ? (b.title || 'Sans titre') : (b.label || b.key || 'Badge'))}</h3>
+      ${rec
+        ? `<div class="small mute">${kg != null
+             ? `${n2(kg / pers)} kg CO₂e par personne · ${n2(kg)} kg pour ${pers}`
+             : 'Recette en texte libre, antérieure aux ingrédients mesurés'}</div>`
+        : (t ? `<div style="margin-top:12px">${medal(t, t.need, 'sh')}</div>
+               <p class="small" style="margin-top:10px">${esc(t.d)}</p>` : '')}
+
+      ${rec ? `<div class="rtabs">
         <button data-rt="ing"  aria-pressed="${S.rtab === 'ing'}">Ingrédients</button>
         <button data-rt="prep" aria-pressed="${S.rtab === 'prep'}">Préparation</button>
-      </div>
-      ${S.rtab === 'ing'
-        ? (ing.length
-            ? `<ul class="ring">${ing.map(l => `<li><span>${lien(l)}</span></li>`).join('')}</ul>`
-            : `<div class="empty">Aucun ingrédient renseigné.</div>`)
-        : (prep.length
-            ? prep.map((l, k) => `<div class="rstep"><span class="no">${k+1}</span><p>${lien(l)}</p></div>`).join('')
-            : `<div class="empty">Aucune étape renseignée.</div>`)}
-      ${b.url ? `<div class="src" style="margin-top:14px">Source : ${lien(b.url)}</div>` : ''}`);
-    $('#sheet').querySelectorAll('[data-rt]').forEach(btn =>
+        <button data-rt="com"  aria-pressed="${S.rtab === 'com'}">Commentaires${
+          comList(x.id).length ? ' · ' + comList(x.id).length : ''}</button>
+      </div>` : `<div class="hr"></div>`}
+
+      ${!rec || S.rtab === 'com' ? comBloc(x)
+        : S.rtab === 'ing'
+          ? (ing.length
+              ? `<ul class="ring">${ing.map(g => `<li><span>${
+                  g.g != null ? `<b style="font-family:var(--mono);font-size:12px">${g.g} g</b> · ` : ''
+                }${lien(g.nom)}</span></li>`).join('')}</ul>
+             ${autres.length ? `<div class="src" style="margin-top:12px"><b>Autres, non mesurés :</b>
+               ${autres.map(a => esc(a)).join(' · ')}. Ils ne comptent pas dans l’empreinte affichée,
+               qui est donc minorante.</div>` : ''}`
+              : `<div class="empty">Aucun ingrédient renseigné.</div>`)
+          : (prep.length
+              ? prep.map((y, k) => `<div class="rstep"><span class="no">${k+1}</span><p>${lien(y)}</p></div>`).join('')
+              : `<div class="empty">Aucune étape renseignée.</div>`)}
+
+      ${b.url && S.rtab !== 'com' ? `<div class="src" style="margin-top:14px">Source : ${lien(b.url)}</div>` : ''}
+
+      <div class="pact" style="margin-top:14px;border-top:1px solid var(--line-soft)">
+        <button class="pa${mien ? ' on' : ''}" id="sh_like">${COEUR(mien)}${
+          l.length ? `<b>${l.length}</b>` : ''}</button>
+        ${rec && recStruct(b) ? `<button class="pa keep" id="sh_save">Enregistrer le plat</button>` : ''}
+      </div>`);
+
+    const sheet = $('#sheet');
+    sheet.querySelectorAll('[data-rt]').forEach(btn =>
       btn.onclick = () => { S.rtab = btn.dataset.rt; peint(); });
+    $('#sh_like').onclick = () => postLike(x.id, peint);
+    const sv = $('#sh_save'); if(sv) sv.onclick = () => recSave(x.id);
+    const cg = $('#cm_go');
+    if(cg) cg.onclick = async () => {
+      const el = $('#cm_t'), v = el.value;
+      if(!v.trim()) return;
+      cg.disabled = true; cg.textContent = 'Publication…';
+      const ok = await comAdd(x.id, v);
+      if(!ok){ cg.disabled = false; cg.textContent = 'Publier'; return; }
+      peint();
+      if(S.tab === 'feed') renderFeed();
+    };
+    sheet.querySelectorAll('[data-cdel]').forEach(btn => btn.onclick = async () => {
+      if(await comDrop(btn.dataset.cdel, x.id)){ peint(); if(S.tab === 'feed') renderFeed(); }
+    });
   };
   peint();
 }
@@ -2359,7 +2719,10 @@ function renderFeed(){
   const rec = $('#ac_rec'); if(rec) rec.onclick = recipeSheet;
   const ref = $('#ac_ref'); if(ref) ref.onclick = () => { frPosts(); toast('Actualisé'); };
   view.querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => postDrop(b.dataset.pdel));
-  view.querySelectorAll('[data-popen]').forEach(b => b.onclick = () => postOpen(b.dataset.popen));
+  view.querySelectorAll('[data-popen]').forEach(b =>
+    b.onclick = () => postOpen(b.dataset.popen, b.dataset.ptab));
+  view.querySelectorAll('[data-like]').forEach(b => b.onclick = () => postLike(b.dataset.like));
+  view.querySelectorAll('[data-psave]').forEach(b => b.onclick = () => recSave(b.dataset.psave));
 
   /* ---------- Défis ---------- */
   const cn = $('#ch_new');
