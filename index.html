@@ -419,6 +419,48 @@ p{margin:0 0 9px}
 .pick input{width:100%; padding:11px 13px; border:1px solid var(--line); border-radius:10px; background:var(--field); font-size:16px}
 /* Croix d'effacement. Sur mobile, vider un champ demandait une dizaine
    d'appuis sur la touche retour — un geste pour rien, répété tous les jours. */
+/* ---- publications du feed ---- */
+.post{border:1px solid var(--line); border-radius:16px; overflow:hidden; background:var(--card); margin-bottom:12px}
+.post .ph{display:flex; align-items:center; gap:9px; padding:10px 12px}
+.post .av{width:30px; height:30px; border-radius:50%; background:var(--seg-bg); color:var(--forest);
+  display:flex; align-items:center; justify-content:center; font-weight:600; font-size:13px; flex:0 0 auto}
+.post .pw{min-width:0}
+.post .pw b{display:block; font-size:13.5px; line-height:1.2}
+.post .pw span{font-family:var(--mono); font-size:9.5px; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--mute)}
+.post .px{margin-left:auto; border:0; background:none; color:var(--mute); font-size:18px; line-height:1; padding:2px 4px}
+.post .stage{display:flex; align-items:center; justify-content:center; padding:24px 16px 20px;
+  background:var(--field); border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft)}
+.post .stage svg{width:132px; height:132px}
+.post .cap{padding:11px 13px 14px}
+.post .cap h4{margin:0 0 4px; font-size:16px; letter-spacing:-.012em}
+.post .cap p{margin:0; font-size:12.5px; line-height:1.45; color:var(--mute)}
+
+/* carte recette : bandeau titré puis les repères, comme une fiche de cuisine */
+.rcard{display:block; width:100%; text-align:left; border:0; background:none; padding:0}
+.rcard .band{padding:17px 15px 15px; background:linear-gradient(135deg,var(--forest),var(--forest-2)); color:#fff}
+.rcard .band .k{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; opacity:.72}
+.rcard .band h4{margin:6px 0 0; font-size:19px; line-height:1.2; letter-spacing:-.015em; color:#fff}
+.rchips{display:flex; flex-wrap:wrap; gap:6px; padding:12px 13px 0}
+.rchip{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
+  border:1px solid var(--line); border-radius:999px; padding:3px 9px; color:var(--mute)}
+.rmore{padding:10px 13px 14px; font-size:12.5px; color:var(--forest); font-weight:600}
+
+/* fiche recette à deux onglets */
+.rtabs{display:flex; gap:3px; background:var(--seg-bg); border-radius:10px; padding:3px; margin:12px 0 14px}
+.rtabs button{flex:1; border:0; background:none; border-radius:8px; padding:9px 6px; font-size:13px; color:var(--mute)}
+.rtabs button[aria-pressed="true"]{background:var(--card); color:var(--ink); font-weight:600;
+  box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.ring{list-style:none; padding:0; margin:0}
+.ring li{display:flex; gap:10px; padding:10px 2px; border-bottom:1px solid var(--line-soft); font-size:14px}
+.ring li::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--forest-2);
+  margin-top:6px; flex:0 0 auto}
+.rstep{display:flex; gap:11px; padding:12px 2px; border-bottom:1px solid var(--line-soft)}
+.rstep .no{width:24px; height:24px; border-radius:50%; background:var(--forest); color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; flex:0 0 auto}
+.rstep p{margin:0; font-size:14px; line-height:1.5}
+a.lk{color:var(--forest); text-decoration:underline; text-underline-offset:2px; word-break:break-word}
+
 .srchw{position:relative}
 .srchw.mb{margin:2px 0 10px}
 .srchw > .search{margin:0}
@@ -1086,7 +1128,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-54';
+const BUILD = 'cfp-55';
 
 const SB = {
   url: 'https://ioqjkssonvrxzymicmlz.supabase.co',
@@ -1646,31 +1688,44 @@ async function badgeShare(t){
   frPosts();
 }
 
-/* Idée de recette : texte libre, deux blocs. Rien n'est calculé, rien n'est
-   joint — c'est une conversation, pas une donnée. */
+/* Idée de recette. Quatre champs plutôt qu'un pavé : ce qui est structuré à la
+   saisie peut être présenté proprement à la lecture, et une liste de courses
+   ne se lit pas comme une marche à suivre. */
 function recipeSheet(){
   if(!SESS) return toast('Il faut un compte pour publier');
   openSheet(`
     <div class="unit">Idée de recette</div>
     <h3 style="margin:2px 0 10px">Qu’est-ce qui était bon ?</h3>
-    <input class="search" id="rc_t" maxlength="80" autocomplete="off"
+    <input class="search" id="rc_t" maxlength="90" autocomplete="off"
            placeholder="Titre — ex. Dahl de lentilles corail">
-    <textarea class="search" id="rc_x" rows="6" maxlength="900"
+    <div class="unit" style="margin:8px 0 4px">Ingrédients · un par ligne</div>
+    <textarea class="search" id="rc_i" rows="5" maxlength="1200"
       style="font-family:inherit;resize:vertical"
-      placeholder="Ce qu’il faut, comment vous faites, où vous l’avez trouvée…"></textarea>
+      placeholder="200 g de lentilles corail&#10;1 oignon&#10;400 ml de lait de coco&#10;1 c. à c. de curcuma"></textarea>
+    <div class="unit" style="margin:8px 0 4px">Préparation · une étape par ligne</div>
+    <textarea class="search" id="rc_p" rows="6" maxlength="2500"
+      style="font-family:inherit;resize:vertical"
+      placeholder="Faire revenir l’oignon cinq minutes.&#10;Ajouter les lentilles, le curcuma et le lait de coco.&#10;Laisser mijoter vingt minutes à couvert."></textarea>
+    <input class="search" id="rc_u" maxlength="300" inputmode="url" autocapitalize="off"
+           placeholder="Lien vers la recette (facultatif)">
     <div class="actions" style="margin-top:6px">
       <button class="btn btn-1" id="rc_go">Publier</button>
       <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
     </div>
-    <div class="src" style="margin-top:8px">Visible de vos amis, comme un badge partagé.
-      Aucun repas, aucune estimation n’y est jointe.</div>`);
+    <div class="src" style="margin-top:8px">Visible de vos amis. Rien n’est calculé et aucun repas n’y est
+      joint : c’est une conversation, pas une donnée.</div>`);
+
   const go = $('#rc_go');
   go.onclick = async () => {
     const titre = ($('#rc_t').value || '').trim();
-    const texte = ($('#rc_x').value || '').trim();
     if(titre.length < 3) return toast('Il faut un titre');
+    const decoupe = v => (v || '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 40);
+    let url = ($('#rc_u').value || '').trim();
+    if(url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+
     go.disabled = true; go.textContent = 'Publication…';
-    const r = await postNew('recipe', {title:titre, text:texte});
+    const r = await postNew('recipe', {title:titre, ing:decoupe($('#rc_i').value),
+                                       prep:decoupe($('#rc_p').value), url:url || null});
     if(!r.ok){ go.disabled = false; go.textContent = 'Publier'; return toast(r.msg); }
     closeSheet();
     toast(r.amis ? `Recette publiée · visible de ${r.amis} ami${r.amis > 1 ? 's' : ''}`
@@ -1680,8 +1735,6 @@ function recipeSheet(){
   };
 }
 
-/* Publications visibles : les miennes et celles qu'on m'a adressées. La RLS fait
-   le tri, la requête ne filtre rien. */
 async function frPosts(){
   if(!SESS || !SB.ready()) return;
   const r = await SB.rest('posts?select=id,author,kind,body,created_at,' +
@@ -1782,16 +1835,40 @@ function chalFmt(kind, s){
   return n1(s.value) + ' kg · ' + (d >= 0 ? '+' : '−') + n1(Math.abs(d));
 }
 
-/* Barre de l'échelle : longueur proportionnelle au mérite, premier au plein. */
+/* Longueur de barre.
+
+   L'ancienne version normalisait entre le meilleur et le pire : le premier
+   était toujours au plein, le dernier toujours à 28 %, quel que soit l'écart
+   réel. À deux joueurs, 96 % contre 100 % s'affichait comme 28 contre 100 —
+   un gouffre visuel pour quatre points d'écart. La barre disait le classement
+   en prétendant dire la performance.
+
+   Elle mesure désormais la valeur elle-même, sur une échelle absolue et
+   comparable d'un joueur à l'autre. */
 function chalBars(kind, rows){
-  const ks = rows.filter(r => r.ok).map(r => chalKey(kind, r));
-  const best = ks.length ? Math.min(...ks) : 0, worst = ks.length ? Math.max(...ks) : 1;
+  if(kind === 'sans_rouge')
+    return rows.map(r => r.ok ? Math.max(3, Math.round(r.value * 100)) : 6);
+
+  if(kind === 'points'){
+    const max = Math.max(1, ...rows.filter(r => r.ok).map(r => +r.value));
+    return rows.map(r => r.ok ? Math.max(3, Math.round(r.value / max * 100)) : 6);
+  }
+
+  /* Budget 2050 : la barre mesure la proximité de la cible — pleine quand on
+     tombe juste, vide à un budget entier d'écart, au-dessus comme en dessous. */
   return rows.map(r => {
     if(!r.ok) return 6;
-    if(worst === best) return 100;
-    const k = chalKey(kind, r);
-    return Math.round(100 - (k - best) / (worst - best) * 72);
+    const cible = BUDGET_J * (r.days || 1);
+    return Math.max(3, Math.round(100 - Math.min(1, Math.abs(r.value - cible) / cible) * 100));
   });
+}
+
+/* Le détail qui lève l'ambiguïté : un pourcentage seul ne dit pas sur combien
+   de repas il porte, et deux personnes ayant le même nombre de repas sans
+   viande rouge n'ont pas le même score si l'une en a saisi davantage. */
+function chalDetail(kind, s){
+  if(kind !== 'sans_rouge') return s.meals + ' repas';
+  return Math.round(s.value * s.meals) + ' sur ' + s.meals + ' repas principaux';
 }
 
 async function chalLoad(silent){
@@ -1963,19 +2040,95 @@ async function chalDrop(ch){
    panne. */
 const FEED_TABS = [['actu','Actu'], ['defis','Défis'], ['amis','Amis']];
 
-function postLigne(x){
-  const b = x.body || {};
-  const qui = x.author === SESS.uid ? 'vous' : ((x.aut || {}).username || '—');
-  const quand = new Date(x.created_at).toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
-  const titre = x.kind === 'recipe'
-    ? '🍲 ' + esc(b.title || 'Idée de recette')
-    : (b.emoji || '🏅') + ' ' + esc(b.label || b.key || 'Badge');
-  return `<div class="draft-line">
-      <span class="nm">${titre}<i class="small mute" style="font-style:normal">  ·  ${esc(qui)} · ${quand}</i>${
-        x.kind === 'recipe' && b.text
-          ? `<br><span class="small mute">${esc(b.text)}</span>` : ''}</span>
-      ${x.author === SESS.uid ? `<button class="rm" data-pdel="${x.id}">×</button>` : ''}
+/* Un lien tapé dans une recette doit être cliquable sans devenir un vecteur
+   d'injection : on échappe d'abord, on transforme ensuite. */
+function lien(txt){
+  return esc(txt).replace(/\bhttps?:\/\/[^\s<]+[^\s<.,;:!?)"']/g, u =>
+    `<a class="lk" href="${u}" target="_blank" rel="noopener noreferrer">${
+      u.replace(/^https?:\/\/(www\.)?/, '')}</a>`);
+}
+
+const recLines = v => (Array.isArray(v) ? v : String(v || '').split('\n'))
+  .map(x => String(x).trim()).filter(Boolean);
+const recIng   = b => recLines(b.ing);
+/* Compatibilité : les premières recettes n'avaient qu'un bloc de texte libre,
+   qui n'était ni des ingrédients ni des étapes. Le lire comme une préparation
+   est le moins faux. */
+const recPrep  = b => recLines(b.prep && b.prep.length ? b.prep : b.text);
+
+/* Une publication occupe une carte entière, pas une ligne de liste : un badge
+   décroché se regarde, il ne se survole pas. */
+function postCard(x){
+  const b = x.body || {}, moi = x.author === SESS.uid;
+  const qui = moi ? (SESS.username || 'Vous') : ((x.aut || {}).username || '—');
+  const quand = new Date(x.created_at).toLocaleDateString('fr-FR', {day:'numeric', month:'long'});
+  const tete = `<div class="ph">
+      <span class="av">${esc((qui[0] || '?').toUpperCase())}</span>
+      <span class="pw"><b>${esc(qui)}</b><span>${quand}</span></span>
+      ${moi ? `<button class="px" data-pdel="${esc(x.id)}" aria-label="Supprimer">×</button>` : ''}
     </div>`;
+
+  if(x.kind === 'recipe'){
+    const ing = recIng(b), prep = recPrep(b);
+    return `<div class="post">${tete}
+      <button class="rcard" data-popen="${esc(x.id)}">
+        <div class="band">
+          <div class="k">Idée de recette</div>
+          <h4>${esc(b.title || 'Sans titre')}</h4>
+        </div>
+        <div class="rchips">
+          ${ing.length  ? `<span class="rchip">${ing.length} ingrédient${ing.length>1?'s':''}</span>` : ''}
+          ${prep.length ? `<span class="rchip">${prep.length} étape${prep.length>1?'s':''}</span>` : ''}
+          ${b.url       ? `<span class="rchip">source liée</span>` : ''}
+          ${!ing.length && !prep.length ? `<span class="rchip">sans détail</span>` : ''}
+        </div>
+        <div class="rmore">Voir la recette ›</div>
+      </button>
+    </div>`;
+  }
+
+  const t = TROPHIES.find(y => y.s === b.key);
+  return `<div class="post">${tete}
+    <div class="stage">${t ? medal(t, t.need, 'p' + String(x.id).replace(/[^\w-]/g, ''))
+      : `<div style="font-size:66px;line-height:1">${esc(b.emoji || '🏅')}</div>`}</div>
+    <div class="cap">
+      <h4>${t ? '' : esc(b.emoji || '🏅') + ' '}${esc(b.label || b.key || 'Badge')}</h4>
+      <p>${esc(t ? t.d : 'Trophée décroché.')}</p>
+    </div>
+  </div>`;
+}
+
+/* Fiche recette : deux onglets, parce qu'on ne lit pas une liste de courses et
+   une marche à suivre au même moment ni de la même façon. */
+function postOpen(id){
+  const x = (S.posts || []).find(y => y.id === id);
+  if(!x) return;
+  const b = x.body || {}, ing = recIng(b), prep = recPrep(b);
+  const qui = x.author === SESS.uid ? 'vous' : ((x.aut || {}).username || '—');
+  S.rtab = S.rtab === 'prep' ? 'prep' : 'ing';
+
+  const peint = () => {
+    openSheet(`
+      <div class="unit">Idée de recette · ${esc(qui)}</div>
+      <h3 style="margin:2px 0 3px">${esc(b.title || 'Sans titre')}</h3>
+      <div class="small mute">${ing.length} ingrédient${ing.length>1?'s':''} ·
+        ${prep.length} étape${prep.length>1?'s':''}</div>
+      <div class="rtabs">
+        <button data-rt="ing"  aria-pressed="${S.rtab === 'ing'}">Ingrédients</button>
+        <button data-rt="prep" aria-pressed="${S.rtab === 'prep'}">Préparation</button>
+      </div>
+      ${S.rtab === 'ing'
+        ? (ing.length
+            ? `<ul class="ring">${ing.map(l => `<li><span>${lien(l)}</span></li>`).join('')}</ul>`
+            : `<div class="empty">Aucun ingrédient renseigné.</div>`)
+        : (prep.length
+            ? prep.map((l, k) => `<div class="rstep"><span class="no">${k+1}</span><p>${lien(l)}</p></div>`).join('')
+            : `<div class="empty">Aucune étape renseignée.</div>`)}
+      ${b.url ? `<div class="src" style="margin-top:14px">Source : ${lien(b.url)}</div>` : ''}`);
+    $('#sheet').querySelectorAll('[data-rt]').forEach(btn =>
+      btn.onclick = () => { S.rtab = btn.dataset.rt; peint(); });
+  };
+  peint();
 }
 
 function feedActu(){
@@ -2000,7 +2153,7 @@ function feedActu(){
         ${S.fr.friends.length ? '' : `<div class="src" style="margin-top:8px">Vous n’avez pas encore d’ami accepté.
           Ce que vous publiez existe quand même, mais vous seul le voyez.</div>`}
       </div>`
-    : `<div class="card" style="margin-top:12px">${P.map(postLigne).join('')}</div>`}`;
+    : `<div style="margin-top:12px">${P.map(postCard).join('')}</div>`}`;
 }
 
 function feedDefis(ctx){
@@ -2206,6 +2359,7 @@ function renderFeed(){
   const rec = $('#ac_rec'); if(rec) rec.onclick = recipeSheet;
   const ref = $('#ac_ref'); if(ref) ref.onclick = () => { frPosts(); toast('Actualisé'); };
   view.querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => postDrop(b.dataset.pdel));
+  view.querySelectorAll('[data-popen]').forEach(b => b.onclick = () => postOpen(b.dataset.popen));
 
   /* ---------- Défis ---------- */
   const cn = $('#ch_new');
@@ -2222,7 +2376,7 @@ function renderFeed(){
       <div class="hr"></div>
       <div class="stagelist">
         ${rows.map((x,i) => `<span class="unit">${x.ok ? i+1 : '–'} · ${esc(x.nom)}</span>
-          <span class="small">${x.ok ? chalFmt(ch.kind, x) + ' · ' + x.meals + ' repas' : 'pas assez de repas saisis'}</span><span></span>`).join('')}
+          <span class="small">${x.ok ? chalFmt(ch.kind, x) + ' · ' + chalDetail(ch.kind, x) : 'pas assez de repas saisis'}</span><span></span>`).join('')}
         ${ch.parts.filter(x => x.status === 'invited').map(x =>
           `<span class="unit">invité</span><span class="small mute">${esc((x.who||{}).username || '?')} n’a pas répondu</span><span></span>`).join('')}
       </div>
@@ -4910,18 +5064,31 @@ function medal(t, done, i){
   const p = PAL[t.pal], got = done >= t.need, pct = Math.min(1, done / t.need);
   const R = 40, C = 2 * Math.PI * R;
 
-  /* Badge illustré : le dessin prend toute la place, sans le disque ni le
-     triangle de Penrose. Verrouillé, il reste visible mais éteint, entouré de
-     l'anneau de progression — voir ce qu'on n'a pas encore vaut mieux qu'une
+  /* Badge illustré : le dessin est posé dans un disque teinté de sa palette et
+     cerclé comme les autres médailles. Un fond clair plutôt qu'un dégradé —
+     ces illustrations sont un trait sombre sur crème, un fond saturé les
+     mangerait. Verrouillé, le disque est gris et le dessin éteint, entouré de
+     l'anneau de progression : voir ce qu'on n'a pas encore vaut mieux qu'une
      silhouette anonyme. */
-  if(t.img) return `<svg viewBox="0 0 88 88" aria-hidden="true">
-    ${got ? '' : `<circle cx="44" cy="44" r="${R}" fill="none" stroke="var(--track)" stroke-width="6"/>
-      <circle cx="44" cy="44" r="${R}" fill="none" stroke="${p.rim}" stroke-width="6" stroke-linecap="round"
-        stroke-dasharray="${(C*pct).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 44 44)" opacity=".85"/>`}
-    <image href="${t.img}" x="${got ? 3 : 15}" y="${got ? 3 : 15}"
-      width="${got ? 82 : 58}" height="${got ? 82 : 58}" preserveAspectRatio="xMidYMid meet"
-      ${got ? '' : 'opacity=".3" style="filter:grayscale(1)"'}/>
-  </svg>`;
+  if(t.img){
+    const cid = 'bc' + String(i).replace(/[^\w-]/g, '');
+    return `<svg viewBox="0 0 88 88" aria-hidden="true">
+      <defs><clipPath id="${cid}"><circle cx="44" cy="44" r="${got ? 36 : 31}"/></clipPath></defs>
+      ${got
+        ? `<circle cx="44" cy="44" r="36" fill="${p.rim}" opacity=".6"/>`
+        : `<circle cx="44" cy="44" r="${R}" fill="none" stroke="var(--track)" stroke-width="6"/>
+           <circle cx="44" cy="44" r="${R}" fill="none" stroke="${p.rim}" stroke-width="6" stroke-linecap="round"
+             stroke-dasharray="${(C*pct).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 44 44)" opacity=".85"/>
+           <circle cx="44" cy="44" r="31" fill="var(--track)"/>`}
+      <g clip-path="url(#${cid})">
+        <image href="${t.img}" x="${got ? 9 : 14}" y="${got ? 9 : 14}"
+          width="${got ? 70 : 60}" height="${got ? 70 : 60}" preserveAspectRatio="xMidYMid meet"
+          ${got ? '' : 'opacity=".32" style="filter:grayscale(1)"'}/>
+      </g>
+      ${got ? `<circle cx="44" cy="44" r="36" fill="none" stroke="${p.jonc}" stroke-width="2.2" opacity=".85"/>
+        <circle cx="44" cy="44" r="31.5" fill="none" stroke="${p.jonc}" stroke-width="1" opacity=".4"/>` : ''}
+    </svg>`;
+  }
 
   if(got) return `<svg viewBox="0 0 88 88" aria-hidden="true">
     <defs><linearGradient id="mg${i}" x1=".08" y1="0" x2=".92" y2="1">
