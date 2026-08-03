@@ -1070,7 +1070,8 @@ let S = {tab:'feed', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[]
          tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined,
          fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:null,
          fv:'actu', notif:{on:false, vu:{}, lastPost:null, luPost:null},
-         plike:{}, pcom:{}, rq:null, rtab:'ing'};
+         plike:{}, pcom:{}, rq:null, rtab:'ing',
+         pdjNew:false, pdjSave:false, pdjEdit:false};
 
 function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
@@ -1161,7 +1162,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-56';
+const BUILD = 'cfp-57';
 
 const SB = {
   url: 'https://ioqjkssonvrxzymicmlz.supabase.co',
@@ -2926,6 +2927,36 @@ function quickAdd(slug){
   toast(`${x.n} ajouté à la saisie`);
 }
 
+/* ==================== petit-déjeuner habituel ====================
+   Le matin se répète plus que le reste de la journée : autant ne pas le
+   ressaisir cinq fois par semaine. L'habitude est rangée comme un plat type
+   marqué `hab`, ce qui lui donne gratuitement la persistance, l'export et sa
+   place dans la liste des plats types du matin. Elle garde son mode de
+   préparation, décidé une fois pour toutes à l'enregistrement. */
+const HAB_NOM = 'Mon petit-déjeuner habituel';
+const pdjHab  = () => S.favs.find(f => f.hab);
+
+function pdjHabSet(lignes, mode){
+  const l = lignes.map(x => [x[0], x[1]]);
+  const i = S.favs.findIndex(f => f.hab);
+  const nom = i >= 0 ? S.favs[i].n : HAB_NOM;
+  if(i >= 0) S.favs.splice(i, 1);
+  S.favs.unshift({n:nom, m:['pdj'], l, hab:1, hmode:mode || 'frais'});
+  save();
+}
+function pdjHabDrop(){
+  const i = S.favs.findIndex(f => f.hab);
+  if(i >= 0){ S.favs.splice(i, 1); save(); }
+}
+/* Proposer « remplacer mon habitude » quand le brouillon est déjà l'habitude
+   n'aurait aucun sens. */
+function pdjSame(){
+  const h = pdjHab();
+  if(!h || h.l.length !== S.draft.length) return false;
+  const clef = l => l.map(x => x[0] + ':' + x[1]).sort().join('|');
+  return clef(h.l) === clef(S.draft);
+}
+
 /* ============================ onglet 2 — saisie ============================ */
 const MEAL_ORDER = ['pdj','dej','encas','din'];   // ordre demandé pour les quatre blocs
 const COURSES = [{k:'entree', l:'Entrée'}, {k:'plat', l:'Plat'}, {k:'dessert', l:'Dessert'}];
@@ -3048,14 +3079,23 @@ function commitMeal(){
     if(SESS) syncNow(true);
     go('tracker'); return toast('Repas mis à jour');
   }
+  /* L'habitude est posée à l'enregistrement, jamais avant : elle doit être
+     exactement ce qui a été validé, pas ce qui était en cours de composition. */
+  const habNouvelle = S.meal === 'pdj' && S.pdjSave && S.draft.length;
+  if(habNouvelle) pdjHabSet(S.draft, S.mode);
+
   S.hist.push({id:'e'+Date.now(), c:CLIENT_ID, u:new Date().toISOString(),
                d:S.entryDate, m:S.meal, n:label,
                l:S.draft.map(l => [l[0], l[1], l[2]||'plat', l[3]||null])});
   const kg = kgOf(S.draft);
-  S.draft = []; S.wiz = null; S.step = 'home'; save(); renderSaisie();
+  S.draft = []; S.wiz = null; S.step = 'home';
+  S.pdjSave = false; S.pdjNew = false; S.pdjEdit = false;
+  save(); renderSaisie();
   if(SESS) syncNow(true);
   celebrate();
-  toast(`${MEAL[S.meal].l} enregistré · ${n2(kg)} kg`);
+  toast(habNouvelle
+    ? `Petit-déjeuner enregistré · ${n2(kg)} kg · c’est votre nouvelle habitude`
+    : `${MEAL[S.meal].l} enregistré · ${n2(kg)} kg`);
 }
 
 /* enregistre un service composé comme nouveau plat type */
@@ -3312,6 +3352,48 @@ function renderFinish(D, isToday, draftKg){
     }, 0);
 }
 
+/* Deux portes, le matin : reprendre son habitude ou composer autre chose. */
+function renderPdjChoix(D, isToday){
+  const h = pdjHab(), kg = kgOf(h.l);
+  view.innerHTML = `
+    <button class="backlink" id="sBack">‹ Changer de repas</button>
+    <div class="mealhead">
+      <span class="mh">Petit-déjeuner</span>
+      <span class="md">${isToday ? 'aujourd’hui' : dLabel(D)}</span>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <p class="lede">${esc(h.n)}</p>
+      <div class="comp" style="margin:6px 0 0">${h.l.map(([s, g]) =>
+        `${esc(F.get(s).n.toLowerCase())} ${g} g`).join(' · ')}</div>
+      <div class="total">
+        <div><div class="unit">Empreinte</div>
+          <div class="small mute">${Math.round(kg / BUDGET_J * 100)} % du budget du jour</div></div>
+        <div class="v">${n2(kg)} <span class="unit">kg</span></div>
+      </div>
+      <button class="btn btn-1 btn-go" id="pd_load" style="margin-top:12px">Reprendre mon habitude</button>
+      <div class="src" style="margin-top:8px">Il arrive dans la saisie, modifiable avant d’être enregistré.</div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <p class="lede">Autre chose ce matin</p>
+      <p class="small">Composez librement. À la fin, vous pourrez valider sans rien changer,
+        ou faire de ce petit-déjeuner votre nouvelle habitude.</p>
+      <button class="btn btn-2" id="pd_new" style="margin-top:4px">Nouveau petit-déjeuner</button>
+    </div>
+
+    <div class="src" style="margin-top:12px">L’habitude se modifie ou se supprime dans votre profil.</div>`;
+
+  $('#sBack').onclick = () => { S.step = 'meal'; S.pdjNew = false; renderSaisie(); };
+  $('#pd_load').onclick = () => {
+    S.mode = h.hmode || 'frais';
+    h.l.forEach(l => S.draft.push([l[0], l[1], 'plat', S.mode]));
+    S.pdjNew = true; S.path = 'types'; renderSaisie();
+    toast('Habitude chargée · vérifiez et enregistrez');
+  };
+  $('#pd_new').onclick = () => { S.pdjNew = true; S.path = 'types'; S.dishQ = ''; renderSaisie(); };
+}
+
 function renderSaisie(){
   topbar();
   if(!S.entryDate) S.entryDate = today();
@@ -3371,6 +3453,7 @@ function renderSaisie(){
       S.meal = b.dataset.meal;
       const wiz = S.meal === 'dej' || S.meal === 'din';
       S.mode = null;                     /* un nouveau repas redemande le mode */
+      S.pdjNew = false; S.pdjSave = false; S.pdjEdit = false;
       if(wiz) return openCourse('boisson');
       S.comCat = 'plat'; S.path = 'types'; S.dishQ = '';
       S.step = 'saisie';
@@ -3382,6 +3465,12 @@ function renderSaisie(){
   /* ================= 3. carrefour des services ================= */
   if(hasCourses && !editing && S.step === 'hub') return renderHub(D, isToday, draftKg);
   if(hasCourses && !editing && S.step === 'finish') return renderFinish(D, isToday, draftKg);
+
+  /* ================= 3 bis. petit-déjeuner : habitude ou nouveauté =================
+     Ne s'interpose que si la saisie est vide : couper une composition en cours
+     pour poser une question serait pire que de ne rien demander. */
+  if(S.meal === 'pdj' && !editing && !S.draft.length && !S.pdjNew && !S.pdjEdit && pdjHab())
+    return renderPdjChoix(D, isToday);
 
   /* ================= 4. saisie d'un service, ou saisie libre ================= */
   const step = hasCourses && !editing && S.step === 'course'
@@ -3532,12 +3621,34 @@ function renderSaisie(){
       style="margin-top:10px">Enregistrer ${step.label.toLowerCase()} dans les plats types</button>` : ''}
   </div>` : ''}
 
+  ${S.meal === 'pdj' && !editing && !S.pdjEdit && !pdjHab() ? `<div class="card" style="margin-top:12px">
+      <p class="lede">Un petit-déjeuner habituel ?</p>
+      <p class="small">Le matin se répète plus que le reste. Enregistrez celui-ci comme habitude et
+        demain il suffira d’un geste.</p>
+      <button class="btn ${S.pdjSave ? 'btn-1' : 'btn-2'}" id="pd_mark" aria-pressed="${!!S.pdjSave}"
+        style="margin-top:4px">${S.pdjSave
+          ? '✓ Ce petit-déjeuner deviendra mon habitude'
+          : 'Enregistrer comme petit-déjeuner habituel'}</button>
+    </div>` : ''}
+
   ${step ? ''
-   : `<div class="actions" style="margin-top:14px">
+   : S.pdjEdit
+     ? `<div class="actions" style="margin-top:14px">
+        <button class="btn btn-1" id="pd_upd" ${S.draft.length ? '' : 'disabled'}>Enregistrer l’habitude</button>
+        <button class="btn btn-2" id="pd_cancel">Annuler</button>
+      </div>
+      <div class="src" style="margin-top:8px">Aucun repas ne sera enregistré : vous modifiez seulement
+        votre petit-déjeuner habituel.</div>`
+     : `<div class="actions" style="margin-top:14px">
       <button class="btn btn-1" id="rec" ${S.draft.length ? '' : 'disabled'}>${
-        S.editId ? 'Mettre à jour le repas' : 'Enregistrer le repas'}</button>
+        S.editId ? 'Mettre à jour le repas'
+        : S.pdjSave ? 'Enregistrer le repas et mon habitude'
+        : 'Enregistrer le repas'}</button>
       <button class="btn btn-2" id="fav" ${S.draft.length ? '' : 'disabled'}>Garder en favori</button>
-    </div>`}`;
+    </div>
+    ${S.meal === 'pdj' && !editing && S.draft.length && pdjHab() && !pdjSame() && !S.pdjSave
+      ? `<button class="btn btn-2" id="pd_repl" style="margin-top:8px">Enregistrer et remplacer mon habitude</button>`
+      : ''}`}`;
 
   /* ---------------- liaisons ---------------- */
   const sb = $('#sBack');
@@ -3548,6 +3659,22 @@ function renderSaisie(){
   };
   const ce = $('#canceledit');
   if(ce) ce.onclick = () => { S.editId = null; S.draft = []; S.step = 'home'; renderSaisie(); };
+
+  const pm = $('#pd_mark');
+  if(pm) pm.onclick = () => { S.pdjSave = !S.pdjSave; renderSaisie(); };
+  const pr = $('#pd_repl');
+  if(pr) pr.onclick = () => { S.pdjSave = true; commitMeal(); };
+  const pu = $('#pd_upd');
+  if(pu) pu.onclick = () => {
+    if(!S.draft.length) return toast('Rien à enregistrer');
+    pdjHabSet(S.draft, S.mode);
+    S.draft = []; S.pdjEdit = false; S.pdjNew = false; S.step = 'home'; renderSaisie();
+    toast('Petit-déjeuner habituel mis à jour');
+  };
+  const pc = $('#pd_cancel');
+  if(pc) pc.onclick = () => {
+    S.draft = []; S.pdjEdit = false; S.pdjNew = false; S.step = 'home'; renderSaisie();
+  };
 
   const dqEl = $('#dq');
   if(dqEl) dqEl.oninput = e => { S.dishQ = e.target.value; const p = e.target.selectionStart;
@@ -4056,6 +4183,7 @@ function profileSheet(){
         <span class="unit">Repas</span><span class="small">${S.hist.length} dans ce compte</span><span></span>
       </div>
       ${profBlock()}
+      ${pdjBlock()}
       ${notifBlock()}
       <div class="actions" style="margin-top:14px">
         <button class="btn btn-1" id="ac_sync">Synchroniser</button>
@@ -4074,6 +4202,7 @@ function profileSheet(){
         </div>
       </div>
       ${profBlock()}
+      ${pdjBlock()}
       ${notifBlock()}
       <div class="hr"></div>
       <p class="small">Un compte permet de retrouver son historique sur un autre appareil.
@@ -4094,6 +4223,23 @@ function profileSheet(){
   if(pd) pd.onclick = diagSheet;
   const pn = $('#pf_notif');
   if(pn && !pn.disabled) pn.onclick = notifBascule;
+
+  const pj = $('#pf_pdj');
+  if(pj) pj.onclick = () => {
+    const h = pdjHab();
+    closeSheet();
+    S.meal = 'pdj'; S.mode = h.hmode || 'frais'; S.comCat = 'plat';
+    S.draft = h.l.map(l => [l[0], l[1], 'plat', S.mode]);
+    S.pdjEdit = true; S.pdjNew = true; S.pdjSave = false;
+    S.step = 'saisie'; S.path = 'types'; S.dishQ = '';
+    go('saisie');
+    toast('Modifiez, puis enregistrez l’habitude');
+  };
+  const pjx = $('#pf_pdjx');
+  if(pjx) pjx.onclick = () => {
+    if(pjx.dataset.ok){ pdjHabDrop(); profileSheet(); toast('Petit-déjeuner habituel supprimé'); }
+    else { pjx.dataset.ok = '1'; pjx.textContent = 'Confirmer'; }
+  };
   const ps = $('#pf_share');
   if(ps) ps.onclick = async () => {
     S.tasteShared = !S.tasteShared;
@@ -5824,6 +5970,23 @@ function notifTick(){
     const msg = r.f();
     if(msg) notifMontre(msg.t, msg.b, r.k);
   });
+}
+
+function pdjBlock(){
+  const h = pdjHab();
+  return `
+    <div class="hr"></div>
+    <div class="total" style="margin-top:0">
+      <div style="min-width:0"><div class="unit">Petit-déjeuner habituel</div>
+        <div class="small mute">${h
+          ? esc(h.l.map(([s, g]) => `${F.get(s).n.toLowerCase()} ${g} g`).join(' · '))
+          : 'Aucun. Il s’enregistre depuis la saisie du petit-déjeuner.'}</div></div>
+      ${h ? `<div class="v" style="font-size:19px">${n2(kgOf(h.l))}</div>` : ''}
+    </div>
+    ${h ? `<div class="actions" style="margin-top:8px">
+      <button class="btn btn-2" id="pf_pdj">Modifier</button>
+      <button class="btn btn-2" id="pf_pdjx" style="color:var(--brick)">Supprimer</button>
+    </div>` : ''}`;
 }
 
 function notifBlock(){
