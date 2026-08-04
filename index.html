@@ -657,6 +657,29 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
   border:2px solid var(--tabbar); display:none}
 .tabbar .bub[data-n]:not([data-n="0"]) .cnt{display:block}
 
+/* Pastille simple, sans chiffre : le rappel du soir n'a rien à compter, il est
+   là ou il n'est pas. Posée sur l'onglet Saisie, qui est l'endroit où aller. */
+.tabbar button{position:relative}
+.tabbar button .dot{position:absolute; top:1px; right:calc(50% - 15px); width:9px; height:9px;
+  border-radius:50%; background:var(--brick); border:2px solid var(--tabbar); display:none}
+.tabbar button[data-dot="1"] .dot{display:block}
+
+/* ---------------- bandeau de rappel ---------------- */
+.bandeau{display:flex; align-items:center; gap:10px; padding:10px 14px;
+  background:var(--brick); color:#fff; border-bottom:1px solid rgba(0,0,0,.12)}
+.bandeau .bi{flex:0 0 auto; width:18px; height:18px}
+.bandeau .bi svg{width:18px; height:18px; stroke:#fff; fill:none; stroke-width:1.8}
+.bandeau .bx{min-width:0; flex:1 1 auto}
+.bandeau .bx b{display:block; font-family:var(--sans); font-size:13px; font-weight:600; line-height:1.25}
+.bandeau .bx i{display:block; font-family:var(--mono); font-size:9px; font-style:normal;
+  letter-spacing:.04em; text-transform:uppercase; opacity:.82; margin-top:2px}
+.bandeau button{flex:0 0 auto; background:rgba(255,255,255,.16); color:#fff; border:0;
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
+  padding:7px 10px; border-radius:999px; cursor:pointer}
+.bandeau button:active{background:rgba(255,255,255,.28)}
+.bandeau .bq{width:26px; height:26px; padding:0; border-radius:50%; font-size:14px; line-height:1;
+  background:transparent; letter-spacing:0}
+
 .tabbar button[aria-current="page"]{color:var(--forest)}
 .tabbar button[aria-current="page"] .ic{background:var(--forest)}
 .tabbar button[aria-current="page"] .ic svg{stroke:#fff}
@@ -935,6 +958,9 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
       </button>
     </div>
   </header>
+  <!-- Bandeau de rappel. Hors de #view, que les rendus d'onglet réécrivent
+       entièrement : il doit survivre à un changement d'onglet. -->
+  <div class="bandeau" id="bandeau" hidden></div>
   <main id="view"></main>
   <nav class="tabbar" id="tabbar">
     <button data-tab="tracker">
@@ -944,6 +970,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
     <button data-tab="saisie">
       <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/><circle cx="12" cy="12" r="9"/></svg></span>
       <span>Saisie</span>
+      <i class="dot" aria-hidden="true"></i>
     </button>
     <button data-tab="feed" class="bub">
       <span class="ic"><svg viewBox="0 0 24 24">
@@ -1063,13 +1090,21 @@ const CLIENT_ID = (() => {
 let SESS = null;    /* {uid, slug, username, access_token, refresh_token, expires_at} */
 const dataKey = () => SESS ? KEY_ANON + '.' + SESS.uid : KEY_ANON;
 
+/* Repères de notification, en un seul endroit : trois listes de « déjà vu »
+   pour ne pas re-signaler ce qui l'a été, plus la date du dernier bandeau
+   écarté. Les listes valent null tant qu'aucun relevé n'a été fait — c'est ce
+   qui distingue « rien de neuf » de « premier lancement », où il ne faut rien
+   annoncer du tout. */
+const NOTIF0 = () => ({on:false, vu:{}, lastPost:null, luPost:null,
+                       vuLikes:null, vuAmis:null, vuDefis:null, soirVu:null});
+
 let S = {tab:'feed', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false,
          dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
          tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined,
          fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:null,
-         fv:'actu', notif:{on:false, vu:{}, lastPost:null, luPost:null},
+         fv:'actu', notif:NOTIF0(),
          plike:{}, pcom:{}, rq:null, rtab:'ing',
          pdjNew:false, pdjSave:false, pdjEdit:false};
 
@@ -1077,17 +1112,22 @@ function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
         tomb:S.tomb, stdInit:S.stdInit, starred:S.starred, lastSync:S.lastSync,
         prof:S.prof, people:S.people, notif:S.notif})); }catch(e){}
+  /* Les signaux d'attente se recalculent à partir de S : les repeindre ici,
+     c'est garantir qu'ils ne mentent jamais après une écriture, sans avoir à
+     penser à les appeler depuis chacun des vingt endroits qui écrivent.
+     Protégé : une écriture ne doit jamais échouer à cause d'un rendu. */
+  try{ paintAlertes(); }catch(e){}
 }
 function load(){
   S.favs=[]; S.hist=[]; S.tomb=[]; S.starred=[]; S.stdInit=false; S.lastSync=null; S.prof={};
-  S.people=[]; S.notif={on:false, vu:{}, lastPost:null, luPost:null};
+  S.people=[]; S.notif=NOTIF0();
   try{
     const raw = localStorage.getItem(dataKey());
     if(raw){ const o = JSON.parse(raw);
       S.favs=o.favs||[]; S.hist=o.hist||[]; S.tomb=o.tomb||[];
       S.stdInit=!!o.stdInit; S.starred=o.starred||[]; S.lastSync=o.lastSync||null;
       S.prof=o.prof||{}; S.people=o.people||[];
-      S.notif=Object.assign({on:false, vu:{}, lastPost:null, luPost:null}, o.notif||{});
+      S.notif=Object.assign(NOTIF0(), o.notif||{});
       stamp(); return true; }
   }catch(e){}
   return false;
@@ -1536,7 +1576,8 @@ async function frLoad(silent){
     friends: rows.filter(x => x.status === 'accepted'),
     state:   'ok',
   };
-  paintFeedCount();
+  alerteAmis();
+  paintAlertes();
   renderFeed();
 }
 
@@ -1545,15 +1586,40 @@ async function frLoad(silent){
    doivent compter la même chose : trois calculs séparés finiraient par se
    contredire, et un compteur qui ment ne se rattrape pas. */
 function attentes(){
-  if(!SESS) return {actu:0, defis:0, amis:0, total:0};
+  /* Le rappel des repas ne dépend d'aucun compte : il compte même hors ligne
+     et sans identité. Il est tenu à part du social parce qu'il ne se répond
+     pas sur le feed mais sur la saisie. */
+  const repas = soirDu() ? 1 : 0;
+  if(!SESS) return {actu:0, defis:0, amis:0, social:0, repas, total:repas};
   const t0 = today();
   const defis = (S.chal || []).filter(ch => ch.ends >= t0 &&
     (ch.parts.find(x => x.member === SESS.uid) || {}).status === 'invited').length;
   const amis = (S.fr.in || []).length;
   const lu = S.notif.luPost;
   const actu = (S.posts || []).filter(x => x.author !== SESS.uid && (!lu || x.created_at > lu)).length;
-  return {actu, defis, amis, total: actu + defis + amis};
+  const social = actu + defis + amis;
+  return {actu, defis, amis, social, repas, total: social + repas};
 }
+
+/* ---------------- rappel du soir ----------------
+   Une seule source de vérité pour les trois signaux du soir : la notification
+   de 21 h, la pastille de l'onglet Saisie et le bandeau. Trois lectures
+   séparées de l'historique finiraient par se contredire. */
+const SOIR_H = 21;
+
+function repasManquants(){
+  const T = today();
+  const m = new Set(S.hist.filter(e => e.d === T && e.m !== 'encas').map(e => e.m));
+  const out = [];
+  if(!m.has('dej')) out.push('déjeuner');
+  if(!m.has('din')) out.push('dîner');
+  return out;
+}
+
+/* Vrai à partir de 21 h tant qu'il manque un repas à la journée en cours. Ne
+   demande aucune autorisation : c'est de l'affichage dans l'app, pas une
+   notification système. */
+const soirDu = () => new Date().getHours() >= SOIR_H && repasManquants().length > 0;
 
 /* Badge de l'icône. Disponible seulement sur une app ajoutée à l'écran
    d'accueil, iOS 16.4 ou plus, notifications autorisées — ailleurs la méthode
@@ -1587,11 +1653,52 @@ function paintFeedCount(){
   badgeSync();
   const b = document.querySelector('#tabbar .bub');
   if(!b) return;
-  const n = attentes().total;
+  const n = attentes().social;
   b.dataset.n = n;
   const c = b.querySelector('.cnt');
   if(c) c.textContent = n > 9 ? '9+' : String(n);
   b.setAttribute('aria-label', n ? `Feed, ${n} demande${n>1?'s':''} en attente` : 'Feed');
+}
+
+/* Pastille rouge sur l'onglet Saisie, et bandeau en haut de l'écran. Les deux
+   suivent soirDu() : ils apparaissent à 21 h et disparaissent d'eux-mêmes dès
+   que le déjeuner et le dîner sont entrés. Le bandeau, lui, peut être écarté
+   pour la journée — la pastille reste, plus discrète. */
+function paintSaisieDot(){
+  const b = document.querySelector('#tabbar button[data-tab="saisie"]');
+  if(!b) return;
+  const on = soirDu();
+  b.dataset.dot = on ? '1' : '0';
+  b.setAttribute('aria-label', on ? 'Saisie, un repas manque aujourd’hui' : 'Saisie');
+}
+
+function paintBandeau(){
+  const el = document.getElementById('bandeau');
+  if(!el) return;
+  const manque = repasManquants();
+  const montrer = soirDu() && S.notif.soirVu !== today();
+  if(!montrer){ el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = `
+    <span class="bi"><svg viewBox="0 0 24 24"><path d="M12 21a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2z"/>
+      <path d="M18 16V11a6 6 0 1 0-12 0v5l-1.5 3h15z"/></svg></span>
+    <span class="bx"><b>N’oubliez pas de rentrer vos repas</b>
+      <i>${manque.join(' et ')} manque${manque.length > 1 ? 'nt' : ''} aujourd’hui</i></span>
+    <button id="bd_go">Saisir</button>
+    <button class="bq" id="bd_x" aria-label="Masquer pour aujourd’hui">×</button>`;
+  el.querySelector('#bd_go').onclick = () => { S.step = 'home'; go('saisie'); };
+  el.querySelector('#bd_x').onclick = () => {
+    S.notif.soirVu = today(); save(); paintBandeau();
+  };
+}
+
+/* Un seul point d'entrée pour repeindre tous les signaux d'attente. Appelé
+   après chaque écriture locale : entrer le dîner doit éteindre la pastille et
+   le bandeau sans attendre le prochain tour de minuterie. */
+function paintAlertes(){
+  paintFeedCount();
+  paintSaisieDot();
+  paintBandeau();
 }
 
 const frAutre = x => x.requester === SESS.uid ? x.dst : x.dem;
@@ -2009,9 +2116,107 @@ async function frPosts(){
   S.posts = r.ok ? (r.body || []) : null;
   if(r.ok) await frSocial();
   postsAlerte();
+  alerteLikes();
   /* La veille de fond appelle cette fonction toutes les 90 s : re-rendre sans
      condition écraserait l'écran de saisie en cours de frappe. */
   if(S.tab === 'feed') renderFeed();
+}
+
+/* Retrouver un pseudo à partir d'un identifiant. Les likes ne rapportent que
+   l'uid : le nom est cherché dans tout ce que l'app a déjà chargé — amitiés,
+   publications, commentaires, participants de défis. Faute de mieux, on reste
+   vague plutôt que de mentir. */
+function nomDe(uid){
+  if(!uid) return 'Quelqu’un';
+  if(SESS && uid === SESS.uid) return 'Vous';
+  for(const x of (S.fr.friends || [])){
+    if(x.requester === uid && x.dem && x.dem.username) return x.dem.username;
+    if(x.addressee === uid && x.dst && x.dst.username) return x.dst.username;
+  }
+  const p = (S.posts || []).find(z => z.author === uid);
+  if(p && p.aut && p.aut.username) return p.aut.username;
+  for(const liste of Object.values(S.pcom || {})){
+    const c = (liste || []).find(z => z.author === uid);
+    if(c && c.aut && c.aut.username) return c.aut.username;
+  }
+  for(const ch of (S.chal || [])){
+    const q = (ch.parts || []).find(z => z.member === uid);
+    if(q && q.who && q.who.username) return q.who.username;
+  }
+  return 'Un ami';
+}
+
+/* Comparaison de deux relevés, avec la même règle partout : le premier passage
+   pose le repère sans rien annoncer — sinon l'app notifierait tout l'historique
+   le jour de l'installation — et le repère est écrit avant l'envoi, pour ne
+   jamais signaler deux fois la même chose. */
+function neuf(cles, repere){
+  const avant = S.notif[repere];
+  S.notif[repere] = cles; save();
+  if(!avant) return [];
+  const vus = new Set(avant);
+  return cles.filter(k => !vus.has(k));
+}
+
+/* « X a aimé votre publication ». post_likes ne porte pas d'horodatage
+   exploitable ici : on compare des couples publication-personne, ce qui a
+   l'avantage de capter aussi un like retiré puis remis. Limité à mes propres
+   publications — un like sur le partage d'un tiers ne me concerne pas. */
+function alerteLikes(){
+  if(!SESS || !S.posts) return;
+  /* Les publications et les amitiés se chargent en parallèle : sans la seconde,
+     on ne saurait pas nommer qui a aimé et l'on annoncerait « un ami ». Mieux
+     vaut attendre le tour suivant. Le repère n'est pas posé, rien n'est perdu.
+     Au tout premier chargement on passe outre : il n'y a rien à annoncer, et
+     poser le repère tout de suite évite d'annoncer l'historique. */
+  if(S.notif.vuLikes && S.fr.state !== 'ok') return;
+  const miens = S.posts.filter(p => p.author === SESS.uid).map(p => p.id);
+  if(!miens.length) return;
+  const cles = [];
+  miens.forEach(id => likeList(id).forEach(m => { if(m !== SESS.uid) cles.push(id + '|' + m); }));
+  const neufs = neuf(cles, 'vuLikes');
+  if(!neufs.length) return;
+  const qui = nomDe(neufs[0].split('|')[1]);
+  notifMontre(
+    neufs.length > 1 ? `${neufs.length} nouveaux j’aime` : `${qui} a aimé votre publication`,
+    neufs.length > 1 ? 'Sur vos partages, dans le feed.' : 'Sur votre partage, dans le feed.',
+    'like', 'actu');
+}
+
+/* « X vous a demandé en ami ». Appelé depuis frLoad, la seule fonction qui
+   sache qui a demandé quoi. */
+function alerteAmis(){
+  if(!SESS) return;
+  const recues = S.fr.in || [];
+  const neufs = neuf(recues.map(x => x.requester), 'vuAmis')
+    .map(id => recues.find(x => x.requester === id)).filter(Boolean);
+  if(!neufs.length) return;
+  const qui = (neufs[0].dem || {}).username || nomDe(neufs[0].requester);
+  notifMontre(
+    neufs.length > 1 ? `${neufs.length} demandes d’amis` : `${qui} vous a demandé en ami`,
+    'À accepter ou à refuser dans Amis.',
+    'amis', 'amis');
+}
+
+/* « X vous a invité à rejoindre un défi ». Seules les invitations en attente
+   sur un défi non terminé comptent : une invitation à un défi clos n'a plus
+   rien à proposer. */
+function alerteDefis(){
+  if(!SESS) return;
+  const t0 = today();
+  const invites = (S.chal || []).filter(ch => ch.ends >= t0 &&
+    (ch.parts.find(x => x.member === SESS.uid) || {}).status === 'invited');
+  const neufs = neuf(invites.map(ch => ch.id), 'vuDefis')
+    .map(id => invites.find(ch => ch.id === id)).filter(Boolean);
+  if(!neufs.length) return;
+  const ch = neufs[0];
+  const qui = (ch.aut || {}).username || nomDe(ch.created_by);
+  notifMontre(
+    neufs.length > 1 ? `${neufs.length} invitations à des défis`
+                     : `${qui} vous a invité à rejoindre un défi`,
+    neufs.length > 1 ? 'À rejoindre ou à décliner dans Défis.'
+                     : '🏁 ' + (ch.label || (CHAL[ch.kind] || {}).l || 'Un défi'),
+    'defis', 'defis');
 }
 
 /* Nouveauté d'un ami. La comparaison porte sur l'horodatage le plus récent des
@@ -2033,13 +2238,17 @@ function postsAlerte(){
   if(!vu || dernier <= vu) return;
   const neufs = eux.filter(x => x.created_at > vu);
   if(!neufs.length) return;
-  const un = neufs[0], b = un.body || {}, qui = (un.aut || {}).username || 'Un ami';
+  const un = neufs[0], b = un.body || {};
+  const qui = (un.aut || {}).username || nomDe(un.author);
+  const badge = un.kind !== 'recipe';
   notifMontre(
-    neufs.length > 1 ? `${neufs.length} nouvelles publications` : `${qui} a partagé quelque chose`,
+    neufs.length > 1 ? `${neufs.length} nouvelles publications`
+      : badge ? `${qui} a partagé un nouveau badge`
+              : `${qui} a partagé une idée de recette`,
     neufs.length > 1 ? 'Sur le feed de Carbon FOODprint'
-      : un.kind === 'recipe' ? '🍲 ' + (b.title || 'Une idée de recette')
-      : (b.emoji || '🏅') + ' ' + (b.label || 'Un badge'),
-    'feed');
+      : badge ? (b.emoji || '🏅') + ' ' + (b.label || 'Un badge')
+              : '🍲 ' + (b.title || 'Une idée de recette'),
+    'feed', 'actu');
 }
 
 async function postDrop(id){
@@ -2145,7 +2354,7 @@ async function chalLoad(silent){
     'aut:profiles!challenges_created_by_fkey(username)&order=ends.desc&limit=20');
   if(!c.ok){ if(!silent) toast('Défis indisponibles'); S.chal = null; return renderFeed(); }
   const list = c.body || [];
-  if(!list.length){ S.chal = []; return renderFeed(); }
+  if(!list.length){ S.chal = []; alerteDefis(); return renderFeed(); }
   const ids = list.map(x => x.id);
   const inList = 'in.(' + ids.join(',') + ')';
   const [pp, ss] = await Promise.all([
@@ -2159,7 +2368,8 @@ async function chalLoad(silent){
     parts:  parts.filter(x => x.challenge === ch.id),
     scores: scores.filter(x => x.challenge === ch.id)}));
   await chalPublish();
-  paintFeedCount();
+  alerteDefis();
+  paintAlertes();
   renderFeed();
 }
 
@@ -5788,6 +5998,7 @@ function go(tab){
      entrée dans l'onglet, sinon une demande reçue entre-temps reste invisible.
      Rafraîchissement silencieux — un échec réseau ne doit rien signaler. */
   if(tab === 'feed' && SESS && SB.ready()){ frLoad(true); frPosts(); chalLoad(true); }
+  paintAlertes();
 }
 document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => go(b.dataset.tab));
 
@@ -5905,10 +6116,13 @@ const RAPPELS = [
 
 const notifPret = () => typeof Notification !== 'undefined' && Notification.permission === 'granted';
 
-async function notifMontre(titre, corps, tag){
+/* `vue` ne sert qu'au clic : une demande d'ami doit ouvrir la section Amis, pas
+   l'Actu. Elle est passée au service worker, qui la renvoie à la page. */
+async function notifMontre(titre, corps, tag, vue){
   if(!S.notif.on || !notifPret()) return false;
+  const social = tag === 'feed' || tag === 'amis' || tag === 'defis' || tag === 'like';
   const opts = {body:corps, tag, icon:'./icon-192.png', badge:'./icon-192.png',
-                data:{tab: tag === 'feed' ? 'feed' : 'saisie'}};
+                data:{tab: social ? 'feed' : 'saisie', vue: vue || 'actu'}};
   try{
     /* Passer par le service worker : c'est la seule voie qui fonctionne en PWA
        installée sur iOS, et la seule qui survive à la fermeture de l'onglet. */
@@ -5927,7 +6141,7 @@ async function notifBascule(){
   const r = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
   if(r !== 'granted') return toast('Sans autorisation, pas de rappel');
   S.notif.on = true; save(); badgeSync(); profileSheet();
-  notifMontre('Rappels activés', 'Un mot le matin, un autre le soir si la journée est incomplète.', 'test');
+  notifMontre('Rappels activés', 'Le matin, le soir si la journée est incomplète, et ce que font vos amis.', 'test');
 }
 
 /* Matin : le premier badge encore à portée, du plus facile au plus exigeant.
@@ -5951,12 +6165,12 @@ function rappelSoir(){
   const T = today();
   const m = new Set(S.hist.filter(e => e.d === T && e.m !== 'encas').map(e => e.m));
   if(m.has('dej') && m.has('din')) return null;
-  const manque = !m.has('dej') && !m.has('din') ? 'Le déjeuner et le dîner manquent'
-               : !m.has('dej') ? 'Le déjeuner manque' : 'Le dîner manque';
+  const manque = !m.has('dej') && !m.has('din') ? 'le déjeuner et le dîner'
+               : !m.has('dej') ? 'le déjeuner' : 'le dîner';
   const st = logStreak();
-  return {t: manque, b: st
-    ? `Saisissez la journée pour garder votre éclair — ${st} jour${st > 1 ? 's' : ''} d’affilée.`
-    : 'Saisissez la journée pour lancer votre série.'};
+  return {t: 'N’oubliez pas de rentrer vos repas', b: st
+    ? `Il manque ${manque}. ${st} jour${st > 1 ? 's' : ''} d’affilée — la série tient encore.`
+    : `Il manque ${manque} pour que la journée compte.`};
 }
 
 function notifTick(){
@@ -5998,12 +6212,15 @@ function notifBlock(){
       <div style="min-width:0"><div class="unit">Rappels</div>
         <div class="small mute">${!dispo ? 'Non gérés par ce navigateur.'
           : refus ? 'Refusés au niveau du téléphone.'
-          : S.notif.on ? '9 h 30 et 21 h, plus les publications de vos amis.'
+          : S.notif.on ? '9 h 30 et 21 h, les j’aime, les demandes d’amis, les badges partagés et les invitations à des défis.'
           : 'Coupés. Aucune notification n’est envoyée.'}</div></div>
     </div>
     <button class="btn btn-2" id="pf_notif" style="margin-top:8px" ${dispo && !refus ? '' : 'disabled'}>${
       S.notif.on ? 'Couper les rappels' : 'Activer les rappels'}</button>
-    <div class="src" style="margin-top:8px">Les rappels partent quand l’app a tourné dans la journée.
+    <div class="src" style="margin-top:8px">La pastille rouge sur l’onglet Saisie et le bandeau du soir
+      ne demandent aucune autorisation : ils apparaissent à partir de 21 h tant qu’un repas manque, et
+      s’effacent dès que la journée est complète. Le bandeau se masque pour la journée d’un geste, la
+      pastille reste. Les rappels partent quand l’app a tourné dans la journée.
       Une notification app fermée demandera un serveur d’envoi, ce n’est pas encore en place.${
       'setAppBadge' in navigator
         ? ' L’icône porte le nombre de choses en attente ; il est juste au moment où vous quittez l’app, puis figé jusqu’à la prochaine ouverture.'
@@ -6029,20 +6246,29 @@ if(SESS && SB.ready()){
    90 s pour les publications — et rien du tout quand l'écran est éteint ou
    l'app en arrière-plan, où ces requêtes ne serviraient personne. */
 notifTick();
-setInterval(notifTick, 60000);
+/* La passe d'une minute sert aussi à faire basculer les signaux du soir : à
+   21 h pile, la pastille et le bandeau doivent apparaître sans qu'on ait à
+   toucher l'écran. */
+setInterval(() => { notifTick(); paintAlertes(); }, 60000);
+/* Veille de fond. Les publications sont relues à chaque tour ; les demandes
+   d'amis et les invitations à des défis un tour sur trois — elles arrivent
+   moins souvent et coûtent quatre requêtes de plus. */
+let veille = 0;
 setInterval(() => {
   if(document.visibilityState !== 'visible' || !SESS || !SB.ready()) return;
   frPosts();
+  if(++veille % 3 === 0){ frLoad(true); chalLoad(true); }
 }, 90000);
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState !== 'visible'){ badgeSync(); return; }
   notifTick();
-  if(SESS && SB.ready()) frPosts();
+  paintAlertes();
+  if(SESS && SB.ready()){ frPosts(); frLoad(true); chalLoad(true); }
 });
 /* Dernière occasion d'écrire le chiffre avant que la page ne soit gelée :
    c'est celui-là qui restera sur l'icône. */
 window.addEventListener('pagehide', badgeSync);
-badgeSync();
+paintAlertes();
 /* synchro d'ouverture, discrète : un échec hors ligne ne doit rien signaler */
 if(SESS) syncNow(true).then(ok => { if(ok && S.tab === 'tracker') renderTracker(); });
 </script>
@@ -6054,7 +6280,7 @@ if('serviceWorker' in navigator){
   /* le worker dit sur quel onglet se poser quand on a cliqué une notification */
   navigator.serviceWorker.addEventListener('message', e => {
     if(e.data && e.data.cfp === 'ouvrir' && typeof go === 'function'){
-      if(e.data.tab === 'feed') S.fv = 'actu';
+      if(e.data.tab === 'feed') S.fv = e.data.vue || 'actu';
       go(e.data.tab);
     }
   });

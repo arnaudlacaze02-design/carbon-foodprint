@@ -8,7 +8,7 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-3.13.0';
+const VERSION = 'cfp-3.14.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
@@ -69,12 +69,14 @@ self.addEventListener('fetch', e => {
    plutôt qu'en ouvrir une seconde, et lui dire sur quel onglet se poser. */
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  const tab = (e.notification.data && e.notification.data.tab) || 'feed';
+  const d = e.notification.data || {};
+  const tab = d.tab || 'feed';
+  const vue = d.vue || 'actu';
   e.waitUntil((async () => {
     const list = await self.clients.matchAll({type:'window', includeUncontrolled:true});
     for(const c of list){
       if(c.url.includes(self.registration.scope)){
-        c.postMessage({cfp:'ouvrir', tab});
+        c.postMessage({cfp:'ouvrir', tab, vue});
         return c.focus();
       }
     }
