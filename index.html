@@ -187,6 +187,18 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .lad .rung.wait .who,.lad .rung.wait .val{color:#5E9C89}
 .lad .rung.wait .tr i{background:rgba(255,255,255,.14); box-shadow:none}
 
+/* champ poids de l'étape protéines */
+.qpoids{display:flex; align-items:center; justify-content:space-between; gap:12px;
+  border:1px solid var(--line); border-radius:10px; padding:9px 12px; margin:2px 0 12px}
+.qpoids label{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--mute)}
+.qpoids span{font-family:var(--mono); font-size:13px; color:var(--mute); white-space:nowrap}
+.qpoids input{width:62px; border:0; border-bottom:1.5px solid var(--forest); background:none;
+  font-family:var(--mono); font-size:17px; color:var(--ink); text-align:right; padding:1px 4px;
+  -moz-appearance:textfield}
+.qpoids input::-webkit-outer-spin-button,.qpoids input::-webkit-inner-spin-button{
+  -webkit-appearance:none; margin:0}
+
 /* ---------------- macros ---------------- */
 .nutri{display:grid; grid-template-columns:repeat(5,1fr); gap:5px}
 .nutri .nc{border:1px solid var(--line); border-radius:8px; padding:7px 4px 6px; text-align:center;
@@ -1079,6 +1091,46 @@ function nuOf(lignes){
           couvert: poids ? (poids - sans) / poids * 100 : 0};
 }
 
+/* ---------------- besoins énergétiques et protéiques ----------------
+   Références ANSES 2016 (actualisation des repères du PNNS) : 2 600 kcal/jour
+   pour un homme de 18-69 ans, 2 100 pour une femme de 18-59 ans, à un niveau
+   d'activité physique (NAP) médian de 1,63. C'est cette valeur de 1,63 qui sert
+   de pivot : les trois niveaux proposés sont des NAP rapportés à elle, ce qui
+   évite d'inventer des coefficients.
+
+   L'ANSES publie une bande adulte plate jusqu'à 69 ans (hommes) et 59 ans
+   (femmes) ; le déclin appliqué au-delà est calé sur la seule valeur publiée
+   pour les 65 ans et plus — 1 878 kcal pour une femme, soit 0,894 fois la
+   référence. Les paliers intermédiaires en sont interpolés, ce qui est une
+   approximation assumée et non une donnée de l'agence.
+
+   Protéines : la référence nutritionnelle de l'ANSES est de 0,83 g par kilo de
+   poids corporel et par jour pour un adulte. Les valeurs sportives (1,2 à 2,0)
+   viennent de la littérature d'entraînement, pas de l'agence : le curseur reste
+   donc ajustable et la borne haute est atteignable.
+
+   Le poids corporel n'est jamais enregistré. Il est saisi au moment du calcul,
+   sert à convertir des g/kg en grammes, et disparaît avec la fenêtre. */
+const NAP      = {sed:1.45, actif:1.63, sportif:1.85};
+const NAP_REF  = 1.63;
+const CAL_BASE = {h:2600, f:2100};
+const CAL_AGE  = {a18:1.00, a40:0.97, a60:0.92, a75:0.87};
+const PROT_GKG = {sed:0.83, actif:1.0, sportif:1.6};
+const ACT_LAB  = {sed:'sédentaire', actif:'actif', sportif:'sportif'};
+
+/* Besoin calorique journalier : la valeur déclarée si l'utilisateur la connaît,
+   sinon l'estimation ANSES. null quand on ne sait pas encore. */
+function besoinCal(){
+  const P = S.prof || {};
+  if(P.calKnow === 'oui' && P.calVal != null) return P.calVal;
+  if(!P.sexe || !P.age) return null;
+  const base = CAL_BASE[P.sexe] * (CAL_AGE[P.age] || 1);
+  return Math.round(base * (NAP[P.act] || NAP_REF) / NAP_REF / 10) * 10;
+}
+
+/* g de protéines par kilo retenu pour le niveau d'activité déclaré. */
+const protGkg = () => PROT_GKG[(S.prof || {}).act] || PROT_GKG.actif;
+
 /* Écart relatif entre la valeur retenue et sa recette, en pourcentage. C'est ce
    que la fiche aliment affiche, et ce qu'un contrôle de non-régression compare :
    si une valeur ADEME change, les recompositions qui en dépendent dérivent, et
@@ -1286,7 +1338,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-63';
+const BUILD = 'cfp-64';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -4278,6 +4330,48 @@ const PROFQ = [
 
   {k:'objVege', q:'Combien de repas végétaux par semaine ?', range:{min:0, max:14, step:1},
    only:st => st.objSet === 'oui'},
+
+  /* --- volet nutritionnel --- */
+  {k:'calKnow', q:'Connaissez-vous vos besoins caloriques journaliers ?', opts:[
+    ['oui','Oui','Je saisis ma valeur'],
+    ['non','Non','Trois questions et l’app l’estime']]},
+
+  {k:'calVal', q:'Quel est votre besoin journalier ?', range:{min:1200, max:4000, step:50},
+   fmt:'calVal', only:st => st.calKnow === 'oui'},
+
+  {k:'sexe', q:'Sexe ?',
+   note:'Les références énergétiques de l’ANSES sont établies séparément pour les hommes et les femmes.',
+   opts:[['h','Homme',''],['f','Femme','']],
+   only:st => st.calKnow === 'non'},
+
+  {k:'age', q:'Votre tranche d’âge ?', opts:[
+    ['a18','18 à 39 ans',''],['a40','40 à 59 ans',''],
+    ['a60','60 à 74 ans',''],['a75','75 ans et plus','']],
+   only:st => st.calKnow === 'non'},
+
+  {k:'act', q:'Votre activité quotidienne ?',
+   note:'Elle ajuste à la fois le besoin calorique et le besoin en protéines.',
+   opts:[
+    ['sed','Sédentaire','Peu d’activité, journée surtout assise'],
+    ['actif','Actif','Un peu d’activité chaque jour'],
+    ['sportif','Sportif','Activité quotidienne au-dessus de la norme']],
+   only:st => st.calKnow != null},
+
+  {k:'objNut', q:'Fixer un objectif calorique ou protéinique ?',
+   note:'Ces objectifs restent sur l’appareil. Ils n’apparaissent ni dans le feed, ni dans un défi, ni dans un classement.',
+   opts:[
+    ['deux','Les deux',''],
+    ['cal','Calories seules',''],
+    ['prot','Protéines seules',''],
+    ['non','Pas maintenant','']],
+   only:st => st.calKnow != null},
+
+  {k:'objCal', q:'Quelle cible calorique par jour ?', range:{min:1200, max:4000, step:50},
+   fmt:'objCal', only:st => /^(deux|cal)$/.test(st.objNut || '')},
+
+  {k:'objProt', q:'Quelle cible protéinique par jour ?', prot:true,
+   note:'Le poids saisi sert uniquement à ce calcul. Il n’est pas enregistré.',
+   only:st => /^(deux|prot)$/.test(st.objNut || '')},
 ];
 
 /* étapes réellement affichées, une fois les conditions appliquées */
@@ -4288,6 +4382,12 @@ function profDefault(q){
     const a = agg();
     if(a.nd >= 3) return Math.min(2500, Math.max(700, Math.round(a.avg * 365 * 0.8 / 50) * 50));
     return PROF_ANCRE[S.prof.situe] ? Math.max(700, PROF_ANCRE[S.prof.situe] - 400) : 1600;
+  }
+  if(q.k === 'calVal' || q.k === 'objCal'){
+    /* Le curseur part du besoin estimé, jamais de zéro : une cible calorique
+       proposée à 1 200 par défaut serait une suggestion de restriction. */
+    const b = besoinCal();
+    return b != null ? b : (S.prof.sexe === 'f' ? 2100 : 2600);
   }
   if(q.k === 'objVege'){
     return /veget/.test(S.prof.regime || '') ? 14 : S.prof.regime === 'flexitarien' ? 5 : 3;
@@ -4329,6 +4429,11 @@ function profSave(k, v){
   if(TASTE_KEYS.includes(k)) tastePush();
 }
 
+/* Poids corporel de l'étape protéines. Volontairement une variable de module :
+   il n'entre ni dans S.prof, ni dans le stockage local, ni dans la synchro. Il
+   ne sert qu'à convertir des g/kg en grammes, le temps d'une fenêtre. */
+let protPoids = null;
+
 function profQuiz(i){
   const steps = profSteps();
   if(i < 0) return profileSheet();
@@ -4358,6 +4463,20 @@ function profQuiz(i){
              min="${q.range.min}" max="${q.range.max}" step="${q.range.step}" value="${val}">
       <div class="qends"><span id="q_lo"></span><span id="q_hi"></span></div>
       <div class="src" id="q_hint" style="margin-top:10px"></div>`;
+  } else if(q.prot){
+    /* Deux commandes dans une seule étape : le poids, qui ne sort pas d'ici, et
+       les grammes par kilo. Le total en grammes est ce qui sera enregistré. */
+    const gkg = S.prof.objProtGkg != null ? S.prof.objProtGkg : protGkg();
+    corps = `
+      <div class="qpoids">
+        <label for="q_poids">Poids corporel</label>
+        <span><input id="q_poids" type="number" inputmode="decimal" min="30" max="200"
+                     step="0.5" placeholder="70" value="${protPoids != null ? protPoids : ''}"> kg</span>
+      </div>
+      <div class="qbig" id="q_out"></div>
+      <input class="qrange" type="range" id="q_rng" min="0.6" max="2.2" step="0.05" value="${gkg}">
+      <div class="qends"><span id="q_lo"></span><span id="q_hi"></span></div>
+      <div class="src" id="q_hint" style="margin-top:10px"></div>`;
   }
 
   openSheet(`
@@ -4385,11 +4504,55 @@ function profQuiz(i){
     tx.onkeydown = e => { if(e.key === 'Enter') go(); };
   }
 
+  const pd = $('#q_poids');
   const rg = $('#q_rng');
-  if(rg){
+  if(rg && q.prot){
+    /* Le total ne s'affiche que si le poids est renseigné : afficher « 0 g »
+       laisserait croire à une cible, alors qu'il manque une donnée. */
+    const paint = () => {
+      const gkg = +rg.value;
+      const kg = pd && pd.value ? +pd.value : null;
+      protPoids = kg;
+      const tot = kg ? Math.round(kg * gkg) : null;
+      $('#q_out').innerHTML = tot != null
+        ? `${tot} <small>g de protéines / jour</small>`
+        : `${n1(gkg)} <small>g / kg — indiquez votre poids</small>`;
+      $('#q_lo').textContent = '0,6 g/kg';
+      $('#q_hi').textContent = '2,2 g/kg';
+      const rec = protGkg(), act = ACT_LAB[(S.prof || {}).act] || 'actif';
+      $('#q_hint').innerHTML =
+        `${n1(gkg)} g/kg. La référence de l’ANSES pour un adulte est de 0,83 g/kg ; `
+        + `pour un profil ${act} cette app propose ${n1(rec)} g/kg`
+        + (gkg > 2.0 ? '. Au-delà de 2 g/kg, la littérature d’entraînement ne montre plus de bénéfice.' : '.')
+        + ' Le poids saisi n’est pas enregistré.';
+    };
+    if(pd) pd.oninput = paint;
+    rg.oninput = paint; paint();
+    $('#q_next').onclick = () => {
+      const kg = pd && pd.value ? +pd.value : null;
+      if(!kg) return toast('Indiquez votre poids pour convertir en grammes');
+      profSave('objProtGkg', +rg.value);
+      profSave(q.k, Math.round(kg * +rg.value));
+      protPoids = null;                     /* ne survit pas à l'étape */
+      profQuiz(i + 1);
+    };
+  } else if(rg){
     const paint = () => {
       const v = +rg.value;
-      if(q.k === 'objKg'){
+      if(q.k === 'calVal' || q.k === 'objCal'){
+        const b = besoinCal();
+        $('#q_out').innerHTML = `${n0(v)} <small>kcal / jour</small>`;
+        $('#q_lo').textContent = '1 200';
+        $('#q_hi').textContent = '4 000';
+        const est = q.k === 'objCal' && b != null && S.prof.calKnow === 'non';
+        $('#q_hint').innerHTML = q.k === 'calVal'
+          ? 'Votre valeur est reprise telle quelle, sans correction. Les trois questions suivantes ne seront pas posées.'
+          : (b != null
+              ? `Votre besoin ${est ? 'estimé' : 'déclaré'} est de ${n0(b)} kcal/jour`
+                + (v < b * 0.85 ? '. Cette cible est nettement en dessous : un écart durable de cette ampleur relève d’un suivi médical, pas d’une app.'
+                   : v > b * 1.15 ? '. Cette cible est nettement au-dessus.' : '.')
+              : 'Référence ANSES : 2 600 kcal/jour pour un homme de 18 à 69 ans, 2 100 pour une femme de 18 à 59 ans, à activité médiane.');
+      } else if(q.k === 'objKg'){
         const f = DB.facts;
         $('#q_out').innerHTML = `${n0(v)} <small>kg CO₂e / an</small>`;
         $('#q_lo').textContent = 'budget 700';
@@ -4438,6 +4601,13 @@ function profRows(){
     budget:'Dans le budget'}[S.prof.situe] + ' · ' + n0(PROF_ANCRE[S.prof.situe]) + ' kg']);
   if(S.prof.objKg != null) r.push(['Cible', n0(S.prof.objKg) + ' kg / an']);
   if(S.prof.objVege != null) r.push(['Végétal', S.prof.objVege + ' repas / sem.']);
+  const bc = besoinCal();
+  if(bc != null) r.push(['Besoin', n0(bc) + ' kcal / j'
+    + (S.prof.calKnow === 'non' ? ' (estimé)' : '')]);
+  if(S.prof.act) r.push(['Activité', ACT_LAB[S.prof.act]]);
+  if(S.prof.objCal != null) r.push(['Cible calorique', n0(S.prof.objCal) + ' kcal / j']);
+  if(S.prof.objProt != null) r.push(['Cible protéines', n0(S.prof.objProt) + ' g / j'
+    + (S.prof.objProtGkg != null ? ` (${n1(S.prof.objProtGkg)} g/kg)` : '')]);
   return r;
 }
 
@@ -5197,6 +5367,19 @@ function duoBind(a){
       grandeur comparable d'une semaine à l'autre.</div>`);
 }
 
+/* Macros agrégées par jour. Calculées à part de agg(), qui ne connaît que le
+   carbone : y toucher ferait porter à une fonction déjà dense un second sujet.
+   Le coût est un parcours de l'historique de plus, négligeable à cette échelle. */
+function nuParJour(){
+  const out = {};
+  S.hist.forEach(e => {
+    const n = nuOf(e.l);
+    const d = out[e.d] = out[e.d] || {kcal:0, prot:0, lip:0, gluc:0, fib:0};
+    d.kcal += n.kcal; d.prot += n.prot; d.lip += n.lip; d.gluc += n.gluc; d.fib += n.fib;
+  });
+  return out;
+}
+
 /* ---------------- Mes objectifs ----------------
    Prend la place de « Moyenne / jour » dans l'onglet Par repas. Deux lignes
    seulement, les deux objectifs que le profil sait retenir : le rythme végétal
@@ -5221,8 +5404,19 @@ function objBlock(a){
 
   const cibleVege = S.prof.objVege;
   const cibleKg   = S.prof.objKg != null ? S.prof.objKg / 52 : null;
+  /* Les cibles nutritionnelles sont journalières ; on les ramène à la semaine
+     pour qu'elles se lisent dans le même cadre que les deux autres lignes.
+     Mélanger des échelles dans une même carte est le meilleur moyen de la
+     rendre illisible. */
+  const cibleCal  = S.prof.objCal  != null ? S.prof.objCal  * 7 : null;
+  const cibleProt = S.prof.objProt != null ? S.prof.objProt * 7 : null;
+  const nuj = (cibleCal != null || cibleProt != null) ? nuParJour() : null;
+  let kcalSem = 0, protSem = 0;
+  if(nuj) Object.keys(nuj).forEach(d => {
+    if(monday(d) === W){ kcalSem += nuj[d].kcal; protSem += nuj[d].prot; }
+  });
 
-  if(cibleVege == null && cibleKg == null){
+  if(cibleVege == null && cibleKg == null && cibleCal == null && cibleProt == null){
     return `<div class="card">
       <div class="small mute">Aucun objectif fixé. Une cible annuelle et un rythme végétal
         hebdomadaire donnent à cet écran de quoi se comparer — et à la carotte de quoi tourner
@@ -5271,6 +5465,30 @@ function objBlock(a){
         : `${n2(attendu - kgSem)} kg d’avance sur le rythme de la semaine.`,
     });
   }
+  /* Calories et protéines : jamais de rouge ni de dépassement signalé comme une
+     faute. On dit l'écart au rythme, ce qui informe sans juger — un plafond
+     calorique affiché en rouge fabriquerait une dette quotidienne. */
+  if(cibleCal != null){
+    const attendu = cibleCal * jours / 7;
+    lignes.push({
+      lab: 'Calories de la semaine',
+      val: `${n0(kcalSem)} / ${n0(cibleCal)}`,
+      bar: barre(kcalSem, cibleCal, 'var(--s4)', false),
+      note: `${n0(Math.abs(kcalSem - attendu))} kcal ${kcalSem >= attendu ? 'au-dessus' : 'en dessous'} du rythme `
+          + `au bout de ${jours} jour${jours > 1 ? 's' : ''}, soit ${n0(cibleCal / 7)} kcal/j visés.`,
+    });
+  }
+  if(cibleProt != null){
+    const attendu = cibleProt * jours / 7;
+    lignes.push({
+      lab: 'Protéines de la semaine',
+      val: `${n0(protSem)} / ${n0(cibleProt)}`,
+      bar: barre(protSem, cibleProt, 'var(--forest-2)', false),
+      note: protSem >= attendu
+        ? `Dans le rythme : ${n0(protSem)} g au bout de ${jours} jour${jours > 1 ? 's' : ''}, pour ${n0(cibleProt / 7)} g/j visés.`
+        : `${n0(attendu - protSem)} g de retard sur le rythme, pour ${n0(cibleProt / 7)} g/j visés.`,
+    });
+  }
 
   return `<div class="card">
     <div class="total" style="margin-top:0">
@@ -5278,7 +5496,11 @@ function objBlock(a){
         <div class="small mute">${jours} jour${jours > 1 ? 's' : ''} sur 7</div></div>
       ${cibleKg != null
         ? `<div class="v" style="color:${kgSem > cibleKg ? 'var(--brick)' : 'var(--forest)'}">${n2(kgSem)} <span class="unit">kg</span></div>`
-        : `<div class="v" style="color:var(--forest)">${vege} <span class="unit">végé</span></div>`}
+        : cibleVege != null
+          ? `<div class="v" style="color:var(--forest)">${vege} <span class="unit">végé</span></div>`
+          : cibleCal != null
+            ? `<div class="v" style="color:var(--forest)">${n0(kcalSem)} <span class="unit">kcal</span></div>`
+            : `<div class="v" style="color:var(--forest)">${n0(protSem)} <span class="unit">g prot</span></div>`}
     </div>
     <div class="hr"></div>
     <div class="bars">
@@ -5487,6 +5709,44 @@ function tvAn(a){
     </div>`;
 }
 
+/* Graphe cumulé générique. Extrait du bloc carbone pour que les calories et les
+   protéines aient exactement la même lecture : même fenêtre de trois semaines
+   ISO, même courbe cumulée, même trait de trajectoire. Trois graphes construits
+   séparément finiraient par diverger sur un détail d'axe. */
+function cumulCard(o){
+  /* o : {jours, vals, cum, cible, unite, couleur, fond, fmt, legende} */
+  const W = 100, H = 96;
+  const cmax = o.cum[o.cum.length - 1] || 1;
+  const path = o.cum.map((y, i) =>
+    `${i ? 'L' : 'M'}${(i / Math.max(1, o.cum.length - 1) * W).toFixed(2)},${(H - y / cmax * H).toFixed(2)}`).join(' ');
+  const mx = Math.max(o.cible ? o.cible * 1.35 : 0, ...o.vals, 0.001);
+  const traj = o.cible ? o.cible * o.cum.length : null;
+  return `
+    <div class="card">
+      <svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+        ${o.cum.length > 1 ? `<path d="${path} L${W},${H} L0,${H} Z" fill="${o.fond}" opacity=".5"/>
+        <path d="${path}" fill="none" stroke="${o.couleur}" stroke-width="1.4" vector-effect="non-scaling-stroke"/>` : ''}
+        ${traj ? `<line x1="0" y1="${H}" x2="${W}" y2="${(H - Math.min(1, traj / cmax) * H).toFixed(2)}"
+              stroke="var(--brick)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}
+      </svg>
+      <div class="axis"><span>${o.jours.length ? dLabel(o.jours[0]) : ''}</span>
+        <span>${o.cible ? 'tirets = trajectoire cible' : 'aucune cible fixée'}</span>
+        <span>${o.fmt(cmax)} ${o.unite}</span></div>
+      <div class="daysgrid" style="position:relative;margin-top:12px">
+        ${o.cible ? `<div class="budline" style="bottom:${(Math.min(1, o.cible / mx) * 78).toFixed(1)}px"></div>` : ''}
+        <div class="days">
+          ${o.jours.map((k, i) => o.vals[i] > 0
+            ? `<div class="d" title="${dLabel(k)} · ${o.fmt(o.vals[i])} ${o.unite}"><i style="height:${
+                (o.vals[i] / mx * 78).toFixed(1)}px;background:${o.couleur}"></i></div>`
+            : `<div class="d" title="${dLabel(k)} · aucune saisie"><i style="height:2px;background:var(--line)"></i></div>`).join('')}
+        </div>
+      </div>
+      <div class="axis"><span>${o.jours.length ? dLabel(o.jours[0]) : ''}</span>
+        <span>${o.jours.length ? dLabel(o.jours[o.jours.length - 1]) : ''}</span></div>
+      <div class="src" style="margin-top:9px">${o.legende}</div>
+    </div>`;
+}
+
 function tvCumule(a){
   if(!a.nd){
     $('#tv').innerHTML = `<div class="card" style="margin-top:14px">
@@ -5566,6 +5826,8 @@ function tvCumule(a){
       <div class="src" style="margin-top:9px">Chaque colonne = un jour, empilé par repas. Toucher pour le détail jour par jour ›</div>
     </button>
 
+    ${nutCumul(a, last)}
+
     <h2 class="sec">D’où vient le cumul</h2>
     <div class="card bars">
       ${gs.map(([g,v]) => `<div class="row">
@@ -5578,6 +5840,49 @@ function tvCumule(a){
 
   const wb = $('#weeksBtn');
   if(wb) wb.onclick = () => weeksSheet(a, last);
+}
+
+/* Calories et protéines cumulées, sur la même fenêtre que le carbone. Affiché
+   même sans objectif : la donnée existe et se lit seule. Le trait de trajectoire
+   n'apparaît en revanche que si une cible a été fixée. */
+function nutCumul(a, last){
+  const nuj = nuParJour();
+  const dates = a.keys;
+  if(!dates.length) return '';
+  const cumOf = kf => { let c = 0; return dates.map(d => (c += (nuj[d] ? nuj[d][kf] : 0), c)); };
+  const valsOf = kf => last.map(d => nuj[d] ? nuj[d][kf] : 0);
+
+  const totK = cumOf('kcal'), totP = cumOf('prot');
+  const jK = totK[totK.length - 1], jP = totP[totP.length - 1];
+
+  return `
+    <h2 class="sec">Calories cumulées</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="v">${n0(jK / 1000)} <small>Mcal</small></div>
+        <div class="l">Cumul sur ${a.nd} jour${a.nd > 1 ? 's' : ''}</div></div>
+      <div class="kpi"><div class="v">${n0(jK / a.nd)} <small>kcal</small></div>
+        <div class="l">Moyenne par jour renseigné</div></div>
+      ${S.prof.objCal != null ? `<div class="kpi"><div class="v">${n0(S.prof.objCal)} <small>kcal</small></div>
+        <div class="l">Votre cible journalière</div></div>` : ''}
+    </div>
+    ${cumulCard({jours:last, vals:valsOf('kcal'), cum:totK, cible:S.prof.objCal || null,
+      unite:'kcal', couleur:'var(--s4)', fond:'var(--s6)', fmt:n0,
+      legende:'Chaque colonne est une journée. Base « tel qu’acheté », comme le carbone.'
+        + (S.prof.objCal != null ? ' Trait horizontal : votre cible journalière.' : '')})}
+
+    <h2 class="sec">Protéines cumulées</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="v">${n0(jP / 1000)} <small>kg</small></div>
+        <div class="l">Cumul sur ${a.nd} jour${a.nd > 1 ? 's' : ''}</div></div>
+      <div class="kpi"><div class="v">${n0(jP / a.nd)} <small>g</small></div>
+        <div class="l">Moyenne par jour renseigné</div></div>
+      ${S.prof.objProt != null ? `<div class="kpi"><div class="v">${n0(S.prof.objProt)} <small>g</small></div>
+        <div class="l">Votre cible journalière</div></div>` : ''}
+    </div>
+    ${cumulCard({jours:last, vals:valsOf('prot'), cum:totP, cible:S.prof.objProt || null,
+      unite:'g', couleur:'var(--forest-2)', fond:'var(--s6)', fmt:n0,
+      legende:'Protéines totales, animales et végétales confondues.'
+        + (S.prof.objProt != null ? ' Trait horizontal : votre cible journalière.' : '')})}`;
 }
 
 function weeksSheet(a, last){
