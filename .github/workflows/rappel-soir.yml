@@ -1,0 +1,38 @@
+# =====================================================================
+#  Déclencheur du rappel du soir — option B : GitHub Actions
+#  À placer dans .github/workflows/rappel-soir.yml de ton dépôt Pages.
+#  Ne pas utiliser en même temps que le pg_cron de push_soir.sql, sinon
+#  la notification part deux fois.
+#
+#  Un seul secret à créer (Settings > Secrets and variables > Actions) :
+#    CRON_SECRET  — la même chaîne que dans les secrets de l'Edge Function
+# =====================================================================
+name: Rappel du soir
+
+on:
+  schedule:
+    # GitHub Actions ne connaît que l'UTC. Deux lignes, une par saison :
+    # 19:00 UTC = 21 h à Paris en heure d'été, 20:00 UTC = 21 h en hiver.
+    # Sans ce découpage le rappel dérive d'une heure deux fois par an.
+    - cron: '0 19 * 4-9 *'
+    - cron: '0 20 * 1-3,10-12 *'
+  # Bouton « Run workflow » dans l'onglet Actions, pour tester sans attendre 21 h
+  workflow_dispatch:
+
+jobs:
+  rappeler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Appeler l'Edge Function
+        run: |
+          code=$(curl -sS -o /tmp/rep.json -w '%{http_code}' \
+            -X POST 'https://ioqjkssonvrxzymicmlz.supabase.co/functions/v1/rappel-soir' \
+            -H 'Content-Type: application/json' \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -d '{}')
+          echo "HTTP $code"
+          cat /tmp/rep.json
+          # Un échec doit faire rougir le job : sinon un cron cassé passe des
+          # semaines inaperçu, et c'est exactement le genre de panne muette
+          # qu'on ne découvre qu'en constatant l'absence de notification.
+          test "$code" = "200"
