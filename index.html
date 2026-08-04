@@ -1096,7 +1096,8 @@ const dataKey = () => SESS ? KEY_ANON + '.' + SESS.uid : KEY_ANON;
    qui distingue « rien de neuf » de « premier lancement », où il ne faut rien
    annoncer du tout. */
 const NOTIF0 = () => ({on:false, vu:{}, lastPost:null, luPost:null,
-                       vuLikes:null, vuAmis:null, vuDefis:null, soirVu:null});
+                       vuLikes:null, vuAmis:null, vuDefis:null, soirVu:null,
+                       pushOn:false});
 
 let S = {tab:'feed', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false,
@@ -1202,7 +1203,17 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-57';
+const BUILD = 'cfp-58';
+
+/* Clé publique VAPID. Publique au sens propre : elle est destinée à être
+   embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
+   dans les secrets de l'Edge Function, qui signe les envois.
+   Générer la paire : npx web-push generate-vapid-keys
+   Tant que cette constante n'est pas remplacée, l'app se rabat proprement sur
+   ses signaux internes — bandeau et pastille à l'ouverture — sans jamais
+   demander d'abonnement. */
+const VAPID_PUB = 'COLLE_ICI_TA_CLE_PUBLIQUE_VAPID';
+const vapidPret = () => /^[A-Za-z0-9_-]{80,}$/.test(VAPID_PUB);
 
 const SB = {
   url: 'https://ioqjkssonvrxzymicmlz.supabase.co',
@@ -4433,6 +4444,13 @@ function profileSheet(){
   if(pd) pd.onclick = diagSheet;
   const pn = $('#pf_notif');
   if(pn && !pn.disabled) pn.onclick = notifBascule;
+  const pp = $('#pf_push');
+  if(pp) pp.onclick = async () => {
+    pp.disabled = true; pp.textContent = 'Abonnement…';
+    const ok = await pushArm();
+    profileSheet();
+    toast(ok ? 'Rappel du soir armé, même app fermée' : 'Abonnement toujours refusé');
+  };
 
   const pj = $('#pf_pdj');
   if(pj) pj.onclick = () => {
@@ -6099,6 +6117,116 @@ load();
 const rattrape = recover();
 if(!S.stdInit) addStandards();
 
+/* ==================== Web Push ====================
+   Ce qui distingue ce module du reste : il est le seul capable de faire
+   apparaître quelque chose alors que l'app est fermée. Tout le reste — bandeau,
+   pastille d'onglet, badge d'icône posé depuis la page — ne vit que pendant que
+   l'app tourne.
+
+   Conditions cumulatives, aucune facultative : app ajoutée à l'écran d'accueil
+   (iOS n'expose ni Push ni Badging dans un onglet Safari), iOS 16.4 ou plus,
+   notifications autorisées, clé VAPID renseignée, et un compte — l'abonnement
+   est rattaché à un utilisateur.
+
+   Chaque échec est silencieux et sans conséquence : l'app continue de
+   fonctionner avec ses signaux internes. */
+
+const pushDispo = () => 'serviceWorker' in navigator && 'PushManager' in window &&
+                        typeof Notification !== 'undefined';
+
+/* Écran d'accueil ou onglet ? Sur iOS c'est la question qui décide de tout, et
+   `navigator.standalone` est la seule réponse fiable ; le display-mode couvre
+   les autres plateformes. */
+const enStandalone = () => navigator.standalone === true ||
+  (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+/* La clé VAPID voyage en base64url ; subscribe() veut des octets. */
+function vapidOctets(b64){
+  const p = '='.repeat((4 - b64.length % 4) % 4);
+  const brut = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...brut].map(c => c.charCodeAt(0)));
+}
+
+/* Abonnement, ou renouvellement de l'enregistrement s'il existe déjà. Appelée
+   au lancement et à chaque activation des rappels : elle doit donc être
+   idempotente, d'où l'upsert sur l'endpoint. Renvoie true si le serveur nous
+   tient pour joignable. */
+async function pushArm(silencieux){
+  if(!pushDispo() || !vapidPret() || !SESS || !SB.ready()) return false;
+  if(Notification.permission !== 'granted') return false;
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      sub = await reg.pushManager.subscribe({
+        /* Obligatoire, et pas seulement par principe : sans cette promesse
+           qu'aucun push ne sera silencieux, Safari refuse l'abonnement. */
+        userVisibleOnly: true,
+        applicationServerKey: vapidOctets(VAPID_PUB),
+      });
+    }
+    const j = sub.toJSON();
+    if(!j.endpoint || !j.keys || !j.keys.p256dh) return false;
+    const r = await SB.rest('push_subscriptions?on_conflict=endpoint', {method:'POST',
+      headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify({
+        endpoint: j.endpoint, user_id: SESS.uid,
+        p256dh: j.keys.p256dh, auth: j.keys.auth,
+        tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Paris'),
+        ua: (navigator.userAgent || '').slice(0, 200),
+      })});
+    if(!r.ok){
+      const brut = JSON.stringify(r.body || {});
+      console.warn('abonnement push ·', r.status, brut);
+      if(!silencieux) toast(/PGRST205|does not exist/i.test(brut)
+        ? 'Rappels du soir indisponibles : push_soir.sql n’est pas passé'
+        : 'Abonnement refusé par le serveur · ' + r.status);
+      S.notif.pushOn = false; save();
+      return false;
+    }
+    S.notif.pushOn = true; save();
+    return true;
+  }catch(e){
+    console.warn('push ·', e);
+    S.notif.pushOn = false; save();
+    return false;
+  }
+}
+
+/* Désabonnement. On retire la ligne d'abord : mieux vaut un abonnement
+   fantôme côté navigateur qu'une ligne qui continue de recevoir des envois
+   après que l'utilisateur a coupé les rappels. */
+async function pushDisarm(){
+  S.notif.pushOn = false; save();
+  if(!pushDispo()) return;
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(!sub) return;
+    const ep = sub.endpoint;
+    if(SESS && SB.ready()){
+      await SB.rest('push_subscriptions?endpoint=eq.' + encodeURIComponent(ep),
+        {method:'DELETE'});
+    }
+    await sub.unsubscribe();
+  }catch(e){ console.warn('désabonnement ·', e); }
+}
+
+/* Ce qu'il faut dire à l'utilisateur, sans mentir sur ce qui marche. L'ordre
+   des tests est celui des causes : la plus bloquante d'abord. */
+function pushEtat(){
+  if(!pushDispo())        return {k:'non', t:'Non gérés par ce navigateur.'};
+  if(!enStandalone())     return {k:'onglet', t:'Il faut ajouter l’app à l’écran d’accueil : iOS n’autorise ni notification ni pastille d’icône depuis un onglet Safari.'};
+  if(!vapidPret())        return {k:'sanscle', t:'Pas encore configuré côté serveur (clé VAPID absente).'};
+  if(!SESS)               return {k:'sanscompte', t:'Il faut un compte : l’abonnement y est rattaché.'};
+  if(Notification.permission === 'denied')
+                          return {k:'refus', t:'Refusées au niveau du téléphone.'};
+  if(!S.notif.on)         return {k:'off', t:'Coupés.'};
+  return S.notif.pushOn
+    ? {k:'on',      t:'Actifs. Le rappel de 21 h arrive même app fermée, avec la pastille sur l’icône.'}
+    : {k:'attente', t:'Autorisés, mais l’abonnement n’a pas encore été accepté par le serveur.'};
+}
+
 /* ==================== rappels ====================
    Une limite à dire franchement plutôt qu'à laisser découvrir : sans serveur
    de push, rien ne peut être délivré téléphone verrouillé et app fermée. Ce
@@ -6134,13 +6262,22 @@ async function notifMontre(titre, corps, tag, vue){
 }
 
 async function notifBascule(){
-  if(S.notif.on){ S.notif.on = false; save(); badgeSync(); profileSheet(); return toast('Rappels coupés'); }
+  if(S.notif.on){
+    S.notif.on = false; save();
+    await pushDisarm();
+    badgeSync(); profileSheet(); return toast('Rappels coupés');
+  }
   if(typeof Notification === 'undefined') return toast('Ce navigateur ne gère pas les notifications');
   if(Notification.permission === 'denied')
     return toast('Refusées au niveau du téléphone : à réactiver dans ses réglages');
   const r = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
   if(r !== 'granted') return toast('Sans autorisation, pas de rappel');
   S.notif.on = true; save(); badgeSync(); profileSheet();
+  /* L'abonnement au push est tenté ici, une fois l'autorisation obtenue : c'est
+     le seul moment où Safari accepte subscribe(). Un échec ne remet pas les
+     rappels en cause, il retire seulement la livraison app fermée — le panneau
+     le dira. */
+  pushArm().then(ok => { profileSheet(); if(ok) toast('Rappel du soir armé, même app fermée'); });
   notifMontre('Rappels activés', 'Le matin, le soir si la journée est incomplète, et ce que font vos amis.', 'test');
 }
 
@@ -6206,6 +6343,7 @@ function pdjBlock(){
 function notifBlock(){
   const dispo = typeof Notification !== 'undefined';
   const refus = dispo && Notification.permission === 'denied';
+  const px = pushEtat();
   return `
     <div class="hr"></div>
     <div class="total" style="margin-top:0">
@@ -6217,14 +6355,19 @@ function notifBlock(){
     </div>
     <button class="btn btn-2" id="pf_notif" style="margin-top:8px" ${dispo && !refus ? '' : 'disabled'}>${
       S.notif.on ? 'Couper les rappels' : 'Activer les rappels'}</button>
+    <div class="total" style="margin-top:10px">
+      <div style="min-width:0"><div class="unit">Rappel du soir, app fermée</div>
+        <div class="small mute">${esc(px.t)}</div></div>
+      ${px.k === 'on' ? '<div class="v" style="font-size:16px">✓</div>' : ''}
+    </div>
+    ${px.k === 'attente' ? `<button class="btn btn-2" id="pf_push" style="margin-top:8px">Réessayer l’abonnement</button>` : ''}
     <div class="src" style="margin-top:8px">La pastille rouge sur l’onglet Saisie et le bandeau du soir
       ne demandent aucune autorisation : ils apparaissent à partir de 21 h tant qu’un repas manque, et
       s’effacent dès que la journée est complète. Le bandeau se masque pour la journée d’un geste, la
-      pastille reste. Les rappels partent quand l’app a tourné dans la journée.
-      Une notification app fermée demandera un serveur d’envoi, ce n’est pas encore en place.${
-      'setAppBadge' in navigator
-        ? ' L’icône porte le nombre de choses en attente ; il est juste au moment où vous quittez l’app, puis figé jusqu’à la prochaine ouverture.'
-        : ' Le badge sur l’icône demande l’app ajoutée à l’écran d’accueil, sur iPhone — il n’est pas disponible ici.'}</div>`;
+      pastille reste.${
+      px.k === 'on'
+        ? ' La pastille sur l’icône de l’écran d’accueil est posée par le serveur au moment de l’envoi : elle apparaît donc à 21 h sans qu’il faille ouvrir l’app.'
+        : ' Sans le rappel du soir app fermée, la pastille de l’icône ne bouge qu’au moment où vous quittez l’app, puis reste figée jusqu’à la prochaine ouverture.'}</div>`;
 }
 
 /* Ouverture sur le feed — mais seulement s'il a quelque chose à montrer :
@@ -6241,6 +6384,13 @@ if(SESS && SB.ready()){
     tastePull(); frLoad(true); frPosts(); chalLoad(true);
   });
 }
+
+/* Réenregistrement de l'abonnement push à chaque lancement. Le service de push
+   peut avoir renouvelé l'endpoint de son côté sans que l'évènement
+   pushsubscriptionchange nous parvienne — Safari ne le déclenche pas de façon
+   fiable. Un upsert par lancement est le filet le plus simple et le plus sûr :
+   silencieux, et sans effet si rien n'a changé. */
+if(S.notif.on) pushArm(true);
 
 /* Minuteries. Une passe par minute pour les rappels horaires, une toutes les
    90 s pour les publications — et rien du tout quand l'écran est éteint ou
@@ -6279,10 +6429,13 @@ if('serviceWorker' in navigator){
   });
   /* le worker dit sur quel onglet se poser quand on a cliqué une notification */
   navigator.serviceWorker.addEventListener('message', e => {
-    if(e.data && e.data.cfp === 'ouvrir' && typeof go === 'function'){
+    if(!e.data) return;
+    if(e.data.cfp === 'ouvrir' && typeof go === 'function'){
       if(e.data.tab === 'feed') S.fv = e.data.vue || 'actu';
       go(e.data.tab);
     }
+    /* Le service de push a changé l'endpoint : on renvoie le nouveau. */
+    if(e.data.cfp === 'reabonner' && typeof pushArm === 'function') pushArm(true);
   });
 }
 </script>
