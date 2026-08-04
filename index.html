@@ -1203,7 +1203,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-58';
+const BUILD = 'cfp-59';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -1212,7 +1212,7 @@ const BUILD = 'cfp-58';
    Tant que cette constante n'est pas remplacée, l'app se rabat proprement sur
    ses signaux internes — bandeau et pastille à l'ouverture — sans jamais
    demander d'abonnement. */
-const VAPID_PUB = 'COLLE_ICI_TA_CLE_PUBLIQUE_VAPID';
+const VAPID_PUB = 'BKph812ngi7R8n41FcnHxmm5zmMFUAc3j2Qd5IckPoP7rXQ2rAnhXy1lyjfs64Zl2Xw_8x_bLGlLWoPdFAiW7QQ';
 const vapidPret = () => /^[A-Za-z0-9_-]{80,}$/.test(VAPID_PUB);
 
 const SB = {
