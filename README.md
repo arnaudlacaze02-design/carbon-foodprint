@@ -70,3 +70,23 @@ Catalogue Jow toujours vide : les noms de recettes ne sont pas récupérables de
 planification (identifiants seuls dans des iframes JavaScript, PDF interdit aux robots, noms
 uniquement lisibles dans une image de calendrier). La case à cocher est en place et grisée ;
 il ne manque que la liste des noms.
+
+**v69 — trois correctifs**
+
+*L'écran sautait sur Feed.* Rien du contexte de saisie n'était persisté, et le démarrage imposait
+l'onglet (`S.tab = SESS ? 'feed' : 'saisie'`). iOS décharge une PWA passée en arrière-plan sans
+prévenir : au retour la page se recharge entièrement, repart sur Feed, et le repas en cours de
+composition est perdu. Un seau `localStorage` distinct (`…​.nav`) écrit par `renderSaisie` conserve
+désormais brouillon et contexte ; le démarrage les rejoue si le brouillon est non vide et vieux de
+moins de six heures. Seau distinct et non une clé de plus dans `save()` : les dix endroits qui
+touchent à `S.draft` n'appellent pas `save()`, l'instantané y serait toujours périmé.
+
+*Trajectoire contradictoire.* Dans `cumulCard`, la courbe cumulée était normalisée sur son propre
+total : elle finissait donc toujours en haut du cadre. Dès que le cumul passait sous la cible,
+`traj / cmax` dépassait 1, la trajectoire était rabattue sur ce même haut de cadre, et la courbe
+paraissait au-dessus des pointillés alors qu'elle était dessous — tandis que le diagramme bâtons,
+qui compare correctement au jour, montrait l'inverse. Échelle désormais commune aux deux séries.
+
+*Affichage du cumulé.* Tuiles « Cumul sur x jours » retirées pour les calories et les protéines.
+Ajout de `.kpis + .card, .card + .kpis, .kpis + .kpis{margin-top:12px}` : seul `.card + .card`
+existait, une grille de KPI touchait donc la carte suivante bord à bord.

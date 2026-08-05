@@ -611,6 +611,9 @@ a.lk{color:var(--forest); text-decoration:underline; text-underline-offset:2px; 
 .kpi .v small{font-family:var(--mono); font-size:10px; color:var(--mute); letter-spacing:.04em}
 .kpi .l{font-family:var(--mono); font-size:9.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--mute); margin-top:4px; line-height:1.35}
 .kpi.wide{grid-column:1/-1}
+/* Une grille de KPI collée à la carte suivante : .card + .card était prévu,
+   pas .kpis + .card, et les deux blocs se touchaient bord à bord. */
+.kpis + .card, .card + .kpis, .kpis + .kpis{margin-top:12px}
 .bars .row{display:grid; grid-template-columns:1fr auto; gap:3px 10px; margin-bottom:11px}
 .bars .lab{font-size:13.5px}
 .bars .val{font-family:var(--serif); font-variant-numeric:tabular-nums; font-size:15px; text-align:right}
@@ -1263,6 +1266,30 @@ const CLIENT_ID = (() => {
 
 let SESS = null;    /* {uid, slug, username, access_token, refresh_token, expires_at} */
 const dataKey = () => SESS ? KEY_ANON + '.' + SESS.uid : KEY_ANON;
+
+/* ---------------- contexte de saisie ----------------
+   iOS décharge une PWA passée en arrière-plan sans prévenir : au retour, la page
+   se recharge entièrement. Le repas en cours de composition disparaissait alors,
+   et l'app rouvrait sur Feed — ce que l'on lit comme « l'écran a sauté ».
+
+   Seau distinct de celui des données, et non une clé de plus dans save() : les
+   dix endroits qui touchent à S.draft n'appellent pas save(), l'instantané y
+   serait systématiquement périmé. C'est renderSaisie qui écrit, une fois, au
+   début de chaque rendu — toutes les mutations du brouillon passent par là. */
+const navKey = () => dataKey() + '.nav';
+function navSave(){
+  try{
+    localStorage.setItem(navKey(), JSON.stringify({
+      meal:S.meal, path:S.path, step:S.step, comCat:S.comCat, mode:S.mode,
+      course:S.course, entryDate:S.entryDate, editId:S.editId, wiz:S.wiz,
+      dishQ:S.dishQ, pdjNew:S.pdjNew, pdjSave:S.pdjSave, pdjEdit:S.pdjEdit,
+      draft:S.draft, at:Date.now()}));
+  }catch(e){}
+}
+function navRead(){
+  try{ return JSON.parse(localStorage.getItem(navKey()) || 'null'); }
+  catch(e){ return null; }
+}
 
 /* Repères de notification, en un seul endroit : trois listes de « déjà vu »
    pour ne pas re-signaler ce qui l'a été, plus la trace de la question posée à
@@ -3881,6 +3908,9 @@ function renderPdjChoix(D, isToday){
 
 function renderSaisie(){
   topbar();
+  /* Un brouillon vide s'écrit aussi : c'est ce qui purge la reprise dès qu'un
+     repas est enregistré, sans avoir à l'effacer explicitement quelque part. */
+  navSave();
   if(!S.entryDate) S.entryDate = today();
   const D = S.entryDate, isToday = D === today();
   const editing = S.editId && S.hist.find(x => x.id === S.editId);
@@ -5957,14 +5987,31 @@ function tvAn(a){
    protéines aient exactement la même lecture : même fenêtre de trois semaines
    ISO, même courbe cumulée, même trait de trajectoire. Trois graphes construits
    séparément finiraient par diverger sur un détail d'axe. */
+/* Rangée de tuiles. Une tuile seule prend toute la largeur : la grille est en
+   deux colonnes, et un élément unique y laisserait sinon une demi-colonne vide. */
+function kpiRow(cells){
+  if(!cells.length) return '';
+  const seule = cells.length === 1 ? ' wide' : '';
+  return `<div class="kpis">${cells.map(([v, u, l]) =>
+    `<div class="kpi${seule}"><div class="v">${v} <small>${u}</small></div>
+      <div class="l">${l}</div></div>`).join('')}</div>`;
+}
+
 function cumulCard(o){
   /* o : {jours, vals, cum, cible, unite, couleur, fond, fmt, legende} */
   const W = 100, H = 96;
-  const cmax = o.cum[o.cum.length - 1] || 1;
+  const traj = o.cible ? o.cible * o.cum.length : null;
+  /* Échelle COMMUNE à la courbe et à la trajectoire, et c'est tout l'enjeu.
+     La courbe était normalisée sur son propre total : elle finissait donc
+     toujours en haut du cadre. Dès que le cumul passait sous la cible,
+     traj / cmax dépassait 1, la trajectoire était rabattue sur ce même haut de
+     cadre, et la courbe paraissait au-dessus des pointillés alors qu'elle était
+     dessous. Le diagramme bâtons, lui, comparait correctement au jour : les deux
+     lectures d'une même carte se contredisaient. */
+  const cmax = Math.max(o.cum[o.cum.length - 1] || 0, traj || 0) || 1;
   const path = o.cum.map((y, i) =>
     `${i ? 'L' : 'M'}${(i / Math.max(1, o.cum.length - 1) * W).toFixed(2)},${(H - y / cmax * H).toFixed(2)}`).join(' ');
   const mx = Math.max(o.cible ? o.cible * 1.35 : 0, ...o.vals, 0.001);
-  const traj = o.cible ? o.cible * o.cum.length : null;
   return `
     <div class="card">
       <svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
@@ -6101,28 +6148,20 @@ function nutCumul(a, last){
 
   return `
     <h2 class="sec">Calories cumulées</h2>
-    <div class="kpis">
-      <div class="kpi"><div class="v">${n0(jK / 1000)} <small>Mcal</small></div>
-        <div class="l">Cumul sur ${a.nd} jour${a.nd > 1 ? 's' : ''}</div></div>
-      <div class="kpi"><div class="v">${n0(jK / a.nd)} <small>kcal</small></div>
-        <div class="l">Moyenne par jour renseigné</div></div>
-      ${S.prof.objCal != null ? `<div class="kpi"><div class="v">${n0(S.prof.objCal)} <small>kcal</small></div>
-        <div class="l">Votre cible journalière</div></div>` : ''}
-    </div>
+    ${kpiRow([
+      [n0(jK / a.nd), 'kcal', 'Moyenne par jour renseigné'],
+      ...(S.prof.objCal != null ? [[n0(S.prof.objCal), 'kcal', 'Votre cible journalière']] : []),
+    ])}
     ${cumulCard({jours:last, vals:valsOf('kcal'), cum:totK, cible:S.prof.objCal || null,
       unite:'kcal', couleur:'var(--s4)', fond:'var(--s6)', fmt:n0,
       legende:'Chaque colonne est une journée. Base « tel qu’acheté », comme le carbone.'
         + (S.prof.objCal != null ? ' Trait horizontal : votre cible journalière.' : '')})}
 
     <h2 class="sec">Protéines cumulées</h2>
-    <div class="kpis">
-      <div class="kpi"><div class="v">${n0(jP / 1000)} <small>kg</small></div>
-        <div class="l">Cumul sur ${a.nd} jour${a.nd > 1 ? 's' : ''}</div></div>
-      <div class="kpi"><div class="v">${n0(jP / a.nd)} <small>g</small></div>
-        <div class="l">Moyenne par jour renseigné</div></div>
-      ${S.prof.objProt != null ? `<div class="kpi"><div class="v">${n0(S.prof.objProt)} <small>g</small></div>
-        <div class="l">Votre cible journalière</div></div>` : ''}
-    </div>
+    ${kpiRow([
+      [n0(jP / a.nd), 'g', 'Moyenne par jour renseigné'],
+      ...(S.prof.objProt != null ? [[n0(S.prof.objProt), 'g', 'Votre cible journalière']] : []),
+    ])}
     ${cumulCard({jours:last, vals:valsOf('prot'), cum:totP, cible:S.prof.objProt || null,
       unite:'g', couleur:'var(--forest-2)', fond:'var(--s6)', fmt:n0,
       legende:'Protéines totales, animales et végétales confondues.'
@@ -7222,8 +7261,28 @@ function notifBlock(){
    accueillir un nouveau venu par « il faut un compte » serait une porte fermée
    au premier pas. Sans compte, on ouvre sur la saisie, qui est ce que l'app
    sait faire sans rien demander. */
-S.tab = (SESS && SB.ready()) ? 'feed' : 'saisie';
+/* Reprise d'une saisie interrompue. On ne rejoue le contexte que s'il reste un
+   repas en cours de composition et qu'il est récent : au-delà de six heures,
+   reprendre un brouillon oublié serait plus déroutant que de repartir à zéro.
+   Hors de ce cas précis, l'ouverture par défaut est conservée telle quelle. */
+function reprise(){
+  const n = navRead();
+  if(!n || !Array.isArray(n.draft) || !n.draft.length) return false;
+  if(!n.at || Date.now() - n.at > 6 * 3600 * 1000) return false;
+  S.draft = n.draft;
+  S.meal = n.meal || 'dej'; S.path = n.path || 'types';
+  S.step = n.step || 'saisie'; S.comCat = n.comCat || 'plat';
+  S.mode = n.mode || null; S.course = n.course || null;
+  S.entryDate = n.entryDate || today(); S.editId = n.editId || null;
+  S.wiz = n.wiz || null; S.dishQ = n.dishQ || '';
+  S.pdjNew = !!n.pdjNew; S.pdjSave = !!n.pdjSave; S.pdjEdit = !!n.pdjEdit;
+  S.tab = 'saisie';
+  return true;
+}
+const repris = reprise();
+if(!repris) S.tab = (SESS && SB.ready()) ? 'feed' : 'saisie';
 go(S.tab);
+if(repris) toast('Repas en cours de saisie retrouvé');
 if(rattrape) toast('Profil et favoris récupérés');
 if(SESS && SB.ready()){
   SB.syncIdentity().then(ok => {
