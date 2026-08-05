@@ -2112,6 +2112,406 @@ async function badgeShare(t){
   frPosts();
 }
 
+/* ------------------------------------------------------------------
+   Lecture d'une recette depuis un lien.
+
+   Le principe : l'Edge Function « lire-recette » rend la liste brute des
+   ingrédients telle que le site l'écrit — « 2 gousses d'ail », « 20 cl de
+   crème fraîche ». Il reste à en tirer un couple [slug, grammes], seule
+   forme que sait mesurer cette app. Ce rapprochement se fait ici, dans le
+   navigateur, sans appel à un modèle : la base ne compte que 240 entrées
+   aux noms français, une normalisation et une table de synonymes suffisent,
+   et le résultat est reproductible — deux lectures du même lien donnent le
+   même chiffre, ce qu'un modèle ne garantit pas.
+
+   Ce qui n'est pas reconnu n'est jamais deviné : ça part dans « Autres »,
+   en texte libre et hors du calcul, et l'écran de relecture le signale.
+   L'empreinte affichée est donc minorante, comme pour une saisie manuelle.
+   ------------------------------------------------------------------ */
+
+/* Unités. Les volumes sont convertis à densité 1 : exact pour l'eau, le lait
+   et le vin, faux de 8 % pour l'huile, ce qui est sans effet sur un total de
+   plusieurs centaines de grammes. Les mesures ménagères sont des moyennes,
+   affinées par aliment plus bas quand l'écart est réel. */
+const RQ_UNI_SRC = {
+  'g':1, 'gr':1, 'gramme':1, 'grammes':1, 'kg':1000, 'kilo':1000, 'kilos':1000,
+  'kilogramme':1000, 'kilogrammes':1000, 'mg':0.001,
+  'ml':1, 'cl':10, 'dl':100, 'l':1000, 'litre':1000, 'litres':1000,
+  'cuillere a soupe':'cas', 'cuilleres a soupe':'cas', 'cuillere a soupe rase':'cas',
+  'c a soupe':'cas', 'c a s':'cas', 'cas':'cas', 'cs':'cas', 'cuillere':'cas',
+  'cuilleres':'cas', 'cuillere a cafe':'cac', 'cuilleres a cafe':'cac',
+  'c a cafe':'cac', 'c a c':'cac', 'cac':'cac', 'cc':'cac',
+  'cuillere a the':'cac', 'cuilleres a the':'cac',
+  'pincee':0.5, 'pincees':0.5, 'trait':2, 'filet':8, 'noix':15, 'noisette':8,
+  'verre':200, 'verres':200, 'tasse':240, 'tasses':240, 'bol':300, 'mug':250,
+  'gousse':5, 'gousses':5, 'sachet':8, 'sachets':8, 'brin':2, 'brins':2,
+  'branche':6, 'branches':6, 'feuille':1, 'feuilles':1, 'botte':80, 'bottes':80,
+  'bouquet':25, 'tige':6, 'tiges':6,
+  'tranche':25, 'tranches':25, 'rondelle':12, 'rondelles':12,
+  'boite':400, 'boites':400, 'conserve':400, 'conserves':400, 'brique':500,
+  'pot':125, 'pots':125, 'bocal':350, 'barquette':250, 'paquet':250,
+};
+
+/* Poids réel d'une cuillère à soupe, par aliment. Une cuillerée d'huile pèse
+   13 g, la même de farine 8 g : garder une valeur unique fausserait les
+   recettes de pâtisserie, où la farine se compte en cuillerées. La cuillère à
+   café vaut le tiers. */
+const RQ_CAS = {
+  huileolive:13, matieregrasse:13, mayonnaise:15, beurre:15, creme:15,
+  miel:21, confiture:20, pateatartiner:18, ble:8, semoule:10, chocolatpoudre:6,
+  cafe:6, the:2, laitdevache:15, yaourt:16, fromagedure:6, pesto:15,
+};
+
+/* Synonymes. Trois catégories, mêlées à dessein dans une seule table :
+   — ce que la base nomme autrement (« farine » n'existe pas, « Blé » oui) ;
+   — les découpes et préparations qui retombent sur un aliment de la base
+     (« lardons » sur le porc, « blanc de poulet » sur le poulet) ;
+   — null : ce dont l'empreinte est négligeable ou absente de la base, et qui
+     doit filer dans « Autres » sans être signalé comme une erreur de lecture.
+     Sans ce troisième cas, toute recette ferait remonter « sel, poivre, thym
+     non reconnus » et l'avertissement perdrait tout son sens. */
+const RQ_SYN_SRC = {
+  'farine':'ble', 'farine de ble':'ble', 'farine t55':'ble', 'farine t65':'ble',
+  'chapelure':'ble', 'pate feuilletee':'ble', 'pate brisee':'ble',
+  'pate sablee':'ble', 'pate a pizza':'ble', 'pate filo':'ble', 'maizena':'ble',
+  'fecule':'ble', 'fecule de mais':'ble', 'polenta':'semoule', 'couscous':'semoule',
+  'huile':'matieregrasse', 'huile de tournesol':'matieregrasse',
+  'huile de colza':'matieregrasse', 'huile vegetale':'matieregrasse',
+  'huile de sesame':'matieregrasse', 'huile de friture':'matieregrasse',
+  'margarine':'matieregrasse', 'huile d olive':'huileolive',
+  'lait':'laitdevache', 'lait entier':'laitdevache', 'lait demi ecreme':'laitdevache',
+  'lait ecreme':'laitdevache', 'lait de coco':'laitdecoco', 'creme de coco':'laitdecoco',
+  'lait d amande':'laitvegetal', 'lait d avoine':'laitvegetal', 'lait de soja':'soja',
+  'creme fraiche':'creme', 'creme liquide':'creme', 'creme entiere':'creme',
+  'creme epaisse':'creme', 'creme fleurette':'creme', 'mascarpone':'creme',
+  'oeuf':'oeuf', 'jaune d oeuf':'oeuf', 'blanc d oeuf':'oeuf', 'jaune':'oeuf',
+  'parmesan':'fromagedure', 'fromage rape':'fromagedure', 'gruyere rape':'gruyere',
+  'comte':'gruyere', 'pecorino':'fromagedure', 'raclette':'fromagedure',
+  'camembert':'fromagemolle', 'brie':'fromagemolle', 'roquefort':'fromagebleu',
+  'gorgonzola':'fromagebleu', 'burrata':'mozzarella',
+  'pomme de terre':'pommedeterre', 'patate':'pommedeterre', 'grenaille':'pommedeterre',
+  'oignon rouge':'oignon', 'oignon jaune':'oignon', 'oignon blanc':'oignon',
+  'cive':'oignon', 'ciboule':'oignon',
+  'tomate concassee':'tomate', 'tomate pelee':'tomate', 'coulis de tomate':'tomate',
+  'concentre de tomate':'tomate', 'passata':'tomate', 'tomate cerise':'tomate',
+  'sauce tomate':'tomate', 'tomate sechee':'tomate',
+  'lardon':'porc', 'poitrine fumee':'porc', 'jambon':'porc', 'bacon':'porc',
+  'jambon blanc':'porc', 'echine':'porc', 'travers':'porc', 'chorizo':'charcuterie',
+  'jambon cru':'charcuterie', 'jambon de parme':'charcuterie', 'coppa':'charcuterie',
+  'saucisson':'charcuterie', 'pancetta':'charcuterie', 'mortadelle':'charcuterie',
+  'blanc de poulet':'poulet', 'filet de poulet':'poulet', 'cuisse de poulet':'poulet',
+  'escalope de poulet':'poulet', 'escalope de dinde':'poulet', 'dinde':'poulet',
+  'aiguillette':'poulet', 'poule':'poulet',
+  'viande hachee':'boeuf', 'boeuf hache':'boeuf', 'bavette':'boeuf', 'entrecote':'boeuf',
+  'faux filet':'boeuf', 'rumsteak':'boeuf', 'joue de boeuf':'boeuf', 'paleron':'boeuf',
+  'steak hache':'steakhache15', 'agneau':'boeuf', 'gigot':'boeuf', 'mouton':'boeuf',
+  'pave de saumon':'saumon', 'filet de saumon':'saumon', 'truite':'saumon',
+  'filet de cabillaud':'cabillaud', 'dos de cabillaud':'cabillaud', 'morue':'cabillaud',
+  'colin':'lieu', 'merlu':'lieu', 'poisson blanc':'cabillaud', 'gambas':'crevettes',
+  'lentille corail':'lentilles', 'lentille verte':'lentilles', 'lentille blonde':'lentilles',
+  'haricot blanc':'haricotsrouges', 'flageolet':'haricotsrouges', 'feve':'petitpois',
+  'spaghetti':'pates', 'tagliatelle':'pates', 'penne':'pates', 'macaroni':'pates',
+  'linguine':'pates', 'fusilli':'pates', 'coquillette':'pates', 'farfalle':'pates',
+  'rigatoni':'pates', 'orzo':'pates', 'lasagne':'pates', 'ravioli':'pates',
+  'nouille':'nouillesdeble', 'udon':'nouillesdeble', 'soba':'nouillesdeble',
+  'vermicelle de riz':'nouillesderiz', 'riz basmati':'riz', 'riz long':'riz',
+  'riz rond':'riz', 'riz arborio':'riz', 'quinoa':'boulgour',
+  'pain':'baguette', 'pain de campagne':'baguette', 'croute de pain':'baguette',
+  'naan':'paindemie', 'tortilla':'ble', 'wrap':'ble', 'galette de ble':'ble',
+  'champignon':'champignondeparis', 'champignon de paris':'champignondeparis',
+  'girolle':'champignonmorille', 'cepe':'champignonmorille', 'shiitake':'champignondeparis',
+  'poivron rouge':'poivron', 'poivron vert':'poivron', 'poivron jaune':'poivron',
+  'roquette':'laitue', 'salade':'laitue', 'sucrine':'laitue', 'scarole':'laitue',
+  'batavia':'laitue', 'pousse d epinard':'epinard', 'pak choi':'chou',
+  'chou chinois':'chou', 'chou rouge':'chou', 'chou blanc':'chou',
+  'amande':'noix', 'noix de cajou':'noix', 'pignon':'noix', 'pistache':'noix',
+  'graine de courge':'courge', 'graine de tournesol':'noix', 'sesame':'noix',
+  'raisin sec':'raisin', 'abricot sec':'abricot', 'pruneau':'prune',
+  'citron vert':'citron', 'lime':'citron', 'jus de citron':'citron',
+  'eau':'eaudurobinet', 'glacon':'eaudurobinet', 'vin blanc':'vin', 'vin rouge':'vin',
+  'cidre':'biere', 'rhum':'digestif', 'cognac':'digestif', 'whisky':'digestif',
+  /* Négligeables ou hors base : partent dans « Autres » sans avertissement. */
+  'sel':null, 'sel fin':null, 'gros sel':null, 'fleur de sel':null, 'poivre':null,
+  'sucre':null, 'sucre en poudre':null, 'cassonade':null, 'sucre vanille':null,
+  'levure':null, 'levure chimique':null, 'levure de boulanger':null,
+  'bicarbonate':null, 'vinaigre':null, 'vinaigre balsamique':null, 'moutarde':null,
+  'sauce soja':null, 'nuoc mam':null, 'sauce worcestershire':null, 'tabasco':null,
+  'harissa':null, 'sriracha':null, 'ketchup':null, 'bouillon':null,
+  'cube de bouillon':null, 'fond de veau':null, 'gelatine':null, 'agar agar':null,
+  'persil':null, 'coriandre':null, 'basilic':null, 'thym':null, 'laurier':null,
+  'romarin':null, 'ciboulette':null, 'aneth':null, 'estragon':null, 'menthe':null,
+  'origan':null, 'sauge':null, 'herbe de provence':null, 'bouquet garni':null,
+  'curry':null, 'paprika':null, 'cumin':null, 'curcuma':null, 'cannelle':null,
+  'muscade':null, 'gingembre':null, 'piment':null, 'safran':null, 'vanille':null,
+  'quatre epice':null, 'ras el hanout':null, 'garam masala':null, 'epice':null,
+  'graine de cumin':null, 'clou de girofle':null, 'cardamome':null, 'anis':null,
+  'zeste':null, 'colorant':null, 'arome':null, 'extrait de vanille':null,
+};
+
+/* Adjectifs et mentions de conditionnement qui n'orientent pas le
+   rapprochement et le brouillent souvent : « poivron rouge » doit tomber sur
+   le poivron, « tomates bien mûres » sur la tomate. */
+const RQ_MOTS_VIDES = new Set(['frais','fraiche','fraiches','surgele','surgelee',
+  'congele','bio','entier','entiere','demi','petit','petite','petits','petites',
+  'gros','grosse','grand','grande','moyen','moyenne','beau','belle','bien','mur',
+  'mure','murs','mures','de','d','du','des','la','le','les','un','une','en','a',
+  'au','aux','ou','et','pour','environ','facultatif','facultative','optionnel',
+  'coupe','coupee','emince','emincee','hache','hachee','rape','rapee','pele',
+  'pelee','lave','lavee','egoutte','egouttee','ciselee','cisele','decortique',
+  'nature','doux','douce','sec','seche','seches','liquide','poudre','morceau',
+  'morceaux','des','tranche','tranches','fine','fines','type','sorte','maison',
+  'preferee','prefere','qualite','extra','vierge','fondu','fondue','ramolli',
+  'temperature','ambiante','froid','froide','chaud','chaude','cuit','cuite',
+  'cru','crue','precuit','nouveau','nouvelle','jeune','vieux','allege','entiers']);
+
+/* Normalisation commune aux deux côtés du rapprochement : sans accents,
+   sans parenthèses, sans ponctuation, chaque mot au singulier. Appliquée
+   aussi bien à la ligne du site qu'au nom de l'aliment, sinon
+   « Champignons de Paris » ne rencontrerait jamais « champignon de Paris ». */
+function rqNorm(t){
+  return nrmT(t)
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[’']/g, ' ')
+    .replace(/[^a-z0-9%\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(m => m.length > 3 && /[sx]$/.test(m) ? m.slice(0, -1) : m)
+    .join(' ')
+    .trim();
+}
+
+/* Table de synonymes normalisée une fois pour toutes, clés les plus longues
+   d'abord : « huile d olive » doit être essayé avant « huile ». */
+const RQ_SYN = new Map(Object.entries(RQ_SYN_SRC)
+  .map(([k, v]) => [rqNorm(k), v])
+  .sort((a, b) => b[0].length - a[0].length));
+
+/* Les unités passent par la même normalisation, sans quoi elles seraient
+   cherchées sous une forme que le texte n'a plus : rqNorm ramène « noix » à
+   « noi », et une clé écrite « noix » ne serait jamais trouvée. C'est
+   exactement le bogue qui faisait d'une noix de beurre trente grammes de
+   noix. */
+const RQ_UNI = {};
+for(const [k, v] of Object.entries(RQ_UNI_SRC)) RQ_UNI[rqNorm(k)] = v;
+
+/* Index des aliments de la base sous forme normalisée. Le nom retenu et, s'il
+   existe, celui de l'aliment de report (`xs`) : « Emmental » se trouve ainsi
+   aussi par « fromage a pate dure ». */
+const RQ_IDX = DB.foods.map(f => ({
+  s: f.s, p: f.p,
+  n: rqNorm(f.n),
+  x: f.xs ? rqNorm(f.xs) : '',
+}));
+
+/* Déterminants et mesures vagues en tête de désignation. Retirés avant tout
+   rapprochement, mais séparément des adjectifs : « quelques olives noires »
+   doit devenir « olives noires » et non « olives », sans quoi la couleur
+   disparaîtrait avant même d'avoir servi. */
+const RQ_TETE = new Set(['de','d','du','des','la','le','les','l','un','une','quelque',
+  'quelques','environ','a','au','aux','petit','petite','gros','grosse','beau','belle',
+  'joli','jolie','bon','bonne','plusieurs']);
+
+/* Fractions écrites, décimales à la française, intervalles. Un intervalle
+   (« 2 à 3 oignons ») retient la borne basse : minorer une quantité vaut
+   mieux que la majorer sans le dire. */
+function rqQte(t){
+  const s = t.replace(/½/g, ' 1/2 ').replace(/¼/g, ' 1/4 ').replace(/¾/g, ' 3/4 ')
+             .replace(/⅓/g, ' 1/3 ').replace(/⅔/g, ' 2/3 ').trim();
+  /* La borne haute d'un intervalle est retirée du reste, sinon elle serait
+     lue comme un mot de la désignation et brouillerait le rapprochement. */
+  const coupe = r => r.replace(/^\s*(?:[aà]|-|ou|\/)\s*\d+(?:[.,]\d+)?/i, '');
+  let m = s.match(/^(\d+)[\s.,](\d+)\s*\/\s*(\d+)/);
+  if(m) return {q: +m[1] + +m[2] / +m[3], reste: coupe(s.slice(m[0].length))};
+  m = s.match(/^(\d+)\s*\/\s*(\d+)/);
+  if(m) return {q: +m[1] / +m[2], reste: coupe(s.slice(m[0].length))};
+  m = s.match(/^(\d+(?:[.,]\d+)?)/);
+  if(m) return {q: parseFloat(m[1].replace(',', '.')), reste: coupe(s.slice(m[0].length))};
+  return {q: null, reste: s};
+}
+
+/* Découpe d'une ligne en quantité, unité et désignation. L'unité est cherchée
+   sur les trois premiers mots qui suivent le nombre, du plus long au plus
+   court : « c a soupe » avant « c ». */
+function rqTete(s){
+  const mots = String(s).split(/\s+/).filter(Boolean);
+  while(mots.length > 1 && RQ_TETE.has(mots[0])) mots.shift();
+  return mots.join(' ');
+}
+
+function rqLigne(brut){
+  const t = String(brut).replace(/\s+/g, ' ').trim();
+  const {q, reste} = rqQte(t);
+  const plein = rqNorm(reste);
+  let mots = plein.split(/\s+/).filter(Boolean), uni = null;
+  for(let n = Math.min(3, mots.length); n >= 1; n--){
+    const cle = mots.slice(0, n).join(' ');
+    if(Object.prototype.hasOwnProperty.call(RQ_UNI, cle)){ uni = RQ_UNI[cle]; mots = mots.slice(n); break; }
+  }
+  /* `plein` garde le mot d'unité en place. Il faut le conserver parce que
+     plusieurs mesures françaises sont aussi des découpes : « 1 filet de
+     saumon » n'est pas un filet d'huile, « 1 bouquet garni » n'est pas un
+     bouquet de persil. Le mot est retiré par défaut, et rendu à la
+     désignation quand celle-ci forme une expression connue. */
+  return {q, uni, nom: mots.join(' '), plein, brut: t};
+}
+
+/* Rapprochement avec la base. Rend le slug, ou null pour un ingrédient
+   volontairement ignoré, ou undefined quand rien ne correspond — trois issues
+   distinctes, que l'écran de relecture traite différemment.
+
+   Deux formes de la désignation sont essayées dans l'ordre : sans les
+   déterminants de tête d'abord, puis sans les adjectifs. La première conserve
+   « lait de coco » et « haricot vert » intacts, ce qui compte : la seconde,
+   plus agressive, les réduirait à « lait » et « haricot » et les ferait tomber
+   sur le lait de vache et les haricots rouges. */
+function rqSlug(nom){
+  if(!nom) return undefined;
+
+  /* Une masse citée dans la désignation (« 1 pavé de saumon de 150 g ») sert à
+     la conversion, pas au rapprochement : elle est écartée ici. */
+  let mots = nom.replace(/\b(?:de\s+)?\d+(?:[.,]\d+)?\s*(?:kg|gr|g|cl|ml|dl|l)\b/g, ' ')
+                .replace(/\s+/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if(!mots.length) mots = nom.split(/\s+/).filter(Boolean);
+  mots = rqTete(mots.join(' ')).split(/\s+/).filter(Boolean);
+
+  const large = mots.join(' ');
+  const etroit = mots.filter(m => !RQ_MOTS_VIDES.has(m)).join(' ') || large;
+  const formes = etroit === large ? [large] : [large, etroit];
+
+  /* Ordre des tentatives, et il compte. Un synonyme exact d'abord : « farine »
+     n'a pas d'équivalent dans la base et doit devenir du blé. Puis un nom
+     d'aliment franchement reconnu, avant le repli approximatif sur la table de
+     synonymes — sans cette précédence, « pain de mie », qui existe dans la
+     base, serait intercepté par la clé « pain » et finirait en baguette. */
+  for(const f of formes) if(RQ_SYN.has(f)) return RQ_SYN.get(f);
+
+  const note0 = rqNote(formes[0]);
+  if(note0.note >= 84) return note0.slug;
+  const note1 = formes[1] ? rqNote(formes[1]) : null;
+  if(note1 && note1.note >= 84) return note1.slug;
+
+  /* Clés les plus longues d'abord : « huile d olive » avant « huile ». */
+  for(const [cle, val] of RQ_SYN){
+    if(cle.length < 4) continue;
+    for(const f of formes){
+      if(f === cle || f.startsWith(cle + ' ') || f.endsWith(' ' + cle)
+         || f.includes(' ' + cle + ' ')) return val;
+    }
+  }
+
+  const best = note1 && note1.note > note0.note ? note1 : note0;
+  return best.note >= 60 ? best.slug : undefined;
+}
+
+/* Note de ressemblance entre une désignation et le nom des aliments. */
+function rqNote(f){
+  let meilleur = null, note = 0, lg = 99;
+  const jetons = f.split(/\s+/).filter(Boolean);
+  for(const x of RQ_IDX){
+    /* Le nom de report (`xs`) rapproche aussi — « Emmental » se trouve par
+       « fromage à pâte dure » — mais moins bien que le nom propre : sans
+       cette pénalité, « bœuf » tomberait sur le steak haché, dont le bœuf
+       est justement le report, et « carotte » sur le mix de légumes. */
+    for(const [cible, malus] of [[x.n, 0], [x.x, 12]]){
+      if(!cible) continue;
+      let n = 0;
+      if(cible === f) n = 100;
+      else if(cible.startsWith(f + ' ')) n = 88;
+      else if(f.startsWith(cible + ' ') || f.endsWith(' ' + cible)) n = 84;
+      else {
+        const jc = cible.split(/\s+/);
+        const communs = jetons.filter(m => m.length > 2 && jc.includes(m)).length;
+        /* Un seul mot commun ne suffit que s'il ouvre le nom de l'aliment,
+           sans quoi « salade de fruits » attraperait « Salade de riz au
+           thon ». L'écart de longueur pénalise les plats composés : deux
+           mots communs avec « Banger and mash, saucisses et écrasé de
+           pommes de terre » ne valent pas deux mots avec « Pomme de terre ». */
+        if(communs && (communs > 1 || jetons[0] === jc[0]))
+          n = 40 + communs * 12 - Math.min(24, Math.abs(jc.length - jetons.length) * 5);
+      }
+      n -= malus;
+      /* À note égale, le nom le plus court : c'est l'aliment le plus
+         générique, donc le moins risqué. */
+      if(n > note || (n === note && n > 0 && cible.length < lg)){
+        note = n; meilleur = x.s; lg = cible.length;
+      }
+    }
+  }
+  return {slug: meilleur, note};
+}
+
+/* Conversion en grammes. Sans unité, un nombre compte des pièces et se
+   multiplie par le poids de portion déjà présent dans la base : « 2 oignons »
+   valent deux fois 50 g. Sans quantité du tout, on renonce plutôt que
+   d'inventer : la ligne part en texte libre. */
+function rqGrammes(l, slug){
+  if(l.q == null) return null;
+  const cas = () => RQ_CAS[slug] != null ? RQ_CAS[slug] : 13;
+  let g = null;
+  if(l.uni === 'cas') g = l.q * cas();
+  else if(l.uni === 'cac') g = l.q * cas() / 3;
+  else if(typeof l.uni === 'number') g = l.q * l.uni;
+  else {
+    /* Pas d'unité en tête, mais une masse citée plus loin : « 1 pavé de saumon
+       de 150 g » vaut 150 g, pas une portion de saumon par défaut. Le site est
+       plus fiable que le poids de portion de la base. */
+    const m = l.nom.match(/(\d+(?:[.,]\d+)?)\s*(kg|gr|g|cl|ml|dl|l)\b/);
+    if(m && typeof RQ_UNI[m[2]] === 'number'){
+      g = l.q * parseFloat(m[1].replace(',', '.')) * RQ_UNI[m[2]];
+    } else {
+      const f = F.get(slug);
+      if(!f) return null;
+      g = l.q * f.p;
+    }
+  }
+  g = Math.round(g);
+  if(g > 5000) return 5000;
+  return g >= 1 ? g : null;
+}
+
+/* Passe l'ensemble d'une liste lue. Les doublons sont additionnés plutôt que
+   dupliqués : une recette qui cite l'huile deux fois donne une seule ligne. */
+function rqMapper(lignes){
+  const ing = [], autres = [], rates = [];
+  for(const brut of lignes){
+    const l = rqLigne(brut);
+    let slug = rqSlug(l.nom);
+    /* Le mot d'unité rendu à la désignation, mais seulement si l'expression
+       entière est une entrée connue : « filet de saumon » oui, « noix de
+       beurre » non — celle-ci reste une noix de beurre, soit quinze grammes. */
+    if(l.uni != null){
+      const cle = rqTete(l.plein);
+      if(RQ_SYN.has(cle)){ slug = RQ_SYN.get(cle); l.uni = null; }
+    }
+    if(slug === null){ autres.push(l.brut); continue; }
+    if(slug === undefined){ autres.push(l.brut); rates.push(l.brut); continue; }
+    const g = rqGrammes(l, slug);
+    if(g == null){ autres.push(l.brut); continue; }
+    const dejà = ing.find(x => x[0] === slug);
+    if(dejà) dejà[1] = Math.min(5000, dejà[1] + g);
+    else ing.push([slug, g]);
+  }
+  return {ing, autres, rates};
+}
+
+/* Appel de l'Edge Function. Le jeton de session est transmis : la fonction est
+   déployée avec vérification du JWT, faute de quoi ce serait un proxy HTTP
+   ouvert utilisable par n'importe qui. */
+async function rqLire(url){
+  if(!SB.ready()) return {err:'Serveur non configuré'};
+  const tok = await SB.fresh();
+  if(!tok) return {err:'Session expirée · reconnecte-toi'};
+  const r = await SB.call('/functions/v1/lire-recette', {
+    method:'POST',
+    headers:{Authorization:'Bearer ' + tok},
+    body: JSON.stringify({url}),
+  });
+  if(r.status === 0) return {err:'Pas de réseau'};
+  const b = r.body || {};
+  if(!r.ok || !b.ok) return {err: b.error || 'Lecture impossible', sites: b.sites};
+  return {rec: b};
+}
+
 /* Composition d'une recette. Les ingrédients se choisissent dans la base, pas
    au clavier : la recette devient mesurable à la publication, elle affiche son
    empreinte par personne, et l'enregistrer en plat type ne demande plus aucune
@@ -2119,7 +2519,8 @@ async function badgeShare(t){
    « Autres », en texte libre et hors du calcul. */
 function recipeSheet(){
   if(!SESS) return toast('Il faut un compte pour publier');
-  S.rq = S.rq || {title:'', pers:2, ing:[], autres:'', prep:'', url:'', q:''};
+  S.rq = S.rq || {title:'', pers:2, ing:[], autres:'', prep:'', url:'', q:'',
+                  mode:'man', lien:'', lu:null, err:null, occupe:false};
   const q = S.rq;
 
   /* Relire les champs avant tout re-rendu, sinon ajouter un ingrédient effacerait
@@ -2130,14 +2531,115 @@ function recipeSheet(){
     const a = v('#rq_a'); if(a !== null) q.autres = a;
     const p = v('#rq_p'); if(p !== null) q.prep   = p;
     const u = v('#rq_u'); if(u !== null) q.url    = u;
+    const w = v('#rq_w'); if(w !== null) q.lien   = w;
     const n = v('#rq_n'); if(n !== null) q.pers   = Math.max(1, Math.min(30, Math.round(+n) || 1));
   };
 
+  /* Le sélecteur reste affiché dans les deux modes : après une lecture on
+     retombe sur la saisie manuelle, qui sert d'écran de relecture, et il faut
+     pouvoir repartir sur un autre lien sans fermer la feuille. */
+  const onglets = () => `
+    <div class="rtabs">
+      <button type="button" data-rqm="man" aria-pressed="${q.mode === 'man'}">Saisie manuelle</button>
+      <button type="button" data-rqm="url" aria-pressed="${q.mode === 'url'}">Depuis un lien</button>
+    </div>`;
+
+  const brancheOnglets = () => {
+    $('#sheet').querySelectorAll('[data-rqm]').forEach(b => b.onclick = () => {
+      collecte();
+      if(q.mode === b.dataset.rqm) return;
+      q.mode = b.dataset.rqm; q.err = null;
+      peint();
+    });
+  };
+
+  /* Panneau de lecture. La liste des sites est rappelée sur place : sans elle,
+     l'utilisateur colle un lien au hasard et se heurte à un refus qu'il ne
+     comprend pas. */
+  const peintUrl = () => {
+    openSheet(`
+      <div class="unit">Idée de recette</div>
+      <h3 style="margin:2px 0 10px">D’où vient la recette ?</h3>
+      ${onglets()}
+
+      <input class="search" id="rq_w" maxlength="400" inputmode="url" autocapitalize="off"
+             autocomplete="off" spellcheck="false" value="${esc(q.lien)}"
+             placeholder="https://www.marmiton.org/recettes/…">
+
+      ${q.err ? `<div class="src" style="color:var(--brick); margin:0 0 8px">${esc(q.err)}</div>` : ''}
+
+      <div class="actions" style="margin-top:6px">
+        <button class="btn btn-1" id="rq_go2" ${q.occupe ? 'disabled' : ''}>${
+          q.occupe ? 'Lecture…' : 'Lire la page'}</button>
+        <button class="btn btn-2" id="rq_no">Annuler</button>
+      </div>
+
+      <div class="unit" style="margin:14px 0 4px">Sites lus</div>
+      <div class="small mute">Marmiton · 750g · CuisineAZ · Cuisine du Journal des Femmes ·
+        Ptitchef · Cuisine Actuelle · L’atelier des Chefs · Académie du Goût · Chef Simon ·
+        Cookomix · Ricardo · HelloFresh · Allrecipes · BBC Good Food</div>
+
+      <div class="src" style="margin-top:12px">La page est lue côté serveur, puis ses ingrédients
+        sont rapprochés de la base. Rien n’est publié : la lecture remplace le brouillon en cours
+        et s’ouvre en relecture, quantité par quantité.</div>`);
+
+    const w = $('#rq_w');
+    const lance = async () => {
+      collecte();
+      const lien = (q.lien || '').trim();
+      if(lien.length < 8) return toast('Colle d’abord un lien');
+      q.err = null; q.occupe = true; peint();
+
+      const {rec, err} = await rqLire(lien);
+      q.occupe = false;
+      if(err){ q.err = err; return peint(); }
+
+      const m = rqMapper(rec.ing);
+      q.title  = (rec.titre || q.title || '').slice(0, 90);
+      if(rec.pers) q.pers = rec.pers;
+      q.ing    = m.ing;
+      q.autres = m.autres.join('\n').slice(0, 600);
+      q.prep   = (rec.prep || []).join('\n').slice(0, 2500);
+      q.url    = rec.url;
+      q.lu     = {site:rec.site, n:m.ing.length, a:m.autres.length,
+                  rates:m.rates, pers:rec.pers, via:rec.via};
+      q.mode   = 'man';
+      peint();
+    };
+    $('#rq_go2').onclick = lance;
+    w.onkeydown = e => { if(e.key === 'Enter'){ e.preventDefault(); lance(); } };
+    $('#rq_no').onclick = () => { S.rq = null; closeSheet(); };
+    brancheOnglets();
+  };
+
+  /* Compte rendu de lecture. Il doit dire ce qui n'a pas été rapproché, et le
+     nommer : un total d'empreinte sans cette mention laisserait croire que la
+     recette entière a été mesurée. */
+  const bandeau = () => {
+    const l = q.lu;
+    if(!l) return '';
+    const r = l.rates.length;
+    return `<div style="border:1px solid var(--line); border-radius:10px;
+                        padding:10px 11px; margin:0 0 12px">
+      <div class="unit">Lu depuis ${esc(l.site)}${l.via === 'microdata' ? ' · sans données structurées' : ''}</div>
+      <div class="small mute" style="margin-top:2px">${l.n} ingrédient${l.n > 1 ? 's' : ''}
+        rapproché${l.n > 1 ? 's' : ''} de la base${l.a ? ` · ${l.a} en texte libre` : ''}${
+        l.pers ? ` · annoncée pour ${l.pers}` : ' · portions non annoncées, à vérifier'}</div>
+      ${r ? `<div class="small" style="color:var(--brick); margin-top:4px">Non reconnu${r > 1 ? 's' : ''} :
+        ${esc(l.rates.slice(0, 6).join(' · '))}${r > 6 ? ` et ${r - 6} de plus` : ''}</div>` : ''}
+      <div class="src" style="margin-top:6px">Les quantités sont converties, pas mesurées :
+        relis-les avant de publier. Une cuillerée, une gousse ou une pièce valent une moyenne.</div>
+    </div>`;
+  };
+
   const peint = () => {
+    if(q.mode === 'url') return peintUrl();
     const kg = kgOf(q.ing), pers = Math.max(1, q.pers);
     openSheet(`
       <div class="unit">Idée de recette</div>
       <h3 style="margin:2px 0 10px">Qu’est-ce qui était bon ?</h3>
+      ${onglets()}
+      ${bandeau()}
 
       <input class="search" id="rq_t" maxlength="90" autocomplete="off"
              value="${esc(q.title)}" placeholder="Titre — ex. Dahl de lentilles corail">
@@ -2190,6 +2692,8 @@ function recipeSheet(){
       </div>
       <div class="src" style="margin-top:8px">Visible de vos amis, qui pourront l’enregistrer dans leurs
         plats types. Ce qui figure dans « Autres » ne compte pas dans l’empreinte : elle est donc minorante.</div>`);
+
+    brancheOnglets();
 
     const qi = $('#rq_q'), sg = $('#rq_sg');
     const peintSugg = () => {
