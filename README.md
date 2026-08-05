@@ -62,3 +62,11 @@ Les cartes de restaurant et les fiches HelloFresh donnent les ingrédients, jama
 **v67** — Les plats thaï perdent leur champ `src` : ils se cuisinent à la maison, donc plus de
 mode Restaurant forcé (le sélecteur de préparation reste libre) et ils entrent dans le conseil
 du soir, dont `src` les excluait.
+
+**v68** — Bo bun au poulet ajouté (1,03 kg contre 3,56 pour la version bœuf, à calories et
+protéines quasi identiques : 935 vs 955 kcal, 40 g de protéines dans les deux cas).
+
+Catalogue Jow toujours vide : les noms de recettes ne sont pas récupérables depuis les pages de
+planification (identifiants seuls dans des iframes JavaScript, PDF interdit aux robots, noms
+uniquement lisibles dans une image de calendrier). La case à cocher est en place et grisée ;
+il ne manque que la liste des noms.
