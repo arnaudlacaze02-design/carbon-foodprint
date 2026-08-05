@@ -8,7 +8,7 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-3.19.0';
+const VERSION = 'cfp-3.20.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
@@ -88,6 +88,11 @@ self.addEventListener('push', e => {
   const opts = {
     body:  d.body || '',
     tag:   d.tag  || 'soir',
+    /* Deux évènements de même nature portent le même tag pour ne pas empiler
+       cinq bandeaux « a aimé votre publication ». Sans renotify, le second
+       remplacerait le premier en silence, sans vibration ni son : il faut le
+       demander explicitement. */
+    renotify: d.renotify === true,
     icon:  './icon-192.png',
     badge: './icon-192.png',
     data:  {tab: d.tab || 'saisie', vue: d.vue || 'actu'},
