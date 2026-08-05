@@ -1,7 +1,7 @@
 # Carbon FOODprint
 
 Comptabilité carbone alimentaire personnelle. Application web autonome, sans dépendance
-externe : le référentiel de facteurs d'émission — 236 aliments — est embarqué dans `index.html`.
+externe : le référentiel de facteurs d'émission — 237 aliments, 322 plats types — est embarqué dans `index.html`.
 
 ## Mise en ligne sur GitHub Pages
 
@@ -48,3 +48,17 @@ Réserve méthodologique sur ces quatre entrées : la poudre de protéines laiti
 dominant et la littérature va de 7 à 25 kg CO₂e/kg selon l'allocation retenue entre le lactosérum
 et le fromage dont il est le co-produit. Valeur médiane de 15 retenue, documentée dans le champ
 `xn` de chaque entrée. À corriger en priorité si une valeur ADEME ou Agribalyse paraît.
+
+**v66** — Carte thaï ajoutée (36 plats, sans numéro ni nom d'enseigne).
+Catalogues de marque déverrouillables par case à cocher dans le Profil : le champ `lk` d'un plat
+nomme la marque qui l'ouvre, et tout passe par l'accesseur `DISHES()`. HelloFresh livré avec
+97 recettes. Jow câblé mais vide — voir ci-dessous. Huile d'olive promue au catalogue : elle
+était citée par six recettes sans être saisissable, et `kgOf` l'ignorait donc silencieusement
+dans tout plat qui la contenait.
+
+Grammages des plats : ce sont des estimations d'assiette, comme pour les cartes déjà présentes.
+Les cartes de restaurant et les fiches HelloFresh donnent les ingrédients, jamais les poids.
+
+**v67** — Les plats thaï perdent leur champ `src` : ils se cuisinent à la maison, donc plus de
+mode Restaurant forcé (le sélecteur de préparation reste libre) et ils entrent dans le conseil
+du soir, dont `src` les excluait.
