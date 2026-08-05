@@ -1,7 +1,7 @@
 # Carbon FOODprint
 
 Comptabilité carbone alimentaire personnelle. Application web autonome, sans dépendance
-externe : le référentiel de facteurs d'émission — 237 aliments, 322 plats types — est embarqué dans `index.html`.
+externe : le référentiel de facteurs d'émission — 240 aliments, 326 plats types — est embarqué dans `index.html`.
 
 ## Mise en ligne sur GitHub Pages
 
@@ -90,3 +90,16 @@ qui compare correctement au jour, montrait l'inverse. Échelle désormais commun
 *Affichage du cumulé.* Tuiles « Cumul sur x jours » retirées pour les calories et les protéines.
 Ajout de `.kpis + .card, .card + .kpis, .kpis + .kpis{margin-top:12px}` : seul `.card + .card`
 existait, une grille de KPI touchait donc la carte suivante bord à bord.
+
+**v70** — Steak haché 5 % et 15 % MG, bière pression (pinte). Trois presets et un raccourci
+« Pinte » dans le parcours boisson.
+
+Les deux hachés partagent la même empreinte au kilo (28,0, valeur bœuf ADEME) : le taux de matière
+grasse est un choix de parage dans une même carcasse, pas une différence d'élevage. Seules les
+calories changent — 163 contre 263 kcal pour 125 g. Report volontairement majorant, le haché
+français venant en partie de vaches de réforme laitières dont l'impact est partagé avec le lait.
+
+La pinte pression est à 0,41 kg CO₂e contre 0,67 pour le même volume en bouteilles : l'emballage
+pèse 0,62 sur les 1,347 de la bière ADEME, et un fût inox est rempli des centaines de fois. Reste
+à vérifier : les macros des deux hachés viennent de CIQUAL mais leur `cq` n'est pas renseigné,
+faute d'avoir pu relever le code.
