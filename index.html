@@ -103,12 +103,6 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
    monochrome, tes deux versions ne diffèrent que par la couleur de l'encre et
    du fond. Un seul fichier prend donc la teinte de la surface où il se pose,
    sans jamais laisser voir un rectangle de fond. */
-.mark{width:22px; height:30px; flex:0 0 auto; display:block;
-  background-color:var(--on-topbar);
-  -webkit-mask:url(logo-mark.png) center/contain no-repeat;
-  mask:url(logo-mark.png) center/contain no-repeat}
-/* sur les écrans les plus étroits, la mascotte cède la place au nom */
-@media (max-width:359px){ .mark{display:none} }
 
 /* Logo complet, posé sur le fond de page : encre verte en thème clair,
    crème en thème sombre. Illisible sous 90 px de large, d'où cette taille. */
@@ -989,13 +983,26 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .jrow{cursor:pointer}
 .jrow:active{background:var(--active)}
 
+/* ---------------- page Profil ----------------
+   L'identité en haut, puis les réglages par sections. Le bandeau reprend le
+   gabarit d'une carte plutôt que celui d'un en-tête plein : la page vit sous la
+   barre de titre de l'app, un second bloc coloré ferait deux en-têtes. */
+.pfhead{display:flex; align-items:center; gap:14px; background:var(--card);
+  border:1px solid var(--line); border-radius:var(--r); padding:14px; margin-bottom:4px}
+.pfhead .who{min-width:0; flex:1}
+.pfhead h3{margin:2px 0 3px}
+.pfback{background:none; border:0; font-family:var(--mono); font-size:10px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--mute);
+  padding:6px 0 8px; display:flex; align-items:center; gap:5px; cursor:pointer}
+.pfback:active{color:var(--ink)}
+.pfback svg{width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:2}
+
 @media(prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
 
 /* surcharges petits écrans — placées en fin de feuille pour primer dans la cascade */
 @media(max-width:359px){
   .wordmark{font-size:15px}
   .wordmark em{font-size:15px}
-  .mark{width:26px; height:26px}
   .tabbar span:not(.ic){font-size:7.5px}
 }
 </style>
@@ -1011,7 +1018,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
           <path d="M27 88c0-12.7 10.3-23 23-23s23 10.3 23 23z"/>
         </g>
       </svg>
-    </button><i class="mark" aria-hidden="true"></i><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
+    </button><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="streak" id="topStreak" title="Jours consécutifs renseignés">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
@@ -1440,7 +1447,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-71';
+const BUILD = 'cfp-72';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -5325,8 +5332,70 @@ function profEcart(){
 /* Fenêtre de profil : unique point d'entrée du compte. Elle remplace la carte
    qui vivait dans le Tracker — deux portes vers la même chose se contredisent
    tôt ou tard. */
-function profileSheet(){
-  if(!SB.ready()) return toast('Comptes non configurés sur cette copie');
+/* ==================== page Profil ====================
+   C'était une fenêtre montante, c'est devenu un écran. La raison est simple :
+   le contenu avait dépassé ce qu'une feuille peut porter — profil, objectifs,
+   habitude du matin, affichage, notifications, catalogues, compte. Une feuille
+   qu'on fait défiler sur trois écrans n'est plus une feuille, c'est une page
+   qui s'excuse d'en être une. Les fenêtres restent pour ce qui est court et
+   modal : le questionnaire, le diagnostic, la déconnexion.
+
+   L'entrée se fait par l'hexagone du header, pas par la barre d'onglets : le
+   profil se consulte de temps en temps, les cinq onglets sont les gestes
+   quotidiens et leur place est comptée.
+
+   `profileSheet()` reste sous ce nom et redirige ici. Une quinzaine d'endroits
+   l'appellent pour se repeindre après un changement d'état — bascule des
+   données nutritionnelles, ajout d'un catalogue, abonnement au push — et les
+   renommer tous n'apporterait rien qu'un risque d'en oublier un. */
+
+/* D'où l'on vient, pour le lien de retour. Volontairement hors de S : ce n'est
+   pas un état à conserver d'une session à l'autre, seulement le souvenir du
+   dernier onglet de cette visite. */
+let pfFrom = 'tracker';
+
+/* Les blocs du profil ont été écrits pour une feuille, où chacun s'ouvrait sur
+   un filet de séparation. Dans une page à cartes ce filet tombe en haut d'une
+   carte et se lit comme un soulignement de titre. On le retire ici plutôt que
+   d'ajouter un paramètre à cinq fonctions. */
+const sansFilet = h => String(h).replace(/^\s*<div class="hr"><\/div>/, '');
+
+/* Apparence. Même segment que la fenêtre de réglages de l'engrenage — c'est
+   délibérément le même contrôle à deux endroits : l'engrenage est l'accès
+   rapide, le profil est l'endroit où l'on s'attend à trouver ses préférences. */
+function themeBlock(){
+  const opts = [
+    ['light','Clair','<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>'],
+    ['dark','Sombre','<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5z"/></svg>'],
+    ['system','Auto','<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg>']
+  ];
+  return `
+    <div class="setrow" style="padding-top:0">
+      <div class="l">Apparence<i>« Auto » suit le réglage de l’iPhone.</i></div>
+      <div class="themeseg" id="tseg2">
+        ${opts.map(([k,l,ic]) => `<button data-theme-opt="${k}" aria-pressed="${themeMode===k}">${ic}${l}</button>`).join('')}
+      </div>
+    </div>`;
+}
+
+/* Accès au centre de notifications, avec son compte de non-lues. La liste elle
+   même reste une feuille : on la parcourt, on tape une ligne, elle s'efface —
+   c'est exactement l'usage d'une fenêtre montante. */
+function notesRow(){
+  const n = notesNonLus();
+  return `
+    <div class="total" style="margin-top:0">
+      <div style="min-width:0"><div class="unit">Centre de notifications</div>
+        <div class="small mute">${!SESS
+          ? 'Il faut un compte : les notifications sont rattachées à une identité.'
+          : n ? `${n} non lue${n > 1 ? 's' : ''} · rappel du soir, j’aime, amis, défis, badges.`
+              : 'Tout est lu. Rappel du soir, j’aime, demandes d’amis, défis et badges.'}</div></div>
+      ${n ? `<div class="v" style="font-size:19px;color:var(--brick)">${n > 9 ? '9+' : n}</div>` : ''}
+    </div>
+    <button class="btn btn-2" id="pf_notes" style="margin-top:8px">Voir mes notifications</button>`;
+}
+
+function renderProfil(){
   const hex = `<svg viewBox="0 0 100 112" style="width:62px;height:70px;overflow:visible" aria-hidden="true">
       <polygon points="50,4 92,29 92,79 50,104 8,79 8,29"
         fill="var(--active)" stroke="${SESS ? 'var(--straw)' : 'var(--line)'}" stroke-width="3"/>
@@ -5336,53 +5405,52 @@ function profileSheet(){
       </g>
     </svg>`;
 
-  if(SESS){
-    const ls = S.lastSync
-      ? 'Dernière synchro ' + new Date(S.lastSync).toLocaleString('fr-FR',
-          {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})
-      : 'Pas encore synchronisé';
-    openSheet(`
-      <div style="display:flex;align-items:center;gap:14px">
-        ${hex}
-        <div style="min-width:0">
-          <div class="unit">Connecté</div>
-          <h3 style="margin:2px 0 3px">${esc(SESS.username)}</h3>
-          <div class="small mute">${esc(ls)}</div>
-        </div>
+  const ls = S.lastSync
+    ? 'Dernière synchro ' + new Date(S.lastSync).toLocaleString('fr-FR',
+        {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})
+    : 'Pas encore synchronisé';
+
+  const tete = SESS ? `
+    <div class="pfhead">
+      ${hex}
+      <div class="who">
+        <div class="unit">Connecté</div>
+        <h3>${esc(SESS.username)}</h3>
+        <div class="small mute">${esc(ls)}</div>
       </div>
-      <div class="hr"></div>
+    </div>` : `
+    <div class="pfhead">
+      ${hex}
+      <div class="who">
+        <div class="unit">${SB.ready() ? 'Aucun compte' : 'Hors serveur'}</div>
+        <h3>Profil</h3>
+        <div class="small mute">${SB.ready()
+          ? 'Vos repas vivent dans ce navigateur'
+          : 'Comptes non configurés sur cette copie'}</div>
+      </div>
+    </div>`;
+
+  /* Le compte en dernier, et non en premier comme dans l'ancienne feuille :
+     tout ce qui précède fonctionne sans identité. Mettre le formulaire de
+     connexion en tête laissait croire l'inverse. */
+  const compte = !SB.ready() ? '' : SESS ? `
+    <h2 class="sec">Compte</h2>
+    <div class="card">
       <div class="stagelist">
         <span class="unit">Repas</span><span class="small">${S.hist.length} dans ce compte</span><span></span>
       </div>
-      ${profBlock()}
-      ${pdjBlock()}
-      ${nutriBlock()}
-      ${marquesBlock()}
-      ${notifBlock()}
-      <div class="actions" style="margin-top:14px">
+      <div class="actions" style="margin-top:12px">
         <button class="btn btn-1" id="ac_sync">Synchroniser</button>
         <button class="btn btn-2" id="ac_out">Se déconnecter</button>
       </div>
-      <div class="src" style="margin-top:10px">La synchro se fait aussi seule à l'ouverture et après
-        chaque saisie. Vous restez connecté jusqu'à ce que vous vous déconnectiez.</div>`);
-  } else {
-    openSheet(`
-      <div style="display:flex;align-items:center;gap:14px">
-        ${hex}
-        <div style="min-width:0">
-          <div class="unit">Aucun compte</div>
-          <h3 style="margin:2px 0 3px">Profil</h3>
-          <div class="small mute">Vos repas vivent dans ce navigateur</div>
-        </div>
-      </div>
-      ${profBlock()}
-      ${pdjBlock()}
-      ${nutriBlock()}
-      ${marquesBlock()}
-      ${notifBlock()}
-      <div class="hr"></div>
-      <p class="small">Un compte permet de retrouver son historique sur un autre appareil.
-        Pseudo et mot de passe uniquement — aucune adresse e-mail n'est demandée.</p>
+      <div class="src" style="margin-top:10px">La synchro se fait aussi seule à l’ouverture et après
+        chaque saisie. Vous restez connecté jusqu’à ce que vous vous déconnectiez.</div>
+    </div>` : `
+    <h2 class="sec">Compte</h2>
+    <div class="card">
+      <p class="small" style="margin-top:0">Un compte permet de retrouver son historique sur un autre
+        appareil, et ouvre le feed. Pseudo et mot de passe uniquement — aucune adresse e-mail n’est
+        demandée.</p>
       <input class="search" id="ac_p" placeholder="Pseudo" autocomplete="username">
       <input class="search" id="ac_m" type="password" placeholder="Mot de passe"
              autocomplete="current-password" style="margin-top:7px">
@@ -5390,43 +5458,87 @@ function profileSheet(){
         <button class="btn btn-1" id="ac_in">Se connecter</button>
         <button class="btn btn-2" id="ac_up">Créer un compte</button>
       </div>
-      <button class="backlink" id="ac_lost" style="margin-top:6px">Mot de passe oublié ›</button>`);
-  }
+      <button class="backlink" id="ac_lost" style="margin-top:6px">Mot de passe oublié ›</button>
+    </div>`;
+
+  $('#view').innerHTML = `
+    <button class="pfback" id="pf_back">
+      <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>Retour
+    </button>
+    ${tete}
+
+    <h2 class="sec">Mon profil</h2>
+    <div class="card">${sansFilet(profBlock())}</div>
+
+    <h2 class="sec">Mes objectifs</h2>
+    ${objBlock(agg())}
+
+    <h2 class="sec">Affichage</h2>
+    <div class="card">${themeBlock()}${sansFilet(nutriBlock())}</div>
+
+    <h2 class="sec">Notifications</h2>
+    <div class="card">${notesRow()}${notifBlock()}</div>
+
+    <h2 class="sec">Petit-déjeuner</h2>
+    <div class="card">${sansFilet(pdjBlock())}</div>
+
+    <h2 class="sec">Catalogues</h2>
+    <div class="card">${sansFilet(marquesBlock())}</div>
+
+    ${compte}
+    <div class="stagelist" style="margin-top:14px">
+      <span class="unit">Version</span><span class="small">${BUILD}</span><span></span>
+    </div>`;
+
+  const bk = $('#pf_back');
+  if(bk) bk.onclick = () => go(pfFrom === 'profil' ? 'tracker' : pfFrom);
+
   bindAccount();
+
   const pg = $('#pf_go');
   if(pg) pg.onclick = () => profQuiz(0);
+  const og = $('#obj_go');
+  if(og) og.onclick = () => profQuiz(PROFQ.findIndex(q => q.k === 'objSet'));
   const pd = $('#pf_diag');
   if(pd) pd.onclick = diagSheet;
-  $('#sheet').querySelectorAll('[data-mq]').forEach(b => b.onclick = () => {
+  const pnt = $('#pf_notes');
+  if(pnt) pnt.onclick = () => notesSheet();
+
+  const tg = $('#tseg2');
+  if(tg) tg.querySelectorAll('[data-theme-opt]').forEach(btn => btn.onclick = () => {
+    applyTheme(btn.dataset.themeOpt);
+    tg.querySelectorAll('[data-theme-opt]').forEach(x =>
+      x.setAttribute('aria-pressed', x.dataset.themeOpt === themeMode));
+  });
+
+  $('#view').querySelectorAll('[data-mq]').forEach(b => b.onclick = () => {
     const k = b.dataset.mq;
     S.marques = Object.assign({}, S.marques, {[k]: !marqueOn(k)});
-    save(); profileSheet();
+    save(); renderProfil();
     const m = MARQUES.find(x => x.k === k);
     toast(marqueOn(k) ? 'Recettes ' + m.n + ' ajoutées' : 'Recettes ' + m.n + ' retirées');
   });
+
   const pnu = $('#pf_nutri');
   if(pnu) pnu.onclick = () => {
     S.nutri = !nuOn(); save();
-    profileSheet();
-    /* Repeindre : l'interrupteur n'a de sens visible que si le détail du jour a
-       déjà changé quand la feuille se referme. */
-    if(S.tab === 'tracker'){ try{ renderTracker(); }catch(e){} }
+    renderProfil();
     toast(nuOn() ? 'Calories et protéines affichées' : 'Données nutritionnelles masquées');
   };
+
   const pn = $('#pf_notif');
   if(pn && !pn.disabled) pn.onclick = notifBascule;
   const pp = $('#pf_push');
   if(pp) pp.onclick = async () => {
     pp.disabled = true; pp.textContent = 'Abonnement…';
     const ok = await pushArm();
-    profileSheet();
+    renderProfil();
     toast(ok ? 'Rappel du soir armé, même app fermée' : 'Abonnement toujours refusé');
   };
 
   const pj = $('#pf_pdj');
   if(pj) pj.onclick = () => {
     const h = pdjHab();
-    closeSheet();
     S.meal = 'pdj'; S.mode = h.hmode || 'frais'; S.comCat = 'plat';
     S.draft = h.l.map(l => [l[0], l[1], 'plat', S.mode]);
     S.pdjEdit = true; S.pdjNew = true; S.pdjSave = false;
@@ -5436,7 +5548,7 @@ function profileSheet(){
   };
   const pjx = $('#pf_pdjx');
   if(pjx) pjx.onclick = () => {
-    if(pjx.dataset.ok){ pdjHabDrop(); profileSheet(); toast('Petit-déjeuner habituel supprimé'); }
+    if(pjx.dataset.ok){ pdjHabDrop(); renderProfil(); toast('Petit-déjeuner habituel supprimé'); }
     else { pjx.dataset.ok = '1'; pjx.textContent = 'Confirmer'; }
   };
   const ps = $('#pf_share');
@@ -5445,9 +5557,18 @@ function profileSheet(){
     ps.disabled = true;
     const ok = await tastePush();
     if(!ok){ S.tasteShared = !S.tasteShared; ps.disabled = false; return toast('Impossible pour l’instant'); }
-    save(); profileSheet();
+    save(); renderProfil();
     toast(S.tasteShared ? 'Fiche visible de vos amis' : 'Partage fermé');
   };
+}
+
+/* Compatibilité : les appels existants repeignent la page si on y est déjà, et
+   y vont sinon. Une feuille ouverte par-dessus est refermée au passage —
+   `profQuiz` et `diagSheet` finissent par ici et doivent rendre l'écran. */
+function profileSheet(){
+  closeSheet();
+  if(S.tab === 'profil') renderProfil();
+  else go('profil');
 }
 
 /* Bloc profil de la fenêtre : invitation tant que rien n'est rempli, résumé
@@ -7354,12 +7475,16 @@ function renderJeux(){
 /* ============================ navigation ============================ */
 function go(tab){
   if(S.tab === 'saisie' && tab !== 'saisie' && S.editId){ S.editId = null; S.draft = []; }
+  /* D'où l'on vient, pour le lien de retour du profil. Le profil n'a pas de
+     bouton dans la barre : sans ce souvenir, on y resterait coincé. */
+  if(tab === 'profil' && S.tab !== 'profil') pfFrom = S.tab;
   S.tab = tab; topbar();
   document.querySelectorAll('#tabbar button').forEach(b =>
     b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
   window.scrollTo(0,0);
-  ({biblio:renderBiblio, saisie:renderSaisie, tracker:renderTracker,
-    jeux:renderJeux, feed:renderFeed})[tab]();
+  const vues = {biblio:renderBiblio, saisie:renderSaisie, tracker:renderTracker,
+                jeux:renderJeux, feed:renderFeed, profil:renderProfil};
+  (vues[tab] || vues.saisie)();
   /* Le feed dépend d'écritures faites par d'autres : il doit se relire à chaque
      entrée dans l'onglet, sinon une demande reçue entre-temps reste invisible.
      Rafraîchissement silencieux — un échec réseau ne doit rien signaler. */
@@ -7459,7 +7584,7 @@ if(gear) gear.onclick = themeSheet;
 const bellBtn = document.getElementById('bell');
 if(bellBtn) bellBtn.onclick = () => notesSheet();
 const avaBtn = document.getElementById('topAva');
-if(avaBtn) avaBtn.onclick = profileSheet;
+if(avaBtn) avaBtn.onclick = () => go('profil');
 SB.readSess();
 load();
 /* Rattrapage avant addStandards : les six favoris standards, posés d'office au
@@ -7651,23 +7776,29 @@ function notifDemande(){
   $('#nd_non').onclick = () => { repondre('non'); toast('Rappels désactivés · modifiable dans Profil'); };
 }
 
+/* Repeindre le profil s'il est à l'écran, et rien d'autre sinon. La nuance
+   compte : cette fonction est aussi appelée par la fenêtre de première
+   ouverture, et un « Oui, activer » qui projetterait sur la page Profil serait
+   une porte dérobée vers un écran qu'on n'a pas demandé. */
+const pfRepeint = () => { if(S.tab === 'profil') renderProfil(); };
+
 async function notifBascule(){
   if(S.notif.on){
     S.notif.on = false; save();
     await pushDisarm();
-    badgeSync(); profileSheet(); return toast('Rappels coupés');
+    badgeSync(); pfRepeint(); return toast('Rappels coupés');
   }
   if(typeof Notification === 'undefined') return toast('Ce navigateur ne gère pas les notifications');
   if(Notification.permission === 'denied')
     return toast('Refusées au niveau du téléphone : à réactiver dans ses réglages');
   const r = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
   if(r !== 'granted') return toast('Sans autorisation, pas de rappel');
-  S.notif.on = true; save(); badgeSync(); profileSheet();
+  S.notif.on = true; save(); badgeSync(); pfRepeint();
   /* L'abonnement au push est tenté ici, une fois l'autorisation obtenue : c'est
      le seul moment où Safari accepte subscribe(). Un échec ne remet pas les
      rappels en cause, il retire seulement la livraison app fermée — le panneau
      le dira. */
-  pushArm().then(ok => { profileSheet(); if(ok) toast('Rappel du soir armé, même app fermée'); });
+  pushArm().then(ok => { pfRepeint(); if(ok) toast('Rappel du soir armé, même app fermée'); });
   notifMontre('Rappels activés', 'Le matin, le soir si la journée est incomplète, et ce que font vos amis.', 'test');
 }
 
