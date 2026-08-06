@@ -959,6 +959,33 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
   display:flex; align-items:center}
 .gear svg{width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:1.6}
 .gear:active{color:var(--on-topbar-strong)}
+
+/* Cloche du centre de notifications. Même gabarit que l'engrenage — c'est un
+   accès permanent, pas un signal : ce qui alerte est le compteur, pas l'icône. */
+.bell{background:none; border:0; color:var(--on-topbar-mute); padding:4px;
+  display:flex; align-items:center; position:relative}
+.bell svg{width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:1.6}
+.bell:active{color:var(--on-topbar-strong)}
+.bell .cnt{position:absolute; top:-1px; right:-3px; min-width:15px; height:15px;
+  border-radius:999px; background:var(--brick); color:#fff; display:none;
+  font-family:var(--mono); font-size:9.5px; line-height:15px; text-align:center;
+  padding:0 3px; font-weight:600}
+.bell[data-n]:not([data-n="0"]) .cnt{display:block}
+
+/* Une ligne du centre. Le liseré de gauche distingue le non-lu du lu sans
+   couleur de fond : un fond teinté sur dix lignes ferait un mur. */
+.note{display:flex; gap:10px; align-items:flex-start; width:100%; text-align:left;
+  background:var(--card); border:1px solid var(--line); border-radius:11px;
+  padding:10px 12px; margin-top:7px; font-family:inherit; color:var(--ink); cursor:pointer}
+.note:active{background:var(--active)}
+.note[data-lu="0"]{border-left:3px solid var(--brick); padding-left:10px}
+.note .em{flex:0 0 auto; font-size:17px; line-height:1.25}
+.note .tx{min-width:0; flex:1}
+.note .tx b{display:block; font-size:14.5px; font-weight:600; line-height:1.35}
+.note .tx span{display:block; font-size:12.5px; color:var(--mute); line-height:1.5; margin-top:1px}
+.note .qd{flex:0 0 auto; font-family:var(--mono); font-size:9.5px; color:var(--mute);
+  letter-spacing:.04em; padding-top:3px}
+
 .jrow{cursor:pointer}
 .jrow:active{background:var(--active)}
 
@@ -991,6 +1018,10 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
         <b>0</b>
       </div>
       <div class="today" id="topToday"></div>
+      <button class="bell" id="bell" aria-label="Notifications">
+        <svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6v3.5L4.5 16h15L18 12.5V9a6 6 0 0 0-6-6z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
+        <i class="cnt">0</i>
+      </button>
       <button class="gear" id="gear" aria-label="Réglages">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
       </button>
@@ -1298,7 +1329,7 @@ function navRead(){
    annoncer du tout. */
 const NOTIF0 = () => ({on:false, vu:{}, lastPost:null, luPost:null,
                        vuLikes:null, vuAmis:null, vuDefis:null,
-                       pushOn:false, demande:null});
+                       pushOn:false, demande:null, vuTro:null});
 
 let S = {tab:'feed', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false,
@@ -1306,7 +1337,7 @@ let S = {tab:'feed', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[]
          step:'home', starred:[], knowOpen:false, troAll:false, wiz:null,
          tomb:[], lastSync:null, prof:{}, people:[], fq:'', fres:undefined,
          fr:{in:[], out:[], friends:[], state:'vide'}, tasteShared:false, posts:undefined, chal:undefined, chalQ:null, mode:null,
-         fv:'actu', notif:NOTIF0(), nutri:true, marques:{},
+         fv:'actu', notif:NOTIF0(), nutri:true, marques:{}, notes:undefined,
          plike:{}, pcom:{}, rq:null, rtab:'ing',
          pdjNew:false, pdjSave:false, pdjEdit:false};
 
@@ -1409,7 +1440,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-64';
+const BUILD = 'cfp-71';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -1968,6 +1999,7 @@ function paintSaisieDot(){
 function paintAlertes(){
   paintFeedCount();
   paintSaisieDot();
+  paintBell();
 }
 
 const frAutre = x => x.requester === SESS.uid ? x.dst : x.dem;
@@ -4109,6 +4141,7 @@ function commitMeal(){
   save(); renderSaisie();
   if(SESS) syncNow(true);
   celebrate();
+  troWatch();
   toast(habNouvelle
     ? `Petit-déjeuner enregistré · ${n2(kg)} kg · c’est votre nouvelle habitude`
     : `${MEAL[S.meal].l} enregistré · ${n2(kg)} kg`);
@@ -7423,6 +7456,8 @@ S.favs.forEach(f => { if(f.std && !Array.isArray(f.m)) f.m = ['dej','din']; });
 themeMode = readTheme(); applyTheme(themeMode);
 const gear = document.getElementById('gear');
 if(gear) gear.onclick = themeSheet;
+const bellBtn = document.getElementById('bell');
+if(bellBtn) bellBtn.onclick = () => notesSheet();
 const avaBtn = document.getElementById('topAva');
 if(avaBtn) avaBtn.onclick = profileSheet;
 SB.readSess();
@@ -7564,8 +7599,9 @@ const notifPret = () => typeof Notification !== 'undefined' && Notification.perm
 async function notifMontre(titre, corps, tag, vue){
   if(!S.notif.on || !notifPret()) return false;
   const social = tag === 'feed' || tag === 'amis' || tag === 'defis' || tag === 'like';
+  const dest = tag === 'badge' ? 'jeux' : social ? 'feed' : 'saisie';
   const opts = {body:corps, tag, icon:'./icon-192.png', badge:'./icon-192.png',
-                data:{tab: social ? 'feed' : 'saisie', vue: vue || 'actu'}};
+                data:{tab: dest, vue: vue || 'actu'}};
   try{
     /* Passer par le service worker : c'est la seule voie qui fonctionne en PWA
        installée sur iOS, et la seule qui survive à la fermeture de l'onglet. */
@@ -7732,6 +7768,178 @@ function marquesBlock(){
     }).join('')}`;
 }
 
+/* ==================== centre de notifications ====================
+   Ce qui manquait jusqu'ici : une trace de ce qui a été envoyé. Une
+   notification système est fugace — elle s'efface d'un balayage, et rien ne
+   permettait ensuite de savoir si elle était partie. D'où deux effets : on
+   perd l'information, et on ne peut pas distinguer « le serveur n'a rien
+   envoyé » de « l'appareil ne l'a pas affiché ».
+
+   La liste vient du serveur, pas du client. Les cinq déclencheurs Postgres
+   écrivent déjà la notification au moment où l'évènement a lieu : la même
+   écriture alimente le push et cette liste. Si une ligne est là sans que le
+   téléphone ait sonné, la panne est côté appareil. Si la ligne manque, elle est
+   côté serveur. Le centre est donc autant un outil de diagnostic qu'un confort.
+
+   Le rappel de 21 h est écrit par l'Edge Function, les badges obtenus par
+   l'app elle-même — c'est le seul évènement que le serveur ne peut pas voir,
+   les trophées étant calculés localement à partir de l'historique.
+
+   Sans compte, rien à afficher : la table est indexée sur l'identité. C'est
+   dit dans la feuille plutôt que laissé à deviner. */
+
+const NOTE_EM = {soir:'🍽️', like:'❤️', amis:'👋', amis_ok:'🤝',
+                 partage:'🏅', recette:'🍲', defis:'🏁', badge:'🎖️'};
+
+/* Depuis quand. Les heures pour aujourd'hui, le jour au-delà : une liste où
+   tout est « il y a 3 jours » ne se relit pas. */
+function noteQuand(iso){
+  const d = new Date(iso), now = new Date();
+  const min = Math.round((now - d) / 60000);
+  if(min < 1) return 'à l’instant';
+  if(min < 60) return min + ' min';
+  const j = Math.floor((new Date(now.toDateString()) - new Date(d.toDateString())) / 86400000);
+  if(j === 0) return d.toTimeString().slice(0, 5);
+  if(j === 1) return 'hier';
+  if(j < 7) return j + ' j';
+  return d.toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
+}
+
+const notesNonLus = () => (S.notes || []).filter(x => !x.lu_at).length;
+
+/* Compteur de la cloche. Tenu à part de `attentes()` : celui-ci compte des
+   évènements reçus, l'autre des choses à faire. Une invitation à un défi non
+   répondue reste en attente longtemps après que sa notification a été lue. */
+function paintBell(){
+  const b = document.getElementById('bell');
+  if(!b) return;
+  const n = notesNonLus();
+  b.dataset.n = n;
+  const c = b.querySelector('.cnt');
+  if(c) c.textContent = n > 9 ? '9+' : String(n);
+  b.setAttribute('aria-label', n ? `Notifications, ${n} non lue${n > 1 ? 's' : ''}` : 'Notifications');
+}
+
+/* Les soixante dernières, tous types confondus. Pas de pagination : au-delà
+   d'une soixantaine on ne relit plus, on cherche — et chercher dans ses
+   notifications n'est pas un besoin réel. */
+async function notesLoad(silencieux){
+  if(!SESS || !SB.ready()) return;
+  const r = await SB.rest('notifications?select=id,typ,titre,corps,tab,vue,lu_at,created_at' +
+    '&order=created_at.desc&limit=60');
+  if(!r.ok){
+    /* Table absente : notifications.sql n'a pas été passé. Le dire une fois,
+       pas à chaque tour de veille. */
+    if(!silencieux) toast(/PGRST205|does not exist/i.test(JSON.stringify(r.body || {}))
+      ? 'Centre de notifications indisponible : notifications.sql n’est pas passé'
+      : 'Notifications indisponibles · ' + r.status);
+    return;
+  }
+  S.notes = r.body || [];
+  paintBell();
+}
+
+/* Écrire une notification pour soi-même. Sert aux badges, seul évènement que
+   le serveur ne voit pas. `cle` rend l'écriture idempotente : un badge obtenu
+   ne se ré-annonce pas au repas suivant, même si l'app est relancée. */
+async function notesAdd(typ, titre, corps, tab, vue, cle){
+  if(!SESS || !SB.ready()) return;
+  const r = await SB.rest('notifications?on_conflict=user_id,typ,cle', {method:'POST',
+    headers:{Prefer:'resolution=ignore-duplicates,return=minimal'},
+    body: JSON.stringify({user_id:SESS.uid, typ, titre, corps: corps || '',
+                          tab: tab || 'jeux', vue: vue || 'actu', cle: cle || null})});
+  if(!r.ok) console.warn('notesAdd ·', r.status, JSON.stringify(r.body || {}));
+}
+
+/* Tout marquer comme lu, en une requête. Le repère est côté serveur et non en
+   local : lire sur le téléphone doit éteindre le compteur sur le navigateur. */
+async function notesLu(){
+  if(!SESS || !SB.ready() || !notesNonLus()) return;
+  const r = await SB.rest('notifications?user_id=eq.' + SESS.uid + '&lu_at=is.null',
+    {method:'PATCH', headers:{Prefer:'return=minimal'},
+     body: JSON.stringify({lu_at: new Date().toISOString()})});
+  if(!r.ok) return;
+  (S.notes || []).forEach(x => { if(!x.lu_at) x.lu_at = new Date().toISOString(); });
+  paintBell();
+  if(typeof navigator.clearAppBadge === 'function') navigator.clearAppBadge().catch(() => {});
+}
+
+function notesSheet(){
+  if(!SESS){
+    return openSheet(`<div class="unit">Notifications</div>
+      <h3 style="margin:2px 0 10px">Il faut un compte</h3>
+      <p class="small mute" style="line-height:1.7">Les notifications sont rattachées à une
+        identité : rappel du soir, j’aime, demandes d’amis, invitations et badges. Sans compte,
+        l’app fonctionne, mais elle n’a personne à prévenir.</p>`);
+  }
+  const dessine = () => {
+    const l = S.notes;
+    const corps = l === undefined
+      ? `<p class="small mute">Chargement…</p>`
+      : !l.length
+        ? `<p class="small mute" style="line-height:1.7">Rien pour l’instant. Le rappel du soir
+            arrive à 21 h les jours où le déjeuner ou le dîner manque ; le reste vient de vos amis.</p>`
+        : l.map(x => `<button class="note" data-note="${x.id}" data-lu="${x.lu_at ? 1 : 0}"
+              data-tab="${esc(x.tab || 'feed')}" data-vue="${esc(x.vue || 'actu')}">
+            <span class="em">${NOTE_EM[x.typ] || '🔔'}</span>
+            <span class="tx"><b>${esc(x.titre)}</b>${x.corps ? `<span>${esc(x.corps)}</span>` : ''}</span>
+            <span class="qd">${noteQuand(x.created_at)}</span>
+          </button>`).join('');
+    openSheet(`
+      <div class="unit">Notifications</div>
+      <h3 style="margin:2px 0 4px">Ce qui vous a été envoyé</h3>
+      ${corps}
+      ${(l && l.length && notesNonLus()) ? `<button class="btn btn-2" id="nt_lu"
+        style="margin-top:10px">Tout marquer comme lu</button>` : ''}
+      <div class="src" style="margin-top:8px">Une ligne présente ici mais jamais reçue sur le
+        téléphone signifie que le serveur a bien envoyé : c’est l’autorisation ou l’abonnement de
+        l’appareil qu’il faut regarder, dans Profil, à la ligne Rappels.</div>`);
+    $('#sheet').querySelectorAll('[data-note]').forEach(b => b.onclick = () => {
+      const tab = b.dataset.tab, vue = b.dataset.vue;
+      notesLu();
+      closeSheet();
+      if(tab === 'feed') S.fv = vue || 'actu';
+      go(tab || 'feed');
+    });
+    const bl = $('#nt_lu');
+    if(bl) bl.onclick = async () => { await notesLu(); notesSheet(); };
+  };
+  dessine();
+  /* La liste peut être périmée d'une minute et demie : on relit à l'ouverture,
+     et on repeint dès la réponse plutôt que de bloquer l'affichage. */
+  notesLoad(true).then(() => { if($('#sheet').classList.contains('on')) dessine(); });
+}
+
+/* Badges obtenus. Les trophées ne sont pas stockés : ils se recalculent depuis
+   l'historique à chaque affichage. Pour annoncer un nouveau badge il faut donc
+   garder la liste de ceux déjà acquis, et la comparer après chaque saisie.
+
+   Au tout premier passage on pose le repère sans rien annoncer — sinon l'app
+   notifierait les vingt-sept badges d'un coup le jour de l'installation, ou au
+   premier lancement après cette mise à jour. */
+function troWatch(){
+  let sc;
+  try{ sc = scoring(); }catch(e){ return; }
+  const acquis = TROPHIES.filter(t => troValue(t, sc) >= t.need).map(t => t.s);
+  const avant = S.notif.vuTro;
+  S.notif.vuTro = acquis; save();
+  if(!avant) return;                          /* premier passage : repère seul */
+  const vus = new Set(avant);
+  const neufs = acquis.filter(s => !vus.has(s));
+  if(!neufs.length) return;
+  const t = TROPHIES.find(x => x.s === neufs[0]);
+  if(!t) return;
+  const titre = neufs.length > 1
+    ? `${neufs.length} nouveaux badges`
+    : 'Vous avez obtenu un nouveau badge';
+  const corps = neufs.length > 1
+    ? neufs.slice(0, 3).join(' · ')
+    : `${t.e} ${t.n}`;
+  notifMontre(titre, corps, 'badge', 'actu');
+  notesAdd('badge', titre, corps, 'jeux', 'actu', neufs.join('+'));
+  notesLoad(true);
+}
+
 function notifBlock(){
   const dispo = typeof Notification !== 'undefined';
   const refus = dispo && Notification.permission === 'denied';
@@ -7792,9 +8000,12 @@ if(SESS && SB.ready()){
   SB.syncIdentity().then(ok => {
     if(!ok) toast('Session réalignée sur le serveur');
     if(recover()){ go(S.tab); toast('Profil et favoris récupérés'); }
-    tastePull(); frLoad(true); frPosts(); chalLoad(true);
+    tastePull(); frLoad(true); frPosts(); chalLoad(true); notesLoad(true);
   });
 }
+/* Repère des badges posé au lancement, avant toute saisie : sans lui, la
+   première saisie après cette mise à jour annoncerait tout l'historique. */
+troWatch();
 
 /* Réenregistrement de l'abonnement push à chaque lancement. Le service de push
    peut avoir renouvelé l'endpoint de son côté sans que l'évènement
@@ -7817,13 +8028,14 @@ let veille = 0;
 setInterval(() => {
   if(document.visibilityState !== 'visible' || !SESS || !SB.ready()) return;
   frPosts();
+  notesLoad(true);
   if(++veille % 3 === 0){ frLoad(true); chalLoad(true); }
 }, 90000);
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState !== 'visible'){ badgeSync(); return; }
   notifTick();
   paintAlertes();
-  if(SESS && SB.ready()){ frPosts(); frLoad(true); chalLoad(true); }
+  if(SESS && SB.ready()){ frPosts(); frLoad(true); chalLoad(true); notesLoad(true); }
 });
 /* Dernière occasion d'écrire le chiffre avant que la page ne soit gelée :
    c'est celui-là qui restera sur l'icône. */
