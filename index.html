@@ -218,7 +218,7 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
    Carrée, d'où la hauteur ramenée à la largeur. */
 #spin[data-mark="carotte"] .m{width:132px; height:132px; background-color:transparent;
   -webkit-mask:none; mask:none;
-  background:url(b-carotte.png) center/contain no-repeat}
+  background:url(b-carotte.webp) center/contain no-repeat}
 :root[data-theme="dark"] #spin[data-mark="carotte"] .m{background-color:transparent}
 #spin .t{position:absolute; bottom:26%; font-family:var(--mono); font-size:10px;
   letter-spacing:.1em; text-transform:uppercase; color:var(--forest); text-align:center; padding:0 24px}
@@ -1447,7 +1447,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-72';
+const BUILD = 'cfp-73';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -7196,35 +7196,35 @@ const TROPHIES = [
 
   /* ---------- repas végétariens ---------- */
   {s:'Premier repas végé', n:'Premier repas végétarien', e:'🥕', need:1, u:'repas', pal:'green',
-   img:'b-carotte.png',
+   img:'b-bebe.webp',
    d:'Un déjeuner ou un dîner sans viande ni poisson. Le geste le plus simple, et de loin le plus efficace.',
    m:() => vegMealCount()},
   {s:'ÉpiCurieux', n:'ÉpiCurieux', e:'🍅', need:10, u:'repas', pal:'green',
-   img:'b-tomate.png',
+   img:'b-tomate.webp',
    d:'Dix repas végétariens. De quoi savoir que ce n’était pas un accident.',
    m:() => vegMealCount()},
   {s:'Convaincu', n:'Convaincu', e:'🥦', need:50, u:'repas', pal:'green',
-   img:'b-brocoli.png',
+   img:'b-brocoli.webp',
    d:'Cinquante repas végétariens. Ce n’est plus une expérience, c’est un répertoire.',
    m:() => vegMealCount()},
-  {s:'Adepte', n:'Adepte', e:'🌿', need:100, u:'repas', pal:'or',
+  {s:'Adepte', n:'Adepte', e:'🌿', need:100, u:'repas', pal:'or', img:'b-club100.webp',
    d:'Cent repas végétariens.',
    m:() => vegMealCount()},
-  {s:'Green Master', n:'Green Master', e:'🏵️', need:500, u:'repas', pal:'platine',
+  {s:'Green Master', n:'Green Master', e:'🏵️', need:500, u:'repas', pal:'platine', img:'b-club500.webp',
    d:'Cinq cents repas végétariens — de l’ordre de deux ans à raison de cinq par semaine.',
    m:() => vegMealCount()},
-  {s:'VegeWeek', n:'VegeWeek', e:'🌱', need:1, u:'semaine', pal:'or',
+  {s:'VegeWeek', n:'VegeWeek', e:'🌱', need:1, u:'semaine', pal:'or', img:'b-carotte.webp',
    d:'Une semaine civile entière, déjeuner et dîner saisis chaque jour, aucun repas avec viande ni poisson.',
    m:sc => vegWeek100(sc)},
 
   /* ---------- journées sans viande rouge ---------- */
-  {s:'1ʳᵉ journée', n:'Première journée sans viande rouge', e:'🥩', need:1, u:'journée', pal:'sky',
+  {s:'1ʳᵉ journée', n:'Première journée sans viande rouge', e:'🥩', need:1, u:'journée', pal:'sky', img:'b-poule.webp',
    d:'Une journée révolue, déjeuner et dîner enregistrés, sans bœuf, veau, kebab ni cheeseburger. Le poulet et le poisson y sont admis.',
    m:sc => noRedDayCount(sc)},
-  {s:'Flexitarien', n:'Flexitarien', e:'🍗', need:10, u:'journée', pal:'green',
+  {s:'Flexitarien', n:'Flexitarien', e:'🍗', need:10, u:'journée', pal:'green', img:'b-fermier.webp',
    d:'Dix journées cumulées sans viande rouge.',
    m:sc => noRedDayCount(sc)},
-  {s:'Habitué', n:'Habitué', e:'🍲', need:50, u:'journée', pal:'argent',
+  {s:'Habitué', n:'Habitué', e:'🍲', need:50, u:'journée', pal:'argent', img:'b-vache.webp',
    d:'Cinquante journées sans viande rouge.',
    m:sc => noRedDayCount(sc)},
   {s:'Presque expert', n:'Presque expert', e:'🧑‍🍳', need:100, u:'journée', pal:'or',
@@ -7237,9 +7237,9 @@ const TROPHIES = [
    m:sc => budgetDayCount(sc)},
   {s:'Premier geste', n:'Premier geste', e:'🥉', need:20, u:'kg', pal:'bronze',
    d:'L’équivalent de faire tourner ta box Internet et ta TV en veille pendant un an entier.'},
-  {s:'Demi-plein', n:'Demi-plein', e:'⛽', need:50, u:'kg', pal:'bronze',
+  {s:'Demi-plein', n:'Demi-plein', e:'⛽', need:50, u:'kg', pal:'bronze', img:'b-jerrycan.webp',
    d:'Environ 22 litres d’essence brûlés, soit un demi-réservoir de citadine.'},
-  {s:'Traversée', n:'Traversée', e:'🚗', need:100, u:'kg', pal:'bronze', img:'b-france.png',
+  {s:'Traversée', n:'Traversée', e:'🚗', need:100, u:'kg', pal:'bronze', img:'b-france.webp',
    d:'Traverser la France en voiture, Lille → Marseille, environ 1 000 km.'},
   {s:'Aller-retour', n:'Aller-retour national', e:'🔁', need:200, u:'kg', pal:'argent',
    d:'Traverser la France… et revenir. Environ 2 000 km en voiture.'},
@@ -7247,11 +7247,11 @@ const TROPHIES = [
    d:'Trois fois la traversée du pays — de quoi faire le tour de l’Hexagone.'},
   {s:'Hiver parisien', n:'Hiver parisien', e:'🔥', need:500, u:'kg', pal:'argent',
    d:'Chauffer un studio à Paris pendant tout un hiver.'},
-  {s:'Court-courrier', n:'Court-courrier', e:'🛫', need:750, u:'kg', pal:'or', img:'b-rome.png',
+  {s:'Court-courrier', n:'Court-courrier', e:'🛫', need:750, u:'kg', pal:'or', img:'b-rome.webp',
    d:'Un vol Paris–Rome aller-retour, traînées de condensation comprises.'},
   {s:'Poids d’une voiture', n:'Le poids d’une voiture', e:'⚖️', need:1000, u:'kg', pal:'or',
    d:'Littéralement le poids d’une citadine type Twingo. Imagine une voiture entière disparaître de l’atmosphère.'},
-  {s:'Long-courrier', n:'Long-courrier', e:'✈️', need:1750, u:'kg', pal:'or', img:'b-ny.png',
+  {s:'Long-courrier', n:'Long-courrier', e:'✈️', need:1750, u:'kg', pal:'or', img:'b-ny.webp',
    d:'Un vol Paris–New York aller-retour.'},
   {s:'Budget d’une vie', n:'Budget d’une vie', e:'🏆', need:2000, u:'kg', pal:'platine',
    d:'Le maximum que chaque humain devrait émettre par an, tous postes confondus, pour respecter l’Accord de Paris.'},

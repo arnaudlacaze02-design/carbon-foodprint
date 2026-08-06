@@ -8,14 +8,20 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-3.27.0';
+const VERSION = 'cfp-3.28.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
   './logo-mark.png', './logo-wide.png',
-  /* illustrations de badges : mises en cache pour rester visibles hors ligne */
-  './b-carotte.png', './b-tomate.png', './b-brocoli.png',
-  './b-france.png', './b-rome.png', './b-ny.png'
+  /* Illustrations de badges, en cache pour rester visibles hors ligne. En WebP
+     sans perte : mêmes pixels qu'un PNG pour un tiers du poids, ce qui a permis
+     de passer de six à treize illustrations en n'ajoutant que 12 % au pack.
+     Safari les gère depuis iOS 14, bien avant les iOS 16.4 que le rappel du
+     soir exige déjà. */
+  './b-bebe.webp', './b-tomate.webp', './b-brocoli.webp',
+  './b-club100.webp', './b-club500.webp', './b-carotte.webp',
+  './b-poule.webp', './b-fermier.webp', './b-vache.webp',
+  './b-jerrycan.webp', './b-france.webp', './b-rome.webp', './b-ny.webp'
 ];
 
 self.addEventListener('install', e => {
