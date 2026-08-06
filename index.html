@@ -22,6 +22,11 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <link rel="manifest" href="./manifest.json">
+<!-- Police d'affichage des titres de bloc. Chargée en swap : si le réseau manque
+     (PWA hors ligne), la pile arrondie système prend le relais sans décaler la mise en page. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap">
 <style>
 :root{
   /* palette de marque, invariante */
@@ -31,6 +36,10 @@
   --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --round:ui-rounded,"SF Pro Rounded","Arial Rounded MT Bold","Trebuchet MS",var(--sans);
+  --display:"Baloo 2",var(--round);
+  /* Masque de la marque. Remplacé au démarrage par un SVG inline construit sur
+     DB.logo (voir logoMaskURL) : le PNG n’est plus qu’un repli. */
+  --logo-mask:url(logo-mark.png);
   --r:14px;
 
   /* surfaces et textes — thème CLAIR (défaut) */
@@ -101,11 +110,11 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
    masque alpha que la grande version : un seul fichier, qui prend ici la teinte
    paille du « FOOD » du mot juste à côté. Décoratif — d'où aria-hidden et
    l'absence de zone tactile : la pastille reste le seul bouton de ce coin. */
-.brandmark{flex:0 0 auto; width:17px; height:23px; background-color:var(--straw);
-  -webkit-mask:url(logo-mark.png) center/contain no-repeat;
-  mask:url(logo-mark.png) center/contain no-repeat}
-.wordmark{display:flex; flex-direction:column; font-family:var(--round); font-weight:700;
-  font-size:17px; letter-spacing:-.005em; line-height:1.1; white-space:nowrap}
+.brandmark{flex:0 0 auto; width:23px; height:21px; background-color:var(--straw);
+  -webkit-mask:var(--logo-mask) center/contain no-repeat;
+  mask:var(--logo-mask) center/contain no-repeat}
+.wordmark{display:flex; flex-direction:column; font-family:var(--display); font-weight:800;
+  font-size:18px; letter-spacing:-.005em; line-height:1.1; white-space:nowrap}
 /* Mascotte. Servie en masque alpha plutôt qu'en image : le dessin étant
    monochrome, tes deux versions ne diffèrent que par la couleur de l'encre et
    du fond. Un seul fichier prend donc la teinte de la surface où il se pose,
@@ -168,7 +177,8 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 @media (prefers-reduced-motion:reduce){ .neon{animation:none} }
 .neon .tt{font-family:var(--mono); font-size:8.5px; letter-spacing:.18em; text-transform:uppercase;
   color:#2BE0A8; text-shadow:0 0 9px rgba(43,224,168,.85)}
-.neon .nh{font-family:var(--serif); font-size:19px; color:#EAFFF7; margin:3px 0 1px; line-height:1.15}
+.neon .nh{font-family:var(--display); font-weight:800; font-size:20px; color:#EAFFF7;
+  margin:3px 0 1px; line-height:1.15; letter-spacing:-.01em}
 .neon .sub{font-family:var(--mono); font-size:8.5px; letter-spacing:.05em; color:#79D3B8}
 .neon .foot{font-family:var(--mono); font-size:8.5px; color:#69C4AA; margin-top:10px; line-height:1.45}
 .neon .glow{position:absolute; width:130px; height:130px; border-radius:50%; pointer-events:none;
@@ -210,14 +220,58 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   text-transform:uppercase; color:var(--mute); margin-top:3px; overflow:hidden; text-overflow:ellipsis}
 .nutri .nc i{font-style:normal; opacity:.7}
 @media (max-width:340px){ .nutri{grid-template-columns:repeat(3,1fr)} }
+/* Vignettes de macros rendues cliquables dans la fiche repas : elles ouvrent la
+   décomposition par aliment de l'axe touché. */
+.nutri button.nc{width:100%; font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent}
+.nutri button.nc:active{opacity:.6}
+.nutri button.nc[aria-pressed="true"]{border-color:var(--forest); background:var(--active)}
+.nutri button.nc .ar{display:block; font-family:var(--mono); font-size:9px; color:var(--mute);
+  margin-top:2px; text-transform:none; letter-spacing:0}
+.nutri button.nc[aria-pressed="true"] .ar{color:var(--forest)}
+
+/* ---------------- cartes calories / protéines ----------------
+   Le chiffre passe au premier plan, la jauge par repas derrière lui. La barre
+   n'est plus un objet à lire mais un fond qui dit d'un coup d'œil où en est la
+   journée : les segments gardent les couleurs de repas, à opacité réduite pour
+   que le texte reste lisible dans les deux thèmes. La légende sous le bloc reste
+   la cible de clic — un segment peut ne faire que deux pixels de large. */
+.axeb{position:relative; overflow:hidden}
+.axeb .hero{position:relative; margin:-16px -16px 0; padding:17px 16px 15px; overflow:hidden}
+.axeb .hero .bg{position:absolute; inset:0; display:flex; z-index:0; background:var(--track)}
+.axeb .hero .bg i{height:100%; opacity:.34}
+.axeb .hero .tk{position:absolute; top:0; bottom:0; width:2px; background:var(--ink);
+  opacity:.45; z-index:1}
+.axeb .hero .tk::after{content:attr(data-label); position:absolute; bottom:4px; right:5px;
+  font-family:var(--mono); font-size:9px; letter-spacing:.04em; color:var(--ink);
+  opacity:.8; white-space:nowrap}
+.axeb .hero .tk.tkr::after{right:auto; left:5px}
+.axeb .hero .fg{position:relative; z-index:2}
+.axeb .ttl{font-family:var(--display); font-weight:800; font-size:26px; line-height:1.05;
+  letter-spacing:-.015em; color:var(--ink)}
+.axeb .figs{font-family:var(--display); font-weight:800; font-size:52px; line-height:1;
+  letter-spacing:-.03em; font-variant-numeric:tabular-nums; color:var(--ink); margin-top:2px}
+.axeb .figs small{font-family:var(--mono); font-weight:400; font-size:13px; letter-spacing:.06em;
+  color:var(--ink-soft)}
+.axeb .sous{font-family:var(--mono); font-size:9.5px; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--ink-soft); margin-top:6px}
+@media (max-width:340px){ .axeb .figs{font-size:42px} .axeb .ttl{font-size:22px} }
+
+/* ---------------- décomposition par aliment ---------------- */
+.asplit{margin-top:11px}
+.asplit .row{display:grid; grid-template-columns:1fr auto; gap:3px 10px; margin-bottom:9px}
+.asplit .nm{font-size:13px; min-width:0; line-height:1.3}
+.asplit .nm i{font-style:normal; font-family:var(--mono); font-size:10px; color:var(--mute); margin-left:5px}
+.asplit .vv{font-family:var(--serif); font-size:14.5px; font-variant-numeric:tabular-nums; white-space:nowrap}
+.asplit .tr{grid-column:1/-1; height:7px; background:var(--track); border-radius:2px; overflow:hidden}
+.asplit .tr i{display:block; height:100%}
 
 /* ---------------- célébration du jour tenu ---------------- */
 #spin{position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center;
   pointer-events:none}
 #spin.on{display:flex; animation:spinfade 2.1s ease forwards}
-#spin .m{width:120px; height:164px; background-color:var(--forest);
-  -webkit-mask:url(logo-mark.png) center/contain no-repeat;
-  mask:url(logo-mark.png) center/contain no-repeat;
+#spin .m{width:140px; height:129px; background-color:var(--forest);
+  -webkit-mask:var(--logo-mask) center/contain no-repeat;
+  mask:var(--logo-mask) center/contain no-repeat;
   animation:spinturn 2.1s cubic-bezier(.28,.9,.24,1) forwards}
 :root[data-theme="dark"] #spin .m{background-color:var(--straw)}
 /* La carotte est une image en couleurs, pas une silhouette : on remplace le
@@ -246,11 +300,18 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   #spin.on{animation:spinfade 1.4s ease forwards}
 }
 
-.brandbig{width:158px; height:90px; margin:2px auto 16px; display:block;
-  background-color:var(--forest);
-  -webkit-mask:url(logo-wide.png) center/contain no-repeat;
-  mask:url(logo-wide.png) center/contain no-repeat}
-:root[data-theme="dark"] .brandbig{background-color:var(--on-topbar)}
+/* Bloc de marque de l’accueil. Reconstruit à partir de ses deux pièces — la
+   marque en masque vectoriel, le nom en Baloo 2 — plutôt que servi en un seul
+   PNG large : une police et une géométrie déjà présentes dans la page valent
+   mieux qu’un fichier de plus à déployer, et le nom reste sélectionnable. */
+.brandbig{display:flex; align-items:center; justify-content:center; gap:12px;
+  margin:6px auto 18px}
+.brandbig .bm{flex:0 0 auto; width:48px; height:44px; background-color:var(--forest);
+  -webkit-mask:var(--logo-mask) center/contain no-repeat;
+  mask:var(--logo-mask) center/contain no-repeat}
+.brandbig .wordmark{font-size:27px; color:var(--ink)}
+.brandbig .wordmark em{font-size:27px}
+:root[data-theme="dark"] .brandbig .bm{background-color:var(--on-topbar)}
 
 /* pastille de profil : hexagone bordé, silhouette grisée par défaut.
    Point d'entrée du compte, et plus tard de l'avatar. */
@@ -292,7 +353,7 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .qbig{font-family:var(--serif); font-size:34px; font-variant-numeric:tabular-nums; text-align:center;
   line-height:1.1; margin:6px 0 0}
 .qbig small{font-family:var(--mono); font-size:12px; color:var(--mute)}
-.wordmark em{font-style:normal; font-family:var(--round); font-weight:900; font-size:17px;
+.wordmark em{font-style:normal; font-family:var(--display); font-weight:800; font-size:18px;
   letter-spacing:0; color:var(--straw)}
 .wordmark .sp{letter-spacing:-.04em}
 .today{font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--on-topbar-mute); text-align:right}
@@ -303,11 +364,21 @@ main{flex:1; padding:16px 16px 104px}
 /* ---------------- primitives ---------------- */
 .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px}
 .card + .card{margin-top:12px}
+/* Titres de section et de bloc. Baloo 2 en 800 : la graisse fait le travail que
+   faisaient la capitale et l'interlettrage, en restant lisible à 18 px. On garde
+   un filet paille plutôt qu'un fond : il marque le début du bloc sans peser. */
 h2.sec{
-  font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
-  color:var(--mute); margin:22px 2px 9px; font-weight:600;
+  font-family:var(--display); font-size:19px; font-weight:800; letter-spacing:-.005em;
+  text-transform:none; color:var(--ink); margin:24px 0 10px; line-height:1.15;
+  display:flex; align-items:center; gap:9px;
 }
+h2.sec::before{content:''; flex:0 0 auto; width:4px; height:.82em; border-radius:2px;
+  background:var(--straw)}
 h2.sec:first-child{margin-top:2px}
+/* Titre porté par une carte (Carbone, Calories, Semaine du…). Même police, calibre
+   réduit : il ne doit pas concurrencer le titre de section au-dessus de lui. */
+.bt{font-family:var(--display); font-weight:800; font-size:17px; line-height:1.15;
+  letter-spacing:-.005em; color:var(--ink)}
 .lede{font-family:var(--serif); font-size:19px; line-height:1.3; margin:0 0 10px}
 p{margin:0 0 9px}
 .small{font-size:12.5px; color:var(--ink-soft)}
@@ -517,14 +588,16 @@ p{margin:0 0 9px}
   background:var(--field); border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft)}
 .post .stage svg{width:132px; height:132px}
 .post .cap{padding:11px 13px 14px}
-.post .cap h4{margin:0 0 4px; font-size:16px; letter-spacing:-.012em}
+.post .cap h4{margin:0 0 4px; font-family:var(--display); font-weight:800; font-size:17px;
+  letter-spacing:-.012em; line-height:1.2}
 .post .cap p{margin:0; font-size:12.5px; line-height:1.45; color:var(--mute)}
 
 /* carte recette : bandeau titré puis les repères, comme une fiche de cuisine */
 .rcard{display:block; width:100%; text-align:left; border:0; background:none; padding:0}
 .rcard .band{padding:17px 15px 15px; background:linear-gradient(135deg,var(--forest),var(--forest-2)); color:#fff}
 .rcard .band .k{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; opacity:.72}
-.rcard .band h4{margin:6px 0 0; font-size:19px; line-height:1.2; letter-spacing:-.015em; color:#fff}
+.rcard .band h4{margin:6px 0 0; font-family:var(--display); font-weight:800; font-size:20px;
+  line-height:1.15; letter-spacing:-.015em; color:#fff}
 .rchips{display:flex; flex-wrap:wrap; gap:6px; padding:12px 13px 0}
 .rchip{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
   border:1px solid var(--line); border-radius:999px; padding:3px 9px; color:var(--mute)}
@@ -663,7 +736,8 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
   transition:transform .26s cubic-bezier(.32,.72,0,1); max-height:82vh; overflow-y:auto;
 }
 .sheet.on{transform:translate(-50%,0)}
-.sheet h3{font-family:var(--serif); font-size:22px; margin:2px 0 2px; font-weight:500}
+.sheet h3{font-family:var(--display); font-size:23px; margin:2px 0 2px; font-weight:800;
+  letter-spacing:-.01em; line-height:1.15}
 .sheet .grab{width:38px; height:4px; background:var(--line); border-radius:2px; margin:0 auto 12px}
 .stack{display:flex; height:26px; border-radius:3px; overflow:hidden; margin:12px 0 9px}
 .stack i{height:100%}
@@ -743,7 +817,8 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
   text-underline-offset:2px; vertical-align:baseline}
 .rank .pts{font-family:var(--serif); font-size:46px; line-height:1; margin:6px 0 0; font-variant-numeric:tabular-nums}
 .rank .pts small{font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:var(--on-forest-mute); text-transform:uppercase}
-.rank .name{font-family:var(--serif); font-size:19px; margin-top:9px}
+.rank .name{font-family:var(--display); font-weight:800; font-size:20px; margin-top:9px;
+  letter-spacing:-.01em}
 .rank .prog{height:7px; background:rgba(255,255,255,.16); border-radius:2px; overflow:hidden; margin:9px 0 6px}
 .rank .prog i{display:block; height:100%; background:var(--straw)}
 .rank .next{font-family:var(--mono); font-size:10px; color:var(--on-forest-mute); letter-spacing:.04em}
@@ -792,7 +867,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .seemore{width:100%; margin-top:14px; padding:11px; border:1px solid var(--line); border-radius:10px;
   background:var(--card); color:var(--forest); font-size:13px}
 .trodet{display:flex; align-items:baseline; gap:9px; margin:12px 0 2px}
-.trodet .tn{font-family:var(--serif); font-size:21px}
+.trodet .tn{font-family:var(--display); font-weight:800; font-size:22px; letter-spacing:-.01em}
 .trodet .te{font-size:20px}
 
 /* ---------------- conseil contextuel (Tracker) ---------------- */
@@ -882,7 +957,8 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .hcard .hi{width:44px; height:44px; border-radius:50%; background:var(--forest);
   display:flex; align-items:center; justify-content:center}
 .hcard .hi svg{width:22px; height:22px; stroke:#fff; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
-.hcard .ht{font-family:var(--serif); font-size:17px; line-height:1.15}
+.hcard .ht{font-family:var(--display); font-weight:800; font-size:18px; line-height:1.15;
+  letter-spacing:-.01em}
 .hcard .hs{font-family:var(--mono); font-size:9px; letter-spacing:.04em; text-transform:uppercase;
   color:var(--mute); line-height:1.35; overflow-wrap:anywhere; max-width:100%}
 .mealblocks{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
@@ -912,7 +988,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .wizbar span[data-jump]{cursor:pointer}
 /* ---------------- parcours guidé ---------------- */
 .mealhead{display:flex; align-items:baseline; gap:9px; margin:2px 0 4px}
-.mealhead .mh{font-family:var(--serif); font-size:22px}
+.mealhead .mh{font-family:var(--display); font-weight:800; font-size:22px; letter-spacing:-.01em}
 .mealhead .md{font-family:var(--mono); font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--mute)}
 .wizbar{display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin:8px 0 2px}
 .wizbar span{font-family:var(--mono); font-size:9px; letter-spacing:.06em; text-transform:uppercase;
@@ -1161,6 +1237,32 @@ function tRecompose(sl){
      pose     posée à la main, quand `c` n'est qu'un artifice carbone
               (la crème est interpolée entre yaourt et mozzarella pour le CO₂ :
                ce mélange ne dit rien de ses lipides) */
+/* ---------------- la marque, en vecteur ----------------
+   Le bandeau, la célébration et le bloc d'accueil se servaient d'un masque alpha
+   pointant sur logo-mark.png / logo-wide.png : deux fichiers à déployer à côté de
+   la page, et un logo qui casse — rectangle plein ou trou, selon le navigateur —
+   dès que l'un des deux manque au déploiement. La géométrie est pourtant déjà
+   dans la base : c'est celle que tribar() donne aux médailles. On la sert donc
+   comme masque SVG inline, ce qui laisse une seule source de vérité pour la forme
+   et supprime la dépendance à un fichier. Le PNG reste déclaré en valeur par
+   défaut de --logo-mask : si ce script ne tournait pas, on retomberait sur
+   l'ancien comportement au lieu d'un aplat de couleur.
+
+   La boîte du masque est calée sur l'emprise réelle des polygones, d'où les
+   proportions des trois consommateurs, larges plutôt que hautes. */
+const LOGO_BOX = {x:25.4, y:26.8, w:37.2, h:34.3};
+
+function logoMaskURL(){
+  const L = DB.logo;
+  const g = `<g transform="translate(${L.ox} ${L.oy}) scale(${L.k})">` +
+    L.p.map(([pts]) => `<polygon points="${pts}" fill="#000"/>`).join('') + '</g>';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${LOGO_BOX.x} ${LOGO_BOX.y} `
+            + `${LOGO_BOX.w} ${LOGO_BOX.h}">${g}</svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+}
+try{ document.documentElement.style.setProperty('--logo-mask', logoMaskURL()); }
+catch(e){ /* on garde le PNG de repli */ }
+
 const NUKEYS = [['kcal','kcal',0],['prot','protéines',1],['lip','lipides',2],
                 ['gluc','glucides',3],['fib','fibres',4]];
 
@@ -1765,8 +1867,9 @@ function jauge(o){
   const scale = (Math.max(rep, o.total) * 1.02) || 1;
   const pc = v => clamp(v / scale * 100, 0, 100).toFixed(2);
   const vus = MEALS.filter(m => (o.par[m.k] || 0) > 0);
+  const ax = o.axe || '';
   const segs = vus.map(m =>
-    `<i class="seg" data-gm="${m.k}" style="width:${pc(o.par[m.k])}%;background:${m.c}"></i>`).join('');
+    `<i class="seg" data-gm="${m.k}" data-ax="${ax}" style="width:${pc(o.par[m.k])}%;background:${m.c}"></i>`).join('');
   const ov = o.sens === 'plafond' ? Math.max(0, o.total - rep) : 0;
   const over = ov > 0
     ? `<span class="over-zone" style="left:${pc(rep)}%;width:${pc(ov)}%"></span>` : '';
@@ -1777,7 +1880,7 @@ function jauge(o){
       <div class="gauge">${segs}${over}</div>${tick}
     </div>
     <div class="gauge-legend">${vus.map(m =>
-      `<button data-gm="${m.k}"><i class="dot" style="background:${m.c}"></i>${
+      `<button data-gm="${m.k}" data-ax="${ax}"><i class="dot" style="background:${m.c}"></i>${
         m.l} ${o.fmt(o.par[m.k])}<span class="ar">\u203a</span></button>`).join('')
       || '<span>Aucune saisie pour l\u2019instant</span>'}
     </div>`;
@@ -1788,11 +1891,52 @@ function jauge(o){
 function carteAxe(o){
   return `<div class="card"${o.premier ? '' : ' style="margin-top:10px"'}>
     <div class="total" style="margin-top:0">
-      <div style="min-width:0"><div class="unit">${o.titre}</div>
+      <div style="min-width:0"><div class="bt">${o.titre}</div>
         <div class="small mute">${o.sous}</div></div>
       <div class="v" style="color:${o.couleur}">${o.fmt(o.total)} <span class="unit">${o.unite}</span></div>
     </div>
     ${jauge(o)}
+    <div class="hr"></div>
+    <div class="small">${o.mot}</div>
+    ${o.suite || ''}
+  </div>`;
+}
+
+/* Variante grand format des cartes d'axe, pour les calories et les protéines.
+   Même contenu que carteAxe(), lecture inversée : le titre et le total occupent
+   le premier plan, la jauge par repas devient le fond du bandeau. Sur un axe
+   dont le repère est une cible et non un plafond, on n'a pas besoin de lire la
+   barre segment par segment — on a besoin de voir le chiffre et, derrière lui,
+   à quelle hauteur du trait on se trouve. Les segments restent aux couleurs de
+   repas et la légende reste la cible de clic, comme dans carteAxe(). */
+function carteAxeGrande(o){
+  const rep = o.repere || 0;
+  const scale = (Math.max(rep, o.total) * 1.02) || 1;
+  const pc = v => clamp(v / scale * 100, 0, 100).toFixed(2);
+  const vus = MEALS.filter(m => (o.par[m.k] || 0) > 0);
+  const ax = o.axe || '';
+  const segs = vus.map(m =>
+    `<i data-gm="${m.k}" data-ax="${ax}" style="width:${pc(o.par[m.k])}%;background:${m.c}"></i>`).join('');
+  /* L'étiquette du repère se place à gauche du trait, sauf quand le trait est
+     lui-même près du bord gauche : elle serait rognée par overflow:hidden. */
+  const tp = clamp(rep / scale * 100, 0, 99);
+  const tick = rep > 0
+    ? `<span class="tk${tp < 34 ? ' tkr' : ''}" data-label="${o.repLabel} ${o.fmt(rep)}"
+         style="left:${tp.toFixed(2)}%"></span>` : '';
+  return `<div class="card axeb"${o.premier ? '' : ' style="margin-top:10px"'}>
+    <div class="hero">
+      <div class="bg">${segs}</div>${tick}
+      <div class="fg">
+        <div class="ttl">${o.titre}</div>
+        <div class="figs">${o.fmt(o.total)} <small>${o.unite}</small></div>
+        <div class="sous">${o.sous}</div>
+      </div>
+    </div>
+    <div class="gauge-legend" style="margin-top:12px">${vus.map(m =>
+      `<button data-gm="${m.k}" data-ax="${ax}"><i class="dot" style="background:${m.c}"></i>${
+        m.l} ${o.fmt(o.par[m.k])}<span class="ar">\u203a</span></button>`).join('')
+      || '<span>Aucune saisie pour l\u2019instant</span>'}
+    </div>
     <div class="hr"></div>
     <div class="small">${o.mot}</div>
     ${o.suite || ''}
@@ -4480,7 +4624,8 @@ function renderSaisie(){
   /* ================= 1. accueil : deux fenêtres carrées ================= */
   if(S.step === 'home' && !editing){
     view.innerHTML = `
-      <i class="brandbig" role="img" aria-label="Carbon FOODprint"></i>
+      <div class="brandbig" aria-label="Carbon FOODprint"><i class="bm" aria-hidden="true"></i>
+        <span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
       <div class="homegrid">
         <button class="hcard" id="hNew">
           <span class="hi"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
@@ -6328,7 +6473,7 @@ function objBlock(a){
 
   return `<div class="card">
     <div class="total" style="margin-top:0">
-      <div><div class="unit">Semaine du ${dLabel(W)}</div>
+      <div><div class="bt">Semaine du ${dLabel(W)}</div>
         <div class="small mute">${jours} jour${jours > 1 ? 's' : ''} sur 7</div></div>
       ${cibleKg != null
         ? `<div class="v" style="color:${kgSem > cibleKg ? 'var(--brick)' : 'var(--forest)'}">${n2(kgSem)} <span class="unit">kg</span></div>`
@@ -6568,10 +6713,11 @@ function tvRepas(a){
      « Enregistrer » au lieu d'un parcours à dérouler jusqu'au bout. */
   const og = $('#obj_go');
   if(og) og.onclick = objSheet;
-  /* Les trois jauges portent les mêmes clés de repas : le repas seul décide de
-     ce qui s'ouvre, l'axe sur lequel on a cliqué n'a pas d'importance. */
+  /* Les trois jauges portent les mêmes clés de repas : le repas décide de ce qui
+     s'ouvre. L'axe cliqué, lui, n'est plus perdu — il sert à préouvrir la bonne
+     décomposition par aliment dans la fiche. */
   $('#tv').querySelectorAll('[data-gm]').forEach(b =>
-    b.onclick = () => mealSheet(b.dataset.gm, t));
+    b.onclick = () => mealSheet(b.dataset.gm, t, b.dataset.ax));
   const cg = $('#cal_go');
   if(cg) cg.onclick = objSheet;
   const pg = $('#prot_go');
@@ -6593,7 +6739,7 @@ function axesDuJour(a, t){
   const pctCO2  = Math.round(Math.abs(restCO2) / BUDGET_J * 100);
   const carbone = carteAxe({
     premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : 'Budget 2050 : ' + n2(BUDGET_J) + ' kg/j',
-    total:j.kg, unite:'kg', fmt:n2, par:j.par.kg,
+    total:j.kg, unite:'kg', fmt:n2, par:j.par.kg, axe:'kg',
     repere:BUDGET_J, repLabel:'budget', sens:'plafond',
     couleur:j.kg > BUDGET_J ? 'var(--brick)' : 'var(--forest)',
     mot: rien
@@ -6621,8 +6767,8 @@ function axesDuJour(a, t){
   const bCal   = besoinCal();
   const cCal   = S.prof.objCal != null ? S.prof.objCal : bCal;
   const choisie = S.prof.objCal != null;
-  const calories = carteAxe({
-    titre:'Calories', unite:'kcal', fmt:n0, total:j.kcal, par:j.par.kcal,
+  const calories = carteAxeGrande({
+    titre:'Calories', unite:'kcal', fmt:n0, total:j.kcal, par:j.par.kcal, axe:'kcal',
     sous: cCal != null ? (choisie ? 'Cible : ' + n0(cCal) + ' kcal/j' : 'Besoin estimé : ' + n0(cCal) + ' kcal/j')
                        : 'Aucune cible renseignée',
     repere:cCal || 0, repLabel:choisie ? 'cible' : 'besoin', sens:'neutre',
@@ -6639,8 +6785,8 @@ function axesDuJour(a, t){
      Seul axe des trois où le manque est en dessous du trait, jamais au-dessus :
      rien n'est signalé comme un excès. */
   const cProt = S.prof.objProt;
-  const proteines = carteAxe({
-    titre:'Protéines', unite:'g', fmt:n0, total:j.prot, par:j.par.prot,
+  const proteines = carteAxeGrande({
+    titre:'Protéines', unite:'g', fmt:n0, total:j.prot, par:j.par.prot, axe:'prot',
     sous: cProt != null ? 'Cible : ' + n0(cProt) + ' g/j' : 'Aucune cible renseignée',
     repere:cProt || 0, repLabel:'cible', sens:'plancher',
     couleur:'var(--forest-2)',
@@ -6650,33 +6796,84 @@ function axesDuJour(a, t){
         : j.prot >= cProt
           ? `Cible atteinte : <b>${n0(j.prot)} g</b> pour ${n0(cProt)} g visés.`
           : `Il manque <b>${n0(cProt - j.prot)} g</b> pour atteindre les ${n0(cProt)} g visés.`,
-    suite:`<div class="src" style="margin-top:8px">Calories et protéines sont estimées sur les poids
-      tels qu\u2019achetés, comme le carbone : un aliment sec compte son énergie sèche. Elles se masquent
-      depuis le Profil. Source : table CIQUAL 2025 de l\u2019ANSES.</div>`,
+    /* Plus de note de méthode ici : elle reste dans la fiche repas (nuBlock),
+       là où elle qualifie réellement un total qu'on est en train de lire. */
   });
 
   return carbone + calories + proteines;
 }
 
+/* ---------------- décomposition par aliment ----------------
+   Les trois vignettes d'une fiche repas donnent un total ; ce total ne dit pas
+   d'où il vient. Ces deux fonctions répondent à « qui pèse quoi » sans ouvrir
+   chaque saisie une par une.
+
+   Les lignes d'un même aliment sont regroupées : deux tartines de beurre saisies
+   dans deux services différents se liraient mal en deux lignes de 10 g.
+
+   Le coefficient de préparation ne joue que sur le carbone, comme partout
+   ailleurs (jourAxes) : un plat surgelé coûte 15 % de plus à produire, il ne
+   contient pas 15 % de calories de plus. */
+const AXES = {
+  kg:   {l:'kg CO\u2082e',  u:'kg',   fmt:n2, c:'var(--forest)'},
+  kcal: {l:'calories',      u:'kcal', fmt:n0, c:'var(--s4)'},
+  prot: {l:'protéines',     u:'g',    fmt:n1, c:'var(--forest-2)'},
+};
+
+function splitAliment(lignes, axe){
+  const m = new Map();
+  lignes.forEach(l => {
+    const f = F.get(l[0]);
+    if(!f) return;
+    let v = 0;
+    if(axe === 'kg') v = f.t * l[1] / 1000 * modeK(l[3]);
+    else if(f.nu)    v = f.nu[axe === 'kcal' ? 0 : 1] * l[1] / 100;
+    const o = m.get(l[0]) || {n:f.n, g:0, v:0};
+    o.g += l[1]; o.v += v; m.set(l[0], o);
+  });
+  return [...m.values()].sort((a, b) => b.v - a.v);
+}
+
+function splitHTML(lignes, axe){
+  const A = AXES[axe] || AXES.kg;
+  const rows = splitAliment(lignes, axe).filter(r => r.v > 0);
+  const tot = rows.reduce((a, r) => a + r.v, 0);
+  if(!tot) return `<div class="src" style="margin-top:10px">Aucune valeur ${A.l} sur ce repas.</div>`;
+  return `<div class="asplit">
+    ${rows.map(r => `<div class="row">
+      <div class="nm">${esc(r.n)}<i>${n0(r.g)} g</i></div>
+      <div class="vv">${A.fmt(r.v)} <span class="unit">${A.u}</span></div>
+      <div class="tr"><i style="width:${(r.v / tot * 100).toFixed(1)}%;background:${A.c}"></i></div>
+    </div>`).join('')}
+    <div class="src">Part de chaque aliment dans les ${A.fmt(tot)} ${A.u} du repas, du plus
+      lourd au plus léger. La barre est relative au repas, non à la journée.</div>
+  </div>`;
+}
+
 /* Fiche d'un repas du jour, ouverte en cliquant sa bande. Trois chiffres d'abord,
    les repas qui les composent ensuite : c'est ce qui manquait pour comprendre
    pourquoi une bande est large sans avoir à ouvrir chaque saisie une par une. */
-function mealSheet(mk, d){
+function mealSheet(mk, d, axe){
   const es = S.hist.filter(e => e.d === d && e.m === mk);
   if(!es.length) return;
   const lignes = es.flatMap(e => e.l);
   const kg = es.reduce((x,e) => x + kgOf(e.l), 0);
   const n  = nuOf(lignes);
-  const kpi = (v, l) => `<div class="nc"><b>${v}</b><span>${l}</span></div>`;
+  /* Chaque vignette est désormais un bouton : elle ouvre la décomposition par
+     aliment de son axe. L'axe d'où l'on vient — la carte cliquée dans le Tracker
+     — est préouvert, ce qui évite un clic pour la question la plus probable. */
+  const kpi = (k, v, l) => `<button class="nc" data-ax="${k}" aria-pressed="false">
+    <b>${v}</b><span>${l}</span><span class="ar">détail \u203a</span></button>`;
   openSheet(`
     <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">
       ${dLabel(d)}</div>
     <h3>${MEAL[mk].l}</h3>
     <div class="small mute" style="margin-bottom:10px">${es.length} repas${es.length>1?'s':''} \u00b7 ${lignes.length} aliment${lignes.length>1?'s':''}</div>
     <div class="nutri" style="grid-template-columns:repeat(${nuOn() ? 3 : 1},1fr)">
-      ${kpi(n2(kg), 'kg CO\u2082e')}
-      ${nuOn() ? kpi(n0(n.kcal), 'kcal') + kpi(n0(n.prot), 'protéines <i>g</i>') : ''}
+      ${kpi('kg', n2(kg), 'kg CO\u2082e')}
+      ${nuOn() ? kpi('kcal', n0(n.kcal), 'kcal') + kpi('prot', n0(n.prot), 'protéines <i>g</i>') : ''}
     </div>
+    <div id="ms_split"></div>
     <div class="hr"></div>
     <div class="journal">${es.map(e => `<button class="j jrow" data-entry="${esc(e.id)}"
       style="width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line-soft);cursor:pointer">
@@ -6687,6 +6884,18 @@ function mealSheet(mk, d){
     ${nuOn() ? nuBlock(lignes) : ''}`);
   $('#sheet').querySelectorAll('[data-entry]').forEach(b =>
     b.onclick = () => entrySheet(b.dataset.entry));
+
+  /* Un seul axe ouvert à la fois : trois décompositions empilées feraient une
+     fiche à dérouler, et l'intérêt de la vignette est justement de comparer. */
+  const tuiles = [...$('#sheet').querySelectorAll('.nutri [data-ax]')];
+  const boite  = $('#ms_split');
+  const montre = k => {
+    const meme = tuiles.find(t => t.dataset.ax === k && t.getAttribute('aria-pressed') === 'true');
+    tuiles.forEach(t => t.setAttribute('aria-pressed', String(!meme && t.dataset.ax === k)));
+    boite.innerHTML = meme ? '' : splitHTML(lignes, k);
+  };
+  tuiles.forEach(t => t.onclick = () => montre(t.dataset.ax));
+  if(axe && AXES[axe] && (axe === 'kg' || nuOn())) montre(axe);
 }
 
 function bindEntryRows(){
