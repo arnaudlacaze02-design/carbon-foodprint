@@ -96,7 +96,14 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   position:sticky; top:0; z-index:20; background:var(--topbar); color:var(--on-topbar);
   padding:12px 18px 11px; display:flex; align-items:center; justify-content:space-between; gap:10px;
 }
-.brand{display:flex; align-items:center; gap:9px; min-width:0}
+.brand{display:flex; align-items:center; gap:7px; min-width:0}
+/* Marque de l'app dans le bandeau, entre la pastille de profil et le mot. Même
+   masque alpha que la grande version : un seul fichier, qui prend ici la teinte
+   paille du « FOOD » du mot juste à côté. Décoratif — d'où aria-hidden et
+   l'absence de zone tactile : la pastille reste le seul bouton de ce coin. */
+.brandmark{flex:0 0 auto; width:17px; height:23px; background-color:var(--straw);
+  -webkit-mask:url(logo-mark.png) center/contain no-repeat;
+  mask:url(logo-mark.png) center/contain no-repeat}
 .wordmark{display:flex; flex-direction:column; font-family:var(--round); font-weight:700;
   font-size:17px; letter-spacing:-.005em; line-height:1.1; white-space:nowrap}
 /* Mascotte. Servie en masque alpha plutôt qu'en image : le dessin étant
@@ -694,8 +701,14 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
   border:3px solid var(--tabbar); box-shadow:var(--shadow)}
 .tabbar .bub .ic svg{stroke:#fff; width:23px; height:23px; stroke-width:1.8}
 .tabbar .bub:active .ic{background:var(--forest-2)}
+/* Feed courant : la bulle est verte en permanence, seul le cerne peut dire
+   qu'on y est. La bordure de 3 px passait pour un liseré de barre — elle est
+   élargie et doublée d'un halo, de façon à se lire comme une sélection et non
+   comme un contour. */
 .tabbar .bub[aria-current="page"]{color:var(--forest)}
-.tabbar .bub[aria-current="page"] .ic{background:var(--forest); border-color:var(--straw)}
+.tabbar .bub[aria-current="page"] .ic{background:var(--forest);
+  border-color:var(--straw); border-width:3.5px;
+  box-shadow:var(--shadow), 0 0 0 1.5px rgba(217,192,91,.45)}
 /* Compteur de demandes reçues. Pas de notification possible sans Web Push :
    ce point rouge est le seul signal dont on dispose sans quitter l'app. */
 .tabbar .bub{position:relative}
@@ -712,8 +725,13 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
   border-radius:50%; background:var(--brick); border:2px solid var(--tabbar); display:none}
 .tabbar button[data-dot="1"] .dot{display:block}
 
+/* Un seul langage pour les cinq onglets : la pastille de l'onglet courant prend
+   l'encre verte et se cerne de paille, comme la bulle du Feed. Le fond seul ne
+   suffisait pas — sur la barre claire, une pastille verte sans cerne se lisait
+   comme une icône coloriée plutôt que comme la page où l'on est. */
 .tabbar button[aria-current="page"]{color:var(--forest)}
-.tabbar button[aria-current="page"] .ic{background:var(--forest)}
+.tabbar button[aria-current="page"] .ic{background:var(--forest);
+  box-shadow:0 0 0 2px var(--straw)}
 .tabbar button[aria-current="page"] .ic svg{stroke:#fff}
 .tabbar button:active .ic{background:var(--seg-bg)}
 .tabbar button[aria-current="page"]:active .ic{background:var(--forest)}
@@ -949,13 +967,9 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
   display:flex; align-items:center; gap:5px}
 .themeseg button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.10)}
 .themeseg svg{width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.7}
-.gear{background:none; border:0; color:var(--on-topbar-mute); padding:4px; margin-right:-2px;
-  display:flex; align-items:center}
-.gear svg{width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:1.6}
-.gear:active{color:var(--on-topbar-strong)}
-
-/* Cloche du centre de notifications. Même gabarit que l'engrenage — c'est un
-   accès permanent, pas un signal : ce qui alerte est le compteur, pas l'icône. */
+/* Cloche du centre de notifications, dernier bouton du bandeau depuis le retrait
+   de l'engrenage. C'est un accès permanent, pas un signal : ce qui alerte est le
+   compteur, pas l'icône. */
 .bell{background:none; border:0; color:var(--on-topbar-mute); padding:4px;
   display:flex; align-items:center; position:relative}
 .bell svg{width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:1.6}
@@ -1018,7 +1032,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
           <path d="M27 88c0-12.7 10.3-23 23-23s23 10.3 23 23z"/>
         </g>
       </svg>
-    </button><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
+    </button><span class="brandmark" aria-hidden="true"></span><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="streak" id="topStreak" title="Jours consécutifs renseignés">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
@@ -1028,9 +1042,6 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
       <button class="bell" id="bell" aria-label="Notifications">
         <svg viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0-6 6v3.5L4.5 16h15L18 12.5V9a6 6 0 0 0-6-6z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>
         <i class="cnt">0</i>
-      </button>
-      <button class="gear" id="gear" aria-label="Réglages">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v2.4M12 19.1v2.4M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg>
       </button>
     </div>
   </header>
@@ -1447,7 +1458,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-73';
+const BUILD = 'cfp-74';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -5471,10 +5482,10 @@ function renderProfil(){
     <div class="card">${sansFilet(profBlock())}</div>
 
     <h2 class="sec">Mes objectifs</h2>
-    ${objBlock(agg())}
+    <div class="card">${objProfilBlock()}</div>
 
-    <h2 class="sec">Affichage</h2>
-    <div class="card">${themeBlock()}${sansFilet(nutriBlock())}</div>
+    <h2 class="sec">Apparence</h2>
+    <div class="card">${themeBlock()}</div>
 
     <h2 class="sec">Notifications</h2>
     <div class="card">${notesRow()}${notifBlock()}</div>
@@ -5497,8 +5508,8 @@ function renderProfil(){
 
   const pg = $('#pf_go');
   if(pg) pg.onclick = () => profQuiz(0);
-  const og = $('#obj_go');
-  if(og) og.onclick = () => profQuiz(PROFQ.findIndex(q => q.k === 'objSet'));
+  const ob = $('#pf_obj');
+  if(ob) ob.onclick = objSheet;
   const pd = $('#pf_diag');
   if(pd) pd.onclick = diagSheet;
   const pnt = $('#pf_notes');
@@ -5518,13 +5529,6 @@ function renderProfil(){
     const m = MARQUES.find(x => x.k === k);
     toast(marqueOn(k) ? 'Recettes ' + m.n + ' ajoutées' : 'Recettes ' + m.n + ' retirées');
   });
-
-  const pnu = $('#pf_nutri');
-  if(pnu) pnu.onclick = () => {
-    S.nutri = !nuOn(); save();
-    renderProfil();
-    toast(nuOn() ? 'Calories et protéines affichées' : 'Données nutritionnelles masquées');
-  };
 
   const pn = $('#pf_notif');
   if(pn && !pn.disabled) pn.onclick = notifBascule;
@@ -6141,7 +6145,7 @@ function duoBind(a){
       ${extra || ''}
       ${o.obj == null ? `<button class="btn btn-2" id="dq_obj" style="margin-top:12px">Définir un objectif</button>` : ''}`);
     const b = $('#dq_obj');
-    if(b) b.onclick = () => profQuiz(profSteps().findIndex(q => q.k === 'objSet'));
+    if(b) b.onclick = () => { closeSheet(); objSheet(); };
   };
 
   const dd = $('#dqDay');
@@ -6350,6 +6354,192 @@ function objBlock(a){
   </div>`;
 }
 
+/* ==================== fenêtre « Mes objectifs » ====================
+   Le Profil ne montre plus l'état de la semaine : il ouvre une fenêtre de
+   modification. La raison est une répétition — l'avancement hebdomadaire se lit
+   déjà dans le Tracker, à l'onglet « Par repas », et le même bloc affiché deux
+   fois posait la question de savoir lequel des deux était le vrai. Le Profil est
+   l'endroit où l'on règle, le Tracker celui où l'on regarde.
+
+   Quatre cibles, chacune facultative et indépendante : la case décide qu'il y a
+   un objectif, le curseur dit lequel. C'est ce que le questionnaire faisait en
+   quatre écrans successifs — utile la première fois, pénible pour changer un
+   seul chiffre.
+
+   Rien n'est écrit avant « Enregistrer » : l'état de travail vit dans W, et
+   fermer la fenêtre au scrim laisse les objectifs exactement où ils étaient. */
+const OBJ_ITEMS = [
+  {k:'kg', pk:'objKg', nu:false,
+   lab:'Cible carbone annuelle',
+   sur:'Le trait paille du Tracker, et ce que la carotte fête quand la journée le tient.',
+   min:700, max:2500, step:50,
+   lo:'budget 700', hi:'moyenne FR 2 000'},
+  {k:'vege', pk:'objVege', nu:false,
+   lab:'Repas végétaux par semaine',
+   sur:'Compté sur les déjeuners et les dîners, du lundi au dimanche.',
+   min:0, max:14, step:1,
+   lo:'0', hi:'14 · tous'},
+  {k:'cal', pk:'objCal', nu:true,
+   lab:'Cible calorique',
+   sur:'Par jour. À défaut, l’app affiche le besoin estimé sans en faire une cible.',
+   min:1200, max:4000, step:50,
+   lo:'1 200', hi:'4 000'},
+  {k:'prot', pk:'objProt', nu:true,
+   lab:'Cible protéinique',
+   sur:'Par jour. Seul axe où le manque est en dessous du trait : rien n’y est signalé comme un excès.',
+   min:40, max:220, step:5,
+   lo:'40 g', hi:'220 g'},
+];
+
+/* Valeur de départ d'un curseur jamais réglé. Reprise de profDefault pour les
+   trois cibles qu'il connaît, afin qu'une même case proposée ici et dans le
+   questionnaire ne s'ouvre pas sur deux chiffres différents. */
+function objDefaut(k){
+  if(k === 'prot') return Math.round(70 * protGkg() / 5) * 5;
+  return profDefault({k: {kg:'objKg', vege:'objVege', cal:'objCal'}[k]});
+}
+
+function objSheet(){
+  const W = {kg:S.prof.objKg, vege:S.prof.objVege, cal:S.prof.objCal,
+             prot:S.prof.objProt, nu:nuOn()};
+
+  const bloc = o => `
+    <button class="chk" data-ob="${o.k}" role="checkbox" aria-checked="${W[o.k] != null}"
+            style="margin-top:10px">
+      <span class="bx">✓</span>
+      <span class="tx"><b>${o.lab}</b><span>${o.sur}</span></span>
+    </button>
+    <div data-rng="${o.k}"${W[o.k] != null ? '' : ' hidden'}>
+      <div class="qbig" data-out="${o.k}"></div>
+      <input class="qrange" type="range" data-in="${o.k}"
+             min="${o.min}" max="${o.max}" step="${o.step}"
+             value="${W[o.k] != null ? W[o.k] : objDefaut(o.k)}">
+      <div class="qends"><span>${o.lo}</span><span>${o.hi}</span></div>
+      <div class="src" data-hint="${o.k}" style="margin-top:6px"></div>
+    </div>`;
+
+  const carbone = OBJ_ITEMS.filter(o => !o.nu).map(bloc).join('');
+  const nutri   = OBJ_ITEMS.filter(o =>  o.nu).map(bloc).join('');
+
+  openSheet(`
+    <div class="unit">Profil</div>
+    <h3 style="margin:2px 0 6px">Mes objectifs</h3>
+    <p class="small mute" style="margin:0 0 4px">Chaque objectif est facultatif : la case dit s’il
+      existe, le curseur dit lequel. Où ils se lisent : le Tracker, onglet « Par repas ».</p>
+    ${carbone}
+
+    <div class="hr"></div>
+    <div class="unit" style="margin-bottom:2px">Données nutritionnelles</div>
+    <button class="chk" data-ob="nu" role="checkbox" aria-checked="${W.nu}">
+      <span class="bx">✓</span>
+      <span class="tx"><b>Afficher les calories et les protéines</b>
+        <span>Détail du jour, fiche de chaque repas, objectifs de la semaine et cumuls. Décochée,
+          l’app ne montre plus que le carbone.</span></span>
+    </button>
+    <div id="ob_nu"${W.nu ? '' : ' hidden'}>${nutri}</div>
+
+    <div class="actions" style="margin-top:16px">
+      <button class="btn btn-1" id="ob_save">Enregistrer</button>
+      <button class="btn btn-2" id="ob_x">Annuler</button>
+    </div>
+    <div class="src" style="margin-top:10px">Les objectifs restent sur l’appareil : ni eux ni votre
+      estimation ne traversent le réseau. Ils n’apparaissent ni dans le feed, ni dans un défi, ni
+      dans un classement.</div>`);
+
+  const sh = $('#sheet');
+  const rng = k => sh.querySelector(`[data-in="${k}"]`);
+
+  /* Un seul peintre pour les quatre curseurs : la valeur en gros, puis la phrase
+     qui la situe. Les cibles nutritionnelles ne sont jamais commentées comme une
+     faute — un plafond calorique présenté en reproche fabriquerait une dette
+     quotidienne, ce que cette app n'a pas à faire. */
+  const paint = k => {
+    const r = rng(k); if(!r) return;
+    const v = +r.value;
+    const out = sh.querySelector(`[data-out="${k}"]`);
+    const hint = sh.querySelector(`[data-hint="${k}"]`);
+    if(k === 'kg'){
+      const a = agg();
+      out.innerHTML = `${n0(v)} <small>kg CO₂e / an</small>`;
+      hint.innerHTML = a.nd >= 3
+        ? `Soit ${n2(v / 365)} kg par jour. À votre rythme actuel vous êtes sur ${n0(a.avg * 365)} kg par an.`
+        : `Soit ${n2(v / 365)} kg par jour. La moyenne française pour l’alimentation est de 2 000 kg, le budget soutenable de 700 kg.`;
+    } else if(k === 'vege'){
+      out.innerHTML = `${v} <small>repas / semaine</small>`;
+      hint.textContent = v === 0
+        ? 'Aucun repas végétal visé.'
+        : `Soit ${(v / 14 * 100).toFixed(0)} % de vos repas, sur deux repas par jour.`;
+    } else if(k === 'cal'){
+      const b = besoinCal();
+      out.innerHTML = `${n0(v)} <small>kcal / jour</small>`;
+      hint.innerHTML = b != null
+        ? `Votre besoin ${S.prof.calKnow === 'oui' ? 'déclaré' : 'estimé'} est de ${n0(b)} kcal/jour`
+          + (v < b * 0.85
+              ? '. Cette cible est nettement en dessous : un écart durable de cette ampleur relève d’un suivi médical, pas d’une app.'
+              : v > b * 1.15 ? '. Cette cible est nettement au-dessus.' : '.')
+        : 'Référence ANSES : 2 600 kcal/jour pour un homme de 18 à 69 ans, 2 100 pour une femme de 18 à 59 ans, à activité médiane. Renseignez le profil pour une estimation.';
+    } else {
+      const g = protGkg(), act = ACT_LAB[(S.prof || {}).act] || 'actif';
+      out.innerHTML = `${n0(v)} <small>g de protéines / jour</small>`;
+      hint.innerHTML = `La référence de l’ANSES est de 0,83 g/kg — soit ${n0(70 * 0.83)} g pour 70 kg ; `
+        + `pour un profil ${act} cette app propose ${n1(g)} g/kg, soit ${n0(70 * g)} g.`;
+    }
+  };
+
+  OBJ_ITEMS.forEach(o => {
+    const r = rng(o.k);
+    r.oninput = () => { W[o.k] = +r.value; paint(o.k); };
+    paint(o.k);
+  });
+
+  sh.querySelectorAll('[data-ob]').forEach(b => b.onclick = () => {
+    const k = b.dataset.ob;
+    if(k === 'nu'){
+      W.nu = !W.nu;
+      b.setAttribute('aria-checked', W.nu);
+      $('#ob_nu').hidden = !W.nu;
+      return;
+    }
+    /* Décocher n'efface pas le curseur : on retrouve son dernier réglage en
+       recochant, sans avoir à le refaire. */
+    W[k] = W[k] == null ? +rng(k).value : null;
+    b.setAttribute('aria-checked', W[k] != null);
+    sh.querySelector(`[data-rng="${k}"]`).hidden = W[k] == null;
+  });
+
+  $('#ob_x').onclick = closeSheet;
+  $('#ob_save').onclick = () => {
+    OBJ_ITEMS.forEach(o => { S.prof[o.pk] = W[o.k]; });
+    /* Les deux drapeaux que le questionnaire consulte pour savoir s'il doit
+       encore poser ses questions de cible. Les laisser en arrière donnerait un
+       parcours qui redemande ce qui vient d'être réglé — ou qui saute ce qui
+       vient d'être demandé. */
+    S.prof.objSet = (W.kg != null || W.vege != null) ? 'oui' : 'non';
+    S.prof.objNut = (W.cal != null && W.prot != null) ? 'deux'
+                  : W.cal != null ? 'cal' : W.prot != null ? 'prot' : 'non';
+    S.prof.at = new Date().toISOString();
+    S.nutri = W.nu;
+    save();
+    closeSheet();
+    if(S.tab === 'profil') renderProfil(); else go(S.tab);
+    const n = OBJ_ITEMS.filter(o => W[o.k] != null && (!o.nu || W.nu)).length;
+    toast(n ? `${n} objectif${n > 1 ? 's' : ''} enregistré${n > 1 ? 's' : ''}` : 'Aucun objectif fixé');
+  };
+}
+
+/* Ce que le Profil montre à la place du bloc hebdomadaire : une porte, et la
+   phrase qui dit ce qu'il y a derrière. Volontairement sans aucun chiffre —
+   c'est un écran de réglage, pas un tableau de bord. */
+function objProfilBlock(){
+  return `
+    <p class="small" style="margin:0 0 10px">Une cible carbone annuelle, un rythme végétal
+      hebdomadaire, et si vous le souhaitez des cibles nutritionnelles. Tout est facultatif, et
+      modifiable à tout moment.</p>
+    <button class="btn btn-1" id="pf_obj">Modifier mes objectifs</button>
+    <div class="src" style="margin-top:10px">L’avancement de la semaine se lit dans le Tracker, à
+      l’onglet « Par repas ». Ici on règle, là-bas on regarde.</div>`;
+}
+
 function tvRepas(a){
   const t = today();
   const d = a.days[t] || {tot:0, byMeal:{}};
@@ -6372,16 +6562,20 @@ function tvRepas(a){
     <h2 class="sec">Le mois</h2>
     ${calMini()}`;
   $('#calMiniBtn').onclick = () => calendarSheet();
+  /* Les quatre entrées « définir une cible » de cet écran ouvrent toutes la même
+     fenêtre de réglage, plutôt que de sauter à une étape du questionnaire : on y
+     voit les autres objectifs en même temps, et on en sort par un bouton
+     « Enregistrer » au lieu d'un parcours à dérouler jusqu'au bout. */
   const og = $('#obj_go');
-  if(og) og.onclick = () => profQuiz(PROFQ.findIndex(q => q.k === 'objSet'));
+  if(og) og.onclick = objSheet;
   /* Les trois jauges portent les mêmes clés de repas : le repas seul décide de
      ce qui s'ouvre, l'axe sur lequel on a cliqué n'a pas d'importance. */
   $('#tv').querySelectorAll('[data-gm]').forEach(b =>
     b.onclick = () => mealSheet(b.dataset.gm, t));
   const cg = $('#cal_go');
-  if(cg) cg.onclick = () => profQuiz(PROFQ.findIndex(q => q.k === 'objCal'));
+  if(cg) cg.onclick = objSheet;
   const pg = $('#prot_go');
-  if(pg) pg.onclick = () => profQuiz(PROFQ.findIndex(q => q.k === 'objProt'));
+  if(pg) pg.onclick = objSheet;
   duoBind(a);
 }
 
@@ -7493,29 +7687,11 @@ function go(tab){
 }
 document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => go(b.dataset.tab));
 
-function themeSheet(){
-  const opts = [
-    ['light','Clair','<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg>'],
-    ['dark','Sombre','<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5z"/></svg>'],
-    ['system','Système','<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg>']
-  ];
-  openSheet(`
-    <h3>Réglages</h3>
-    <div class="setrow">
-      <div class="l">Apparence<i>« Système » suit le réglage de l’iPhone.</i></div>
-      <div class="themeseg" id="tseg">
-        ${opts.map(([k,l,ic]) => `<button data-theme-opt="${k}" aria-pressed="${themeMode===k}">${ic}${l}</button>`).join('')}
-      </div>
-    </div>
-    <div class="setrow">
-      <div class="l">Version<i>Carbon FOODprint · données ADEME / AGRIBALYSE 3.2</i></div>
-    </div>`);
-  $('#tseg').querySelectorAll('[data-theme-opt]').forEach(btn => btn.onclick = () => {
-    applyTheme(btn.dataset.themeOpt);
-    $('#tseg').querySelectorAll('[data-theme-opt]').forEach(x =>
-      x.setAttribute('aria-pressed', x.dataset.themeOpt === themeMode));
-  });
-}
+/* L'engrenage du bandeau a disparu avec sa fenêtre. Il ne portait que deux
+   lignes — Apparence et Version — que la page Profil montre déjà, et un même
+   réglage à deux endroits finit toujours par se contredire. Le bandeau garde
+   ce qui n'existe nulle part ailleurs : la pastille de profil, l'éclair de
+   série, le total du jour et la cloche. */
 
 /* série de jours consécutifs renseignés. La journée en cours ne casse pas la série
    tant qu'elle n'est pas terminée : on repart d'hier si rien n'est encore saisi. */
@@ -7579,8 +7755,6 @@ function topbar(){
 }
 S.favs.forEach(f => { if(f.std && !Array.isArray(f.m)) f.m = ['dej','din']; });
 themeMode = readTheme(); applyTheme(themeMode);
-const gear = document.getElementById('gear');
-if(gear) gear.onclick = themeSheet;
 const bellBtn = document.getElementById('bell');
 if(bellBtn) bellBtn.onclick = () => notesSheet();
 const avaBtn = document.getElementById('topAva');
@@ -7861,22 +8035,12 @@ function pdjBlock(){
     </div>` : ''}`;
 }
 
-/* Interrupteur des données nutritionnelles. Placé dans le Profil et non dans les
-   réglages d'affichage : c'est un choix sur ce que l'app raconte, pas sur son
-   apparence. Le carbone n'est pas masquable — sans lui il n'y aurait plus d'app. */
-function nutriBlock(){
-  return `
-    <div class="hr"></div>
-    <div class="total" style="margin-top:0">
-      <div style="min-width:0"><div class="unit">Données nutritionnelles</div>
-        <div class="small mute">${nuOn()
-          ? 'Calories et protéines affichées : détail du jour, fiche de chaque repas, objectifs de la semaine et cumuls.'
-          : 'Masquées. L\u2019app ne montre plus que le carbone.'}</div></div>
-      ${nuOn() ? '<div class="v" style="font-size:16px">\u2713</div>' : ''}
-    </div>
-    <button class="btn btn-2" id="pf_nutri" style="margin-top:8px">${
-      nuOn() ? 'Masquer les données nutritionnelles' : 'Afficher les données nutritionnelles'}</button>`;
-}
+/* L'interrupteur des données nutritionnelles a rejoint la fenêtre « Mes
+   objectifs », dont il est la porte d'entrée : masquer calories et protéines et
+   se fixer une cible calorique sont deux faces du même choix, et les séparer
+   dans deux cartes obligeait à faire l'aller-retour. Ce n'était pas un réglage
+   d'apparence — c'est un choix sur ce que l'app raconte. Le carbone, lui, n'est
+   pas masquable : sans lui il n'y aurait plus d'app. */
 
 /* Cases à cocher des catalogues de marque. Le décompte affiché est celui des
    plats réellement disponibles, pas une promesse : une marque dont le catalogue
@@ -8100,10 +8264,14 @@ function notifBlock(){
         : ' Sans le rappel du soir app fermée, la pastille de l’icône ne bouge qu’au moment où vous quittez l’app, puis reste figée jusqu’à la prochaine ouverture.'}</div>`;
 }
 
-/* Ouverture sur le feed — mais seulement s'il a quelque chose à montrer :
-   accueillir un nouveau venu par « il faut un compte » serait une porte fermée
-   au premier pas. Sans compte, on ouvre sur la saisie, qui est ce que l'app
-   sait faire sans rien demander. */
+/* Ouverture sur le feed, sans condition. C'était jusqu'ici « le feed si un
+   compte est ouvert, la saisie sinon » : bien intentionné, mais l'app s'ouvrait
+   à deux endroits différents selon un état que l'utilisateur ne voit pas, et
+   personne ne peut prendre une habitude sur une porte qui change. Le feed sans
+   compte n'est d'ailleurs pas une porte fermée — il présente ce que le compte
+   apporte et propose de l'ouvrir, ce qui est un meilleur premier écran qu'un
+   formulaire de saisie sans contexte. Seule exception, en dessous : une saisie
+   laissée en cours, qui reprend là où elle s'est arrêtée. */
 /* Reprise d'une saisie interrompue. On ne rejoue le contexte que s'il reste un
    repas en cours de composition et qu'il est récent : au-delà de six heures,
    reprendre un brouillon oublié serait plus déroutant que de repartir à zéro.
@@ -8123,7 +8291,7 @@ function reprise(){
   return true;
 }
 const repris = reprise();
-if(!repris) S.tab = (SESS && SB.ready()) ? 'feed' : 'saisie';
+if(!repris) S.tab = 'feed';
 go(S.tab);
 if(repris) toast('Repas en cours de saisie retrouvé');
 if(rattrape) toast('Profil et favoris récupérés');
