@@ -2070,7 +2070,7 @@ function modeBar(){
       `<button data-mode="${k}" aria-pressed="${S.mode === k}"><b>${v.l}</b>${
         v.k === 1 ? '' : `<small>+${Math.round((v.k-1)*100)} %</small>`}</button>`).join('')}
   </div>
-  <div class="src" style="margin:-4px 0 10px">${S.mode
+  <div class="src" style="margin:-4px 0 10px">${MODE[S.mode]
     ? esc(MODE[S.mode].s)
     : 'Choisissez d’abord la provenance : le coefficient en dépend, et l’oublier fausserait le calcul.'}</div>`;
 }
@@ -5137,7 +5137,12 @@ function renderSaisie(){
   const dm = $('#drinkMore');
   if(dm) dm.onclick = () => {
     S.drinkMore = !S.drinkMore;
-    if(S.drinkMore && !S.mode) S.mode = 'maison';
+    /* Le dépliage donne accès à la recherche, qui exige un mode de préparation :
+       sans lui, modeBar() n'affiche pas de libellé et le coefficient vaut 1 par
+       défaut sans que rien ne le dise. On préselectionne donc le mode neutre.
+       Les clés de MODE sont frais / surgele / resto — pas 'maison', qui n'est
+       que le libellé affiché de 'frais'. */
+    if(S.drinkMore && !S.mode) S.mode = 'frais';
     renderSaisie();
     if(S.drinkMore){ const n = $('#dq'); if(n) n.focus(); }
   };
@@ -5746,10 +5751,6 @@ function themeBlock(){
   ];
   return `
     <div class="setrow" style="padding-top:0">
-      <div class="l">Aide et prise en main<i>L’essentiel en huit points, et le tutoriel à revoir.</i></div>
-      <button class="btn btn-2" id="pmAide" style="flex:0 0 auto;padding:9px 14px">Ouvrir</button>
-    </div>
-    <div class="setrow">
       <div class="l">Apparence<i>« Auto » suit le réglage de l’iPhone.</i></div>
       <div class="themeseg" id="tseg2">
         ${opts.map(([k,l,ic]) => `<button data-theme-opt="${k}" aria-pressed="${themeMode===k}">${ic}${l}</button>`).join('')}
@@ -5846,6 +5847,14 @@ function renderProfil(){
     </button>
     ${tete}
 
+    <h2 class="sec">Aide</h2>
+    <div class="card">
+      <div class="setrow" style="padding:0">
+        <div class="l">Prise en main<i>L’essentiel en huit points, et le tutoriel à revoir.</i></div>
+        <button class="btn btn-2" id="pmAide" style="flex:0 0 auto;padding:9px 14px">Ouvrir</button>
+      </div>
+    </div>
+
     <h2 class="sec">Mon profil</h2>
     <div class="card">${sansFilet(profBlock())}</div>
 
@@ -5872,6 +5881,7 @@ function renderProfil(){
   const bk = $('#pf_back');
   if(bk) bk.onclick = () => go(pfFrom === 'profil' ? 'tracker' : pfFrom);
 
+  const aid = $('#pmAide'); if(aid) aid.onclick = aideSheet;
   bindAccount();
 
   const pg = $('#pf_go');
@@ -6176,7 +6186,6 @@ function bindAccount(){
     sy.disabled = true; sy.textContent = 'Synchro…';
     await syncNow(false); closeSheet(); go(S.tab);
   };
-  const aid = $('#pmAide'); if(aid) aid.onclick = aideSheet;
   const out = $('#ac_out'); if(out) out.onclick = logoutSheet;
 
   const inb = $('#ac_in');
