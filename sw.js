@@ -8,20 +8,14 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-3.28.0';
+const VERSION = 'cfp-3.13.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
   './logo-mark.png', './logo-wide.png',
-  /* Illustrations de badges, en cache pour rester visibles hors ligne. En WebP
-     sans perte : mêmes pixels qu'un PNG pour un tiers du poids, ce qui a permis
-     de passer de six à treize illustrations en n'ajoutant que 12 % au pack.
-     Safari les gère depuis iOS 14, bien avant les iOS 16.4 que le rappel du
-     soir exige déjà. */
-  './b-bebe.webp', './b-tomate.webp', './b-brocoli.webp',
-  './b-club100.webp', './b-club500.webp', './b-carotte.webp',
-  './b-poule.webp', './b-fermier.webp', './b-vache.webp',
-  './b-jerrycan.webp', './b-france.webp', './b-rome.webp', './b-ny.webp'
+  /* illustrations de badges : mises en cache pour rester visibles hors ligne */
+  './b-carotte.png', './b-tomate.png', './b-brocoli.png',
+  './b-france.png', './b-rome.png', './b-ny.png'
 ];
 
 self.addEventListener('install', e => {
@@ -71,69 +65,19 @@ self.addEventListener('fetch', e => {
   e.respondWith(caches.match(e.request).then(hit => hit || fresh(e.request)));
 });
 
-/* ==================== Web Push ====================
-   Le seul chemin par lequel quelque chose peut arriver téléphone verrouillé et
-   app fermée. Deux règles à ne pas enfreindre :
-
-   1. showNotification() DOIT être appelé à chaque push reçu, sans condition.
-      iOS considère un push qui n'affiche rien comme un push silencieux et
-      révoque l'abonnement au bout de quelques-uns — on perd alors les
-      notifications pour de bon, sans message d'erreur. C'est la panne la plus
-      fréquente de cette mécanique, d'où le libellé de repli plutôt qu'un
-      `return` quand la charge est illisible.
-
-   2. La pastille de l'icône se pose ici, dans le worker : c'est ce qui la rend
-      possible app fermée, là où l'appel depuis la page ne peut rien. Son échec
-      ne doit jamais faire échouer l'ensemble, sinon on retombe sur le cas 1. */
-self.addEventListener('push', e => {
-  let d = {};
-  try{ d = e.data ? e.data.json() : {}; }
-  catch(err){ d = {body: e.data ? e.data.text() : ''}; }
-
-  const titre = d.title || 'N’oubliez pas de rentrer vos repas';
-  const opts = {
-    body:  d.body || '',
-    tag:   d.tag  || 'soir',
-    /* Deux évènements de même nature portent le même tag pour ne pas empiler
-       cinq bandeaux « a aimé votre publication ». Sans renotify, le second
-       remplacerait le premier en silence, sans vibration ni son : il faut le
-       demander explicitement. */
-    renotify: d.renotify === true,
-    icon:  './icon-192.png',
-    badge: './icon-192.png',
-    data:  {tab: d.tab || 'saisie', vue: d.vue || 'actu'},
-  };
-
-  const taches = [self.registration.showNotification(titre, opts)];
-  const n = typeof d.badge === 'number' ? d.badge : null;
-  if(n !== null && self.navigator && self.navigator.setAppBadge){
-    taches.push((n > 0 ? self.navigator.setAppBadge(n)
-                       : self.navigator.clearAppBadge()).catch(() => {}));
-  }
-  e.waitUntil(Promise.all(taches));
-});
-
-/* Le service de push a renouvelé l'abonnement de son côté. Safari ne déclenche
-   pas toujours cet évènement : le vrai filet de sécurité est le réabonnement
-   que la page effectue à chaque lancement. Celui-ci ne fait que prévenir les
-   fenêtres ouvertes pour qu'elles renvoient l'abonnement sans attendre. */
-self.addEventListener('pushsubscriptionchange', e => {
-  e.waitUntil((async () => {
-    const list = await self.clients.matchAll({type:'window', includeUncontrolled:true});
-    list.forEach(c => c.postMessage({cfp:'reabonner'}));
-  })());
-});
-
 /* Clic sur une notification : ramener la fenêtre existante au premier plan
    plutôt qu'en ouvrir une seconde, et lui dire sur quel onglet se poser. */
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  /* La page recalculera le vrai compte à l'ouverture. Effacer ici évite qu'un
-     chiffre périmé subsiste si l'ouverture échoue. */
-  if(self.navigator && self.navigator.clearAppBadge) self.navigator.clearAppBadge().catch(() => {});
-  const d = e.notification.data || {};
-  const tab = d.tab || 'feed';
-  const vue = d.vue || 'actu';
+  /* `vue` voyage avec `tab` : la page attend les deux et fait
+     `S.fv = e.data.vue || 'actu'`. Tant que le worker ne relayait que `tab`, le
+     repli s'appliquait à chaque fois et une notification de défi ou de demande
+     d'ami déposait l'utilisateur sur l'Actu. Le champ existait des deux côtés,
+     il manquait au milieu. Une notification sans `vue` garde l'ancien
+     comportement : la page retombe sur 'actu' d'elle-même. */
+  const data = e.notification.data || {};
+  const tab  = data.tab || 'feed';
+  const vue  = data.vue;
   e.waitUntil((async () => {
     const list = await self.clients.matchAll({type:'window', includeUncontrolled:true});
     for(const c of list){
@@ -142,6 +86,11 @@ self.addEventListener('notificationclick', e => {
         return c.focus();
       }
     }
+    /* Démarrage à froid : aucune fenêtre à qui parler, donc `tab` et `vue` se
+       perdent et l'app s'ouvre là où localStorage l'avait laissée. Le corriger
+       demanderait de lire un fragment côté page — or index.html ne lit
+       aujourd'hui que `#import`, en égalité stricte. À faire des deux côtés à
+       la fois, pas ici tout seul. */
     return self.clients.openWindow('./index.html');
   })());
 });
