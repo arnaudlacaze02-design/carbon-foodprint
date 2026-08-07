@@ -1507,6 +1507,34 @@ function navRead(){
   catch(e){ return null; }
 }
 
+/* Onglet courant, mémorisé horodaté.
+
+   Sans cela, le moindre rechargement de la page ramenait sur le feed : l'onglet
+   ne vivait qu'en mémoire, et le démarrage forçait 'feed' dès qu'il n'y avait pas
+   de brouillon à reprendre. Or une PWA iOS voit son webview jeté quand on la met
+   en arrière-plan — au retour, la page repart de zéro. Sur le Tracker, ou sur la
+   Saisie avant d'avoir ajouté quoi que ce soit, on se retrouvait donc sur le feed
+   sans avoir rien demandé.
+
+   L'horodatage distingue les deux cas qu'il ne faut pas confondre : un retour
+   dans la demi-heure est la reprise d'une session en cours, on rend l'onglet
+   quitté ; au-delà, c'est une ouverture franche et le feed reste la bonne porte
+   d'entrée. */
+const tabKey = () => dataKey() + '.tab';
+const TABS = ['biblio','saisie','tracker','jeux','feed'];
+function tabSave(){
+  try{ localStorage.setItem(tabKey(), JSON.stringify({t:S.tab, at:Date.now()})); }catch(e){}
+}
+function tabRead(){
+  try{
+    const o = JSON.parse(localStorage.getItem(tabKey()) || 'null');
+    if(!o || !o.at || Date.now() - o.at > 30 * 60 * 1000) return null;
+    /* 'profil' est exclu volontairement : il n'a pas de bouton dans la barre et
+       son lien de retour s'appuie sur pfFrom, que ce chemin ne renseigne pas. */
+    return TABS.includes(o.t) ? o.t : null;
+  }catch(e){ return null; }
+}
+
 /* Repères de notification, en un seul endroit : trois listes de « déjà vu »
    pour ne pas re-signaler ce qui l'a été, plus la trace de la question posée à
    la première ouverture. Les listes valent null tant qu'aucun relevé n'a été fait — c'est ce
@@ -8122,7 +8150,7 @@ function go(tab){
   /* D'où l'on vient, pour le lien de retour du profil. Le profil n'a pas de
      bouton dans la barre : sans ce souvenir, on y resterait coincé. */
   if(tab === 'profil' && S.tab !== 'profil') pfFrom = S.tab;
-  S.tab = tab; topbar();
+  S.tab = tab; tabSave(); topbar();
   document.querySelectorAll('#tabbar button').forEach(b =>
     b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
   window.scrollTo(0,0);
@@ -8741,7 +8769,7 @@ function reprise(){
   return true;
 }
 const repris = reprise();
-if(!repris) S.tab = 'feed';
+if(!repris) S.tab = tabRead() || 'feed';
 go(S.tab);
 /* Premier lancement : les cinq fiches, une seule fois. On laisse la première
    peinture se faire avant d'ouvrir, sinon la fenêtre s'anime sur un écran vide. */
