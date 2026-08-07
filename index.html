@@ -287,6 +287,22 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   padding:0 2px 14px}
 .pmacc .it.on .bd{display:block}
 
+/* Calendrier de retour de saison, douze cases sous la ligne touchée. */
+.asplit button.row{width:100%; text-align:left; background:none; border:0; font-family:inherit;
+  cursor:pointer; padding:0; color:inherit; -webkit-tap-highlight-color:transparent}
+.asplit button.row:active{opacity:.6}
+.asplit .nm .ar{float:right; font-family:var(--mono); font-size:13px; color:var(--mute);
+  margin-left:8px}
+.cal12{margin:-2px 0 12px; padding:10px 11px; background:var(--track); border-radius:9px}
+.cal12 .row12{display:grid; grid-template-columns:repeat(12,1fr); gap:3px}
+.cal12 .row12 i{font-style:normal; font-family:var(--mono); font-size:9.5px; text-align:center;
+  padding:5px 0; border-radius:4px; background:var(--card); color:var(--mute)}
+.cal12 .row12 i.on{background:var(--forest); color:#fff; font-weight:600}
+.cal12 .row12 i.imp{background:var(--card); color:var(--mute); opacity:.4;
+  text-decoration:line-through}
+.cal12 .mot{font-family:var(--mono); font-size:9.5px; line-height:1.5; color:var(--ink-soft);
+  margin-top:8px}
+
 /* Cadran de saisonnalité. Un anneau plutôt qu'une barre : le chiffre est une
    part d'un tout, pas une progression vers un seuil. */
 .saisdial{position:relative; width:170px; margin:18px auto 10px}
@@ -8635,7 +8651,94 @@ function saisStats(per){
           contre:[...contre.entries()].sort((a,b) => b[1] - a[1]).slice(0, 5)};
 }
 
-let saisPer = 'tout';
+let saisPer = 'tout', saisCal = null;
+
+/* Calendrier d'un aliment, douze cases. Répond à la seule question qu'on se pose
+   devant un « hors saison » : quand est-ce que j'en remange ? Les trois cas
+   explicites ont chacun leur lecture — un importé n'a pas de mois de retour, et
+   le dire vaut mieux que d'afficher douze cases éteintes sans explication. */
+const MOIS12 = ['J','F','M','A','M','J','J','A','S','O','N','D'];
+const MOISN  = ['janvier','février','mars','avril','mai','juin','juillet','août',
+                'septembre','octobre','novembre','décembre'];
+
+function cal12(slug){
+  const f = F.get(slug);
+  const imp = f.sais === 0;
+  const cases = MOIS12.map((l, i) => {
+    const on = imp ? false : f.sais === 1 ? true : !!(f.m && f.m.includes(i));
+    return `<i class="${on ? 'on' : imp ? 'imp' : ''}" title="${MOISN[i]}">${l}</i>`;
+  }).join('');
+  let mot;
+  if(imp) mot = `Importé : pas de saison locale. Son empreinte est de ${n2(f.t)} kg par kilo.`;
+  else if(f.sais === 1) mot = 'Disponible toute l’année en local, récolté puis conservé.';
+  else if(!f.m) mot = 'Pas de calendrier renseigné.';
+  else {
+    const ms = f.m.map(i => MOISN[i]);
+    mot = ms.length >= 11 ? 'Presque toute l’année.'
+        : `De saison en ${ms.length > 3
+            ? ms[0] + ' → ' + ms[ms.length-1] + ' (' + ms.length + ' mois)'
+            : ms.join(', ')}. Empreinte ${n2(f.t)} kg par kilo.`;
+  }
+  return `<div class="cal12"><div class="row12">${cases}</div>
+    <div class="mot">${mot}</div></div>`;
+}
+
+/* Phrase sur les fruits importés. Elle ne dit pas « limitez » : sur cette base,
+   ce serait faux pour cinq des six. La banane pèse 0,909 kg par kilo, moins que
+   des pâtes sèches à 1,98 ; le bœuf est trente et une fois plus lourd qu'elle.
+   Écrire « limitez la banane » dans une app dont toute l'autorité vient des
+   facteurs ADEME reviendrait à contredire ses propres chiffres au premier écran
+   où l'on quitte le calcul pour le conseil.
+
+   On ne parle pas non plus de bio : sur le carbone, l'effet n'est pas établi et
+   dépend de la culture — rendements plus faibles, donc plus de surface au kilo.
+   Ni d'équitable, qui est un axe social légitime mais que cette app ne mesure
+   pas ; l'introduire ici laisserait croire qu'il est compté dans le chiffre.
+
+   Ce que la base dit, en revanche, et qui est le fait le plus actionnable
+   qu'elle contienne sur les imports : le mode de transport. La même mangue pèse
+   seize fois plus par avion que par bateau. C'est ça qu'il faut dire. */
+/* Articles des six importés. Six entrées valent mieux qu'une heuristique de
+   genre qui se tromperait sur « ananas » ou « avocat ». */
+const IMP_ART = {banane:'la ', mangue:'la ', manguebateau:'la ', avocat:"l’",
+                 ananas:"l’", fruitdelapassion:'le '};
+
+function saisImporte(contre){
+  const imp = contre.filter(([sl]) => F.get(sl).sais === 0);
+  const bref = sl => F.get(sl).n.replace(/ \(.*\)/, '');
+  const art  = sl => (IMP_ART[sl] || 'le ') + bref(sl).toLowerCase();
+  /* Minuscule après le premier : ce sont des noms communs au fil d'une phrase. */
+  const noms = imp.map(([sl], i) => i === 0 ? bref(sl) : bref(sl).toLowerCase());
+  const liste = noms.length > 1
+    ? noms.slice(0, -1).join(', ') + ' et ' + noms[noms.length - 1] : noms[0];
+  const tete = `${liste} ${noms.length > 1 ? 'comptent' : 'compte'} hors saison parce qu’on
+    s’en tient au local.`;
+  const seul = imp.length === 1;
+  const rap = n0(F.get('mangue').t / F.get('manguebateau').t);
+
+  /* Le plus lourd de ceux réellement mangés décide du propos. Rassurer sur le
+     poids quand la seule ligne présente est une mangue par avion à 11,66 kg
+     serait faux : c'est le cas où il faut au contraire pointer le transport. */
+  const [plsl] = imp.reduce((a, b) => F.get(b[0]).t > F.get(a[0]).t ? b : a);
+  const pl = F.get(plsl);
+
+  if(pl.t > 5) return `${tete} ${seul ? 'Et c’est justement' : `Et ${art(plsl)}, c’est`}
+    le cas où ça compte vraiment : ${n2(pl.t)} kg par kilo, ${rap} fois la même mangue
+    arrivée par bateau. Sur les fruits lointains le mode de transport pèse plus que la
+    distance, c’est le seul arbitrage qui change l’ordre de grandeur.`;
+
+  /* Le plus léger de ceux mangés porte la nuance, pour qu'elle parle de son
+     assiette et non d'un fruit qu'il n'a pas pris. */
+  const [lgsl] = imp.reduce((a, b) => F.get(b[0]).t < F.get(a[0]).t ? b : a);
+  const lg = F.get(lgsl);
+  return `${tete} Hors saison ne veut pas dire lourd pour autant :
+    ${art(lgsl)} pèse ${n2(lg.t)} kg par kilo, moins
+    que des pâtes sèches, et ${n0(F.get('boeuf').t / lg.t)} fois moins que du bœuf. Sur les
+    fruits lointains, ce qui compte est le mode de transport plus que la distance : par bateau
+    l’empreinte reste modeste, par avion elle peut être multipliée par ${rap}.`;
+}
+
+
 
 function saisSheet(){
   const st = saisStats(saisPer);
@@ -8670,12 +8773,16 @@ function saisSheet(){
       <div class="hr"></div>
       <div class="unit">Ce qui pèse contre</div>
       <div class="small mute" style="margin-bottom:8px">Les fruits et légumes hors saison les plus
-        présents, en poids.</div>
-      <div class="asplit">${st.contre.map(([sl,g]) => `<div class="row">
-        <div class="nm">${esc(F.get(sl).n)}</div>
-        <div class="vv">${n0(g)} <span class="unit">g</span></div>
-        <div class="tr"><i style="width:${(g / st.contre[0][1] * 100).toFixed(0)}%;background:var(--brick)"></i></div>
-      </div>`).join('')}</div>` : ''}`}
+        présents, en poids. Touchez-en un pour voir quand il revient.</div>
+      <div class="asplit">${st.contre.map(([sl,g]) => `
+        <button class="row cal-t" data-cal="${sl}" aria-expanded="${saisCal === sl}">
+          <div class="nm">${esc(F.get(sl).n)}<span class="ar">${saisCal === sl ? '\u2212' : '+'}</span></div>
+          <div class="vv">${n0(g)} <span class="unit">g</span></div>
+          <div class="tr"><i style="width:${(g / st.contre[0][1] * 100).toFixed(0)}%;background:var(--brick)"></i></div>
+        </button>
+        ${saisCal === sl ? cal12(sl) : ''}`).join('')}</div>
+      ${st.contre.some(([sl]) => F.get(sl).sais === 0) ? `
+        <div class="src" style="margin-top:4px">${saisImporte(st.contre)}</div>` : ''}` : ''}`}
 
     <div class="hr"></div>
     <div class="src">Un produit importé compte hors saison même s’il est disponible toute l’année :
@@ -8684,7 +8791,11 @@ function saisSheet(){
       ni au dénominateur : ils ne disent rien de la saison.</div>`);
 
   $('#saisper').querySelectorAll('[data-sp]').forEach(b =>
-    b.onclick = () => { saisPer = b.dataset.sp; saisSheet(); });
+    b.onclick = () => { saisPer = b.dataset.sp; saisCal = null; saisSheet(); });
+  /* Un seul calendrier ouvert à la fois : trois empilés rendraient la liste
+     illisible, et l'intérêt est de comparer les retours de saison. */
+  $('#sheet').querySelectorAll('[data-cal]').forEach(b =>
+    b.onclick = () => { saisCal = saisCal === b.dataset.cal ? null : b.dataset.cal; saisSheet(); });
 }
 
 /* ============================ navigation ============================ */
