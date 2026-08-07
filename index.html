@@ -287,6 +287,36 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   padding:0 2px 14px}
 .pmacc .it.on .bd{display:block}
 
+/* ---------------- zone d'import (outil d'auteur) ---------------- */
+.impin,.impout{width:100%; font-family:var(--mono); font-size:12px; line-height:1.5;
+  padding:11px; border:1px solid var(--line); border-radius:10px; background:var(--field);
+  color:var(--ink); resize:vertical; -webkit-appearance:none}
+.impout{background:var(--track); font-size:10.5px}
+.improw{display:grid; grid-template-columns:1fr 84px; gap:8px; align-items:start;
+  padding:8px 0; border-bottom:1px solid var(--line-soft)}
+.improw.imphead{font-family:var(--mono); font-size:9px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--mute); border-bottom:1px solid var(--line)}
+.improw .impt{font-size:12.5px; min-width:0; line-height:1.35}
+.improw .impt select{width:100%; margin-top:4px; font-family:var(--sans); font-size:11.5px;
+  padding:5px 6px; border:1px solid var(--line); border-radius:7px; background:var(--card);
+  color:var(--ink); max-width:100%}
+.improw .impg{font-family:var(--display); font-weight:800; font-size:15px; text-align:right;
+  font-variant-numeric:tabular-nums}
+.improw .impg i{display:block; font-style:normal; font-family:var(--mono); font-weight:400;
+  font-size:9.5px; color:var(--mute); margin-top:2px}
+.improw .impg input{width:56px; text-align:right; font-family:var(--mono); font-size:12px;
+  padding:3px 5px; border:1px solid var(--brick); border-radius:6px;
+  background:var(--field); color:var(--ink)}
+.improw.douteux{background:color-mix(in srgb, var(--s4) 10%, transparent)}
+.improw.absent{background:color-mix(in srgb, var(--brick) 10%, transparent)}
+.improw.ign{opacity:.45}
+.impkpi{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0 10px}
+.impkpi div{background:var(--track); border-radius:10px; padding:10px 8px; text-align:center}
+.impkpi b{display:block; font-family:var(--display); font-weight:800; font-size:20px;
+  letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+.impkpi span{font-family:var(--mono); font-size:8.5px; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--mute)}
+
 /* Barre « Chercher une autre boisson ». Dessinée comme un champ de recherche —
    loupe, fond de champ, texte en gris — parce que c'est ce qu'elle ouvre. Ce
    n'est pas un input : rien à saisir avant le dépliage, et un vrai champ ferait
@@ -6279,7 +6309,12 @@ function mainDishes(){
   return DISHES().filter(d => !d.src && d.m.some(m => m === 'dej' || m === 'din'))
     .map(d => ({n:d.n, k:kgOf(d.l),
                 veg: !d.l.some(([x]) => NONVEG.has(x)),
-                red: d.l.some(([x]) => RED.has(x))}));
+                red: d.l.some(([x]) => RED.has(x)),
+                /* Viande rouge et crevettes : les deux postes que le conseil du
+                   soir dit d'éviter. Il ne peut donc pas les nommer juste après,
+                   même s'ils rentrent encore dans le budget restant — les
+                   crevettes à 20,3 kg/kg passent souvent, en petite portion. */
+                hvy: d.l.some(([x]) => RED.has(x) || x === 'crevettes')}));
 }
 function whenWord(){
   const h = new Date().getHours();
@@ -6287,26 +6322,53 @@ function whenWord(){
 }
 const kgOrG = x => x >= 1 ? n1(x) + ' kg' : n0(x*1000) + ' g';
 
-function budgetTip(rest){
+function budgetTip(kg){
   const when = whenWord();
+  const O = objDay();
+
+  /* Référence du conseil : le plus strict du budget 2050 et de l'objectif
+     personnel. Le conseil ne peut ainsi jamais être plus permissif que le seuil
+     soutenable, et devient plus exigeant si l'utilisateur l'a voulu. Avec le
+     curseur actuel — 700 kg/an au minimum, soit le budget lui-même — c'est
+     toujours le budget qui l'emporte : cette garde ne mordra que si cette borne
+     descend un jour. */
+  const rest = (O != null ? Math.min(BUDGET_J, O) : BUDGET_J) - kg;
   const fits = mainDishes().filter(d => d.k <= rest).sort((a,b) => b.k - a.k);
 
+  /* Budget 2050 dépassé, mais l'objectif personnel garde de la marge. On le dit :
+     c'est la cible que l'utilisateur s'est fixée, et la lui taire rendrait la
+     journée décourageante alors qu'elle reste tenable de son point de vue.
+
+     Réservé aux objectifs de 1 500 kg/an ou moins. Au-delà, la cible est si lâche —
+     jusqu'à 2 500, soit au-dessus de la moyenne française à 2 000 — que
+     « c'est encore jouable » serait de la complaisance : on renverrait un
+     encouragement à quelqu'un qui n'a presque rien changé. */
+  if(rest <= 0 && O != null && S.prof.objKg <= 1500 && kg <= O){
+    const marge = O - kg;
+    const ok = mainDishes().filter(d => d.k <= marge && !d.hvy).sort((a,b) => b.k - a.k);
+    return {cls:'warn', ic:'•',
+      tx:`Le budget 2050 est dépassé de <b>${kgOrG(-rest)}</b>, mais ton objectif perso reste
+          jouable : il te reste <b>${kgOrG(marge)}</b> dessus.${
+        ok.length ? ` ${esc(ok[0].n)} ${when} et c’est tenu.` : ''}`};
+  }
+
   if(rest <= 0) return {cls:'warn', ic:'!',
-    tx:`Budget explosé de <b>${kgOrG(-rest)}</b>. Aucun drame : un dîner léger et demain repart de zéro.`};
+    tx:`Budget dépassé de <b>${kgOrG(-rest)}</b>. Aucun drame : ${
+      when === 'demain' ? 'demain repart de zéro' : `un repas léger ${when} et demain repart de zéro`}.`};
 
-  const red = fits.find(d => d.red);
-  if(red) return {cls:'', ic:'✓',
-    tx:`Large : il te reste <b>${kgOrG(rest)}</b>. Même ${esc(red.n.toLowerCase())} passe ${when}.`};
-
-  const meat = fits.filter(d => !d.veg);
-  /* « des plats cool » n'a de sens que si le choix est large ; sinon on nomme ce qui rentre */
+  /* Les plats nommés ici doivent tenir la promesse de la phrase : ni viande
+     rouge, ni crevettes. Sans ce filtre le conseil se contredisait d'une
+     proposition à l'autre. */
+  const meat = fits.filter(d => !d.veg && !d.hvy);
   if(meat.length >= 5) return {cls:'', ic:'→',
-    tx:`Des plats cool ${when}, tant que ce n’est pas de la viande rouge. ${esc(meat[0].n)}${
+    tx:`On se fait plaisir ${when}, évite juste les crevettes et la viande rouge pour rester
+        dans le budget. ${esc(meat[0].n)}${
       meat[1] ? ', ' + esc(meat[1].n.toLowerCase()) : ''} : tu as <b>${kgOrG(rest)}</b>.`};
 
   if(meat.length) return {cls:'', ic:'→',
     tx:`<b>${esc(meat[0].n)}</b>${meat[1] ? ' ou ' + esc(meat[1].n.toLowerCase()) : ''} ${when} ?
         Il te reste ${kgOrG(rest)}, ça rentre pile.`};
+
 
   if(fits.length >= 3) return {cls:'', ic:'→',
     tx:`Végé ${when} et c’est dans la poche : ${esc(fits[0].n.toLowerCase())}, ${esc(fits[1].n.toLowerCase())}.
@@ -6472,11 +6534,11 @@ function dayVerdict(a){
   }
 
   if(kg <= B) return {c:'good', ic:'✓', tx:`Bravo, journée dans le budget 2050 : ${g(kg)} pour ${g(B)}. C’est le rythme d’une alimentation soutenable — le plus dur des deux seuils.`};
-  if(od == null) return {c:'warn', ic:'•', tx:`Journée à ${g(kg)}, soit ${g(kg - B)} au-dessus du budget 2050. Fixez un objectif dans votre profil et ce message vous dira où vous en êtes par rapport à lui.`};
+  if(od == null) return {c:'warn', ic:'•', tx:`Journée à ${g(kg)}, soit ${g(kg - B)} au-dessus du budget 2050. Fixe un objectif dans ton profil et ce message te dira où tu en es par rapport à lui.`};
   if(kg <= od) return {c:'good', ic:'✓', tx:`Bravo, objectif du jour tenu : ${g(kg)} pour ${g(od)}. Le budget 2050 est plus exigeant, il demanderait ${g(kg - B)} de moins.${hebdo}`};
   const ecart = kg - od;
   if(ecart <= od * 0.15) return {c:'warn', ic:'≈', tx:`Dommage, il ne manquait que ${g(ecart)} pour tenir l’objectif du jour.${hebdo || ' '}`};
-  return {c:'bad', ic:'!', tx:`Journée à ${g(kg)}, soit ${g(ecart)} au-dessus de votre objectif.${hebdo || ' Demain repart de zéro.'}`};
+  return {c:'bad', ic:'!', tx:`Journée à ${g(kg)}, soit ${g(ecart)} au-dessus de ton objectif.${hebdo || ' Demain repart de zéro.'}`};
 }
 
 function duoCards(a){
@@ -6992,10 +7054,17 @@ function axesDuJour(a, t){
         ? `Budget restant : <b>${n0(restCO2*1000)} g</b> CO\u2082e, soit <b>${pctCO2} %</b> de la journée.`
         : `Budget dépassé de <b>${n0(-restCO2*1000)} g</b> CO\u2082e, soit <b>${pctCO2} %</b> au-delà de la limite.`,
     suite: (() => {
-      const tip = rien ? '' : (() => {
+      /* Le conseil ne sort qu'une fois le déjeuner saisi. Avant, il n'a rien à
+         dire d'utile : le budget est presque intact et la phrase se réduirait à
+         « tout rentre », ce qui n'aide personne et use la formule. C'est le
+         déjeuner qui engage la journée, et c'est à partir de là que « ce qui
+         rentre encore » devient une information. Le dîner, lui, clôt la journée
+         et passe la parole à dayVerdict(). */
+      const midi = S.hist.some(e => e.d === t && e.m === 'dej');
+      const tip = (rien || !midi) ? '' : (() => {
         const v = dayVerdict(a);
         if(v) return `<div class="tip ${v.c}"><span class="ic">${v.ic}</span><span class="tx">${v.tx}</span></div>`;
-        const b = budgetTip(restCO2);
+        const b = budgetTip(j.kg);
         return `<div class="tip ${b.cls}"><span class="ic">${b.ic}</span><span class="tx">${b.tx}</span></div>`;
       })();
       return tip + reglette({tot:j.kg, bud:BUDGET_J, obj:objDay(), fr:FR_J,
@@ -8144,6 +8213,346 @@ function renderJeux(){
   view.querySelectorAll('[data-tro]').forEach(b => b.onclick = () => troSheet(+b.dataset.tro));
 }
 
+/* ==================== zone d'import de recettes ====================
+   Outil d'auteur, pas fonction d'application. Il ne stocke rien : il rend le
+   bloc JSON à coller dans DB.dishes. Une recette destinée au moteur de conseil
+   doit vivre dans la base livrée, pas dans le localStorage d'un appareil —
+   sinon elle ne serait proposée qu'à celui qui l'a saisie.
+
+   Réservé à l'auteur : on n'y entre que par le fragment #import, et rien dans
+   l'interface n'y mène. Pas de secret cryptographique là-dedans, juste une porte
+   que personne n'ouvre par hasard.
+
+   Le rendement attendu n'est pas la perfection du parseur : c'est de ramener une
+   recette de dix lignes à trois corrections manuelles. D'où le sélecteur par
+   ligne — la validation visuelle reste la dernière étape, comme partout. */
+
+/* Mots des sites de cuisine vers les entrées de la base. Ce qu'un parseur ne
+   peut pas devider : « fusilli » n'a aucune lettre commune avec « pâtes ». */
+const IMP_SYN = {
+  pates:['fusilli','fusillis','penne','spaghetti','tagliatelle','macaroni','coquillette',
+         'farfalle','rigatoni','linguine','orzo','conchiglie','torsade','vermicelle de ble'],
+  nouillesderiz:['nouille de riz','vermicelle de riz','banh pho'],
+  nouillesdeble:['udon','soba','ramen','nouille chinoise'],
+  riz:['riz basmati','riz thai','riz rond','riz long','riz arborio','riz complet'],
+  boulgour:['quinoa','boulghour','bulgur','ebly'],
+  ble:['farine','farine de ble','chapelure','pate feuilletee','pate brisee','pate a pizza',
+       'pate a tarte','tortilla','wrap','naan','pain pita','couscous','semoule de ble'],
+  tomate:['tomate cerise','tomates cerises','tomate grappe','tomate concassee','coulis de tomate',
+          'pulpe de tomate','tomate pelee','passata','concentre de tomate'],
+  oignon:['oignon rouge','oignon jaune','oignon blanc','oignon nouveau','cebette','oignon doux'],
+  echalote:['echalotes'],
+  ail:['gousse d ail','gousses d ail','ail semoule'],
+  poivron:['poivron rouge','poivron jaune','poivron vert','piment doux','jalapeno'],
+  huileolive:['huile d olive','huile olive'],
+  matieregrasse:['huile','huile de tournesol','huile de colza','huile neutre','huile vegetale',
+                 'margarine','huile de sesame'],
+  feta:['fromage feta','feta grecque'],
+  fromagedure:['parmesan','parmigiano','pecorino','gruyere rape','comte','emmental rape',
+               'fromage rape','cantal','beaufort'],
+  mozzarella:['mozza','burrata','mozzarella di bufala','billes de mozzarella'],
+  chevre:['fromage de chevre','buche de chevre','crottin'],
+  fromagemolle:['camembert','brie','reblochon','munster','ricotta','paneer','halloumi'],
+  fromagebleu:['roquefort','gorgonzola','fourme d ambert','bleu'],
+  creme:['creme fraiche','creme liquide','creme entiere','creme epaisse','creme de soja'],
+  creamcheese:['saint moret','philadelphia','fromage frais','fromage a tartiner'],
+  yaourt:['yaourt grec','yaourt nature','yaourt brasse','skyr','fromage blanc battu'],
+  laitdevache:['lait','lait entier','lait demi ecreme','lait ecreme'],
+  laitvegetal:['lait d avoine','lait d amande','boisson vegetale','lait de riz'],
+  soja:['lait de soja','boisson au soja'],
+  laitdecoco:['lait de coco','creme de coco'],
+  oeuf:['oeufs','jaune d oeuf','blanc d oeuf','oeuf entier'],
+  pommedeterre:['pomme de terre','patate','grenaille','ratte'],
+  patatedouce:['patate douce'],
+  courgette:['courgettes'],
+  aubergine:['aubergines'],
+  champignondeparis:['champignon','champignons de paris','champignon de paris','pleurote',
+                     'shiitake','portobello'],
+  epinard:['pousses d epinard','epinards','jeunes pousses'],
+  laitue:['salade','roquette','sucrine','mache verte','batavia','feuille de chene','mesclun'],
+  brocoli:['broccolini','brocolis','tete de brocoli'],
+  choufleur:['chou fleur','chou romanesco'],
+  poischiches:['pois chiche','falafel','falafels'],
+  lentilles:['lentille','lentille corail','lentille verte','lentille blonde','dal','dahl'],
+  haricotsrouges:['haricot rouge','haricot noir','flageolet','haricot blanc'],
+  tofu:['tofu ferme','tofu soyeux','tofu fume'],
+  citron:['jus de citron','citron vert','lime','zeste de citron'],
+  noix:['noix de cajou','cajou','amande','amandes','pignon','pignons de pin','pistache','noix de pecan'],
+  noisette:['noisettes'],
+  cacahuetes:['cacahuete','beurre de cacahuete','arachide'],
+  miel:['sirop d erable','sirop d agave'],
+  sucre:['sucre roux','cassonade','sucre en poudre','sucre glace'],
+  beurre:['beurre doux','beurre demi sel'],
+  olive:['olives noires','olives vertes','olive noire','olive verte','tapenade'],
+  wakame:['algue','nori','feuille de nori'],
+  pesto:['pesto vert','pesto rouge','pesto de basilic'],
+  mayonnaise:['mayo','aioli'],
+  legumesaison:['legumes','melange de legumes','julienne de legumes'],
+  fruitsaison:['fruits','fruits frais'],
+  poireau:['poireaux','blanc de poireau'],
+  carotte:['carottes'],
+  betterave:['betteraves'],
+  asperge:['asperges','asperge verte','asperges vertes'],
+  concombre:['concombres'],
+  avocat:['avocats','chair d avocat'],
+  petitpois:['petits pois','edamame'],
+  haricotvert:['haricots verts'],
+  mais:['mais doux','grains de mais'],
+  chou:['chou blanc','chou rouge','chou chinois','pak choi','pak choy','chou vert'],
+  the:['the vert','matcha','the noir'],
+  cafe:['expresso','espresso','cafe moulu'],
+  vin:['vin blanc','vin rouge','vin de cuisson'],
+  /* Herbes et épices : sans facteur d'émission dédié et sans effet à ces doses.
+     On les reconnaît pour pouvoir les écarter explicitement plutôt que de les
+     laisser en « non trouvé », ce qui noierait les vrais manques. */
+  __ignore:['basilic','persil','coriandre','ciboulette','menthe','thym','romarin','laurier',
+            'origan','estragon','aneth','sel','poivre','paprika','curcuma','cumin','curry',
+            'piment','harissa','muscade','cannelle','gingembre','safran','sauce soja',
+            'vinaigre','vinaigre balsamique','moutarde','levure','bicarbonate','eau',
+            'bouillon','cube de bouillon','graines de sesame','sesame','herbes de provence',
+            'flocons de piment','zeste','fleur de sel','huile de friture',
+            'citronnelle','galanga','lemongrass','combava','feuille de kaffir',
+            'pate de curry','nuoc mam','sauce nuoc mam','sriracha','tabasco',
+            'sauce huitre','mirin','saké de cuisine','fond de veau','concentre'],
+};
+
+/* Unités vers grammes. Les volumes passent par une densité : 125 ml d'huile ne
+   pèsent pas 125 g, et sur un poste qui fait 15 % de l'empreinte l'écart compte. */
+const IMP_DENS = {huileolive:0.91, matieregrasse:0.91, laitdevache:1.03, creme:1.0, vin:0.99};
+const IMP_UNIT = {
+  g:1, gr:1, gramme:1, grammes:1, kg:1000, ml:1, cl:10, l:1000, litre:1000,
+  'cuillere a soupe':15, 'cuilleres a soupe':15, 'c a s':15, 'cas':15, 'cuillere a cafe':5,
+  'cuilleres a cafe':5, 'c a c':5, 'cac':5, gousse:5, gousses:5, pincee:1, pincees:1,
+  branche:5, branches:5, brin:2, brins:2, feuille:1, feuilles:1,
+};
+
+/* Table inverse, construite une fois : synonyme normalisé -> slug. */
+const IMP_MAP = (() => {
+  const m = new Map();
+  DB.foods.forEach(f => m.set(nrmQ(f.n), f.s));          /* le nom exact d'abord */
+  for(const [slug, mots] of Object.entries(IMP_SYN))
+    mots.forEach(w => m.set(nrmQ(w), slug));
+  return m;
+})();
+
+/* Résolution d'un libellé de recette vers un aliment de la base.
+   Trois passes, de la plus sûre à la plus permissive : correspondance exacte,
+   puis synonyme contenu dans le libellé, puis recouvrement de mots avec le nom
+   de l'aliment. La confiance renvoyée sert à colorer la ligne : l'auteur relit
+   en priorité ce qui est douteux, au lieu de tout relire. */
+function impResolve(brut){
+  const q = nrmQ(brut);
+  if(!q) return {slug:null, sur:0};
+  if(IMP_MAP.has(q)) return {slug:IMP_MAP.get(q), sur:2};
+
+  /* synonyme le plus long contenu dans le libellé — « tomate cerise » doit
+     gagner sur « tomate », sinon la spécificité est perdue */
+  let best = null, len = 0;
+  for(const [mot, slug] of IMP_MAP)
+    if(mot.length > 2 && mot.length > len && q.includes(mot)){ best = slug; len = mot.length; }
+  if(best) return {slug:best, sur:2};
+
+  /* recouvrement de mots avec les noms de la base */
+  const toks = q.split(/[^a-z0-9]+/).filter(t => t.length > 3);
+  let cand = null, score = 0;
+  DB.foods.forEach(f => {
+    const n = nrmQ(f.n).split(/[^a-z0-9]+/);
+    const s = toks.filter(t => n.some(x => x.startsWith(t) || t.startsWith(x))).length;
+    if(s > score){ score = s; cand = f.s; }
+  });
+  return score ? {slug:cand, sur:1} : {slug:null, sur:0};
+}
+
+/* Découpe d'une ligne d'ingrédient en quantité, unité et libellé. Les sites
+   écrivent « 1 bloc de 200 g de fromage feta » : on retient le dernier nombre
+   suivi d'une unité de masse ou de volume, et non le premier, qui compte des
+   emballages. */
+function impLigne(txt){
+  const t = txt.replace(/^[\s\-–—•*\[\]x✓]+/, '').trim();
+  if(!t) return null;
+  const unites = Object.keys(IMP_UNIT).sort((a,b) => b.length - a.length)
+    .map(u => u.replace(/ /g, '\\s*')).join('|');
+
+  /* Les quantités se lisent sur le texte entier, parenthèses comprises : les
+     sites y mettent aussi bien une conversion inutile — « (4 tasses) » — que le
+     poids réel — « 1 pâte feuilletée (250 g) ». Retirer les parenthèses avant de
+     chercher perdait le second cas. On retient la dernière quantité munie d'une
+     unité connue, ce qui écarte les comptages d'emballage placés en tête. */
+  const re = new RegExp('(\\d+(?:[.,]\\d+)?)\\s*(' + unites + ')\\b', 'gi');
+  let m, last = null;
+  while((m = re.exec(nrmQ(t))) !== null) last = m;
+
+  let q = null, unite = null;
+  if(last){ q = parseFloat(last[1].replace(',', '.')); unite = last[2].replace(/\s+/g, ' ').trim(); }
+  else {
+    const n = nrmQ(t).match(/^(\d+(?:[.,]\d+)?)\s/);
+    if(n) q = parseFloat(n[1].replace(',', '.'));       /* « 3 gousses d'ail » sans unité */
+  }
+
+  /* Le libellé, lui, se lit sans les parenthèses. On garde « de » : la moitié
+     des synonymes en contiennent, et le supprimer faisait tomber « lait de
+     coco » sur le lait de vache — une erreur muette et lourde, le coco pesant
+     un tiers du lait de vache au kilo. */
+  const brut = t.replace(/\(.*?\)/g, ' ')
+    .replace(/\d+(?:[.,]\d+)?/g, ' ')
+    .replace(new RegExp('\\b(' + unites + ')\\b', 'gi'), ' ')
+    .replace(/^\s*(bloc|boite|boîte|sachet|paquet|pot|barquette)\b/gi, ' ')
+    .replace(/['’]/g, ' ').replace(/\s+/g, ' ').trim();
+  return {txt:t, q, unite, brut};
+}
+
+/* Analyse complète d'un collage. */
+function impParse(src){
+  const lignes = src.split('\n').map(l => l.trim());
+  const meta = {nom:'', cuisine:'', portions:1, services:['dej','din']};
+  const ing = [];
+  lignes.forEach((l, i) => {
+    if(!l) return;
+    const mm = l.match(/^(nom|cuisine|portions?|services?)\s*:\s*(.+)$/i);
+    if(mm){
+      const k = nrmQ(mm[1]), v = mm[2].trim();
+      if(k === 'nom') meta.nom = v;
+      else if(k === 'cuisine') meta.cuisine = nrmQ(v);
+      else if(k.startsWith('portion')) meta.portions = Math.max(1, parseFloat(v) || 1);
+      else if(k.startsWith('service'))
+        meta.services = v.split(/[,;/]/).map(x => nrmQ(x).slice(0,3))
+          .map(x => x === 'mid' ? 'dej' : x === 'soi' ? 'din' : x)
+          .filter(x => ['pdj','dej','din','enc'].includes(x))
+          .map(x => x === 'enc' ? 'encas' : x);
+      return;
+    }
+    if(/^-{3,}$/.test(l)) return;
+    if(!meta.nom && !ing.length && !/\d/.test(l)){ meta.nom = l; return; }
+    const p = impLigne(l);
+    if(p) ing.push(p);
+  });
+
+  ing.forEach((x,i) => {
+    const r = impResolve(x.brut);
+    x.slug = r.slug; x.sur = r.sur;
+    /* une correction de l'auteur prime sur la devinette du parseur */
+    if(IMP_OVR[i] !== undefined){ x.slug = IMP_OVR[i] || null; x.sur = x.slug ? 2 : 0; }
+    if(IMP_SYN.__ignore.some(w => nrmQ(x.brut) === nrmQ(w) || nrmQ(x.brut).includes(nrmQ(w)))
+       && (!x.slug || x.sur < 2)) { x.slug = '__ignore'; x.sur = 2; }
+    /* grammes par personne */
+    const k = x.unite ? IMP_UNIT[x.unite] : null;
+    const d = IMP_DENS[x.slug] || 1;
+    let g = null;
+    if(x.q != null && k) g = x.q * k * (['ml','cl','l','litre'].includes(x.unite) ? d : 1);
+    else if(x.q != null && !x.unite && x.slug && F.has(x.slug)) g = x.q * F.get(x.slug).p;
+    x.g = g != null ? Math.round(g / meta.portions) : null;
+    if(IMP_G[i] != null) x.g = IMP_G[i];
+  });
+  return {meta, ing};
+}
+
+/* ---- interface ---- */
+let IMP_SRC = '';
+
+function impSheet(){
+  const P = IMP_SRC.trim() ? impParse(IMP_SRC) : null;
+  let corps = '';
+
+  if(P){
+    const ok = P.ing.filter(x => x.slug && x.slug !== '__ignore' && x.g);
+    const tot = ok.reduce((a,x) => a + F.get(x.slug).t * x.g / 1000, 0);
+    const poids = ok.reduce((a,x) => a + x.g, 0);
+    const veg = !ok.some(x => NONVEG.has(x.slug));
+    const mois = new Date().getMonth();
+    const hors = ok.filter(x => { const f = F.get(x.slug);
+      return f.m && !f.m.includes(mois); }).map(x => F.get(x.slug).n);
+    const opts = s => DB.foods.map(f =>
+      `<option value="${f.s}"${f.s === s ? ' selected' : ''}>${esc(f.n)}</option>`).join('');
+
+    corps = `
+      <div class="improw imphead"><span>ligne du collage</span><span>g/pers</span></div>
+      ${P.ing.map((x,i) => `
+        <div class="improw${x.slug === '__ignore' ? ' ign' : x.sur === 2 ? '' : x.sur === 1 ? ' douteux' : ' absent'}">
+          <div class="impt">${esc(x.txt)}
+            <select data-imp="${i}">
+              <option value="">— non trouvé —</option>
+              <option value="__ignore"${x.slug === '__ignore' ? ' selected' : ''}>· ignorer (herbe, épice) ·</option>
+              ${opts(x.slug)}
+            </select>
+          </div>
+          <div class="impg">${x.g != null ? x.g : '<input data-impg="' + i + '" placeholder="?" inputmode="numeric">'}
+            ${x.slug && x.slug !== '__ignore' && x.g
+              ? `<i>${n2(F.get(x.slug).t * x.g / 1000)} kg</i>` : ''}</div>
+        </div>`).join('')}
+
+      <div class="impkpi">
+        <div><b>${n2(tot)}</b><span>kg CO₂e / pers</span></div>
+        <div><b>${n0(poids)}</b><span>g / pers</span></div>
+        <div><b>${n0(tot / BUDGET_J * 100)} %</b><span>du budget</span></div>
+      </div>
+      <div class="src">${veg ? 'Végétarien.' : '<b>Non végétarien</b> — contient un ingrédient d’origine animale carnée.'}
+        ${hors.length ? ` Hors saison ce mois-ci : ${esc(hors.join(', '))}.` : ' Tous les végétaux sont de saison.'}
+        ${tot <= 0.7 ? ' Sous 0,7 kg : utilisable même en fin de journée chargée.'
+          : tot <= BUDGET_J ? ' Rentre dans le budget, mais pas sous 0,7 kg.'
+          : ' <b>Au-dessus du budget journalier</b> à elle seule.'}</div>
+
+      <div class="hr"></div>
+      <div class="unit">À coller dans DB.dishes</div>
+      <textarea class="impout" id="impjson" readonly rows="4">${esc(impJSON(P, ok))}</textarea>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn btn-1" id="impcopy">Copier le JSON</button>
+        <button class="btn btn-2" id="impclear">Vider</button>
+      </div>
+      ${P.ing.some(x => !x.slug) ? `<div class="src" style="margin-top:10px">
+        Les lignes en rouge n’ont pas été reconnues. Choisis l’aliment dans la liste, ou ignore-la.
+        Si l’ingrédient n’existe pas dans la base, dis-le-moi et je crée l’entrée avec sa valeur
+        dérivée et sa note de méthode.</div>` : ''}`;
+  }
+
+  openSheet(`
+    <div class="unit">Outil d’auteur</div>
+    <h3>Importer une recette</h3>
+    <p class="small mute">Colle le bloc d’ingrédients. Première ligne = le nom.
+      Lignes facultatives <code>cuisine:</code>, <code>portions:</code>, <code>services:</code>.
+      Rien n’est enregistré : l’outil rend le JSON à coller dans le fichier.</p>
+    <textarea class="impin" id="impsrc" rows="7" placeholder="Pâtes à la feta et aux tomates cerises
+cuisine: italienne
+portions: 3
+services: midi, soir
+---
+200 g de fromage feta
+560 g de tomates cerises
+3 gousses d'ail
+125 ml d'huile d'olive
+340 g de fusillis">${esc(IMP_SRC)}</textarea>
+    <div class="actions" style="margin:8px 0 4px">
+      <button class="btn btn-1" id="impgo">Analyser</button>
+    </div>
+    <div id="impres">${corps}</div>`);
+
+  const ta = $('#impsrc');
+  $('#impgo').onclick = () => { IMP_SRC = ta.value; impSheet(); };
+  const c = $('#impcopy');
+  if(c) c.onclick = async () => {
+    try{ await navigator.clipboard.writeText($('#impjson').value); toast('JSON copié'); }
+    catch(e){ $('#impjson').select(); toast('Sélectionné — copie manuelle'); }
+  };
+  const cl = $('#impclear');
+  if(cl) cl.onclick = () => { IMP_SRC = ''; impSheet(); };
+  /* corrections manuelles : elles réécrivent le collage pour rester la source
+     de vérité, ce qui rend l'analyse reproductible d'une session à l'autre */
+  $('#sheet').querySelectorAll('[data-imp]').forEach(sel => sel.onchange = () => {
+    IMP_OVR[sel.dataset.imp] = sel.value; impSheet();
+  });
+  $('#sheet').querySelectorAll('[data-impg]').forEach(inp => inp.onchange = () => {
+    IMP_G[inp.dataset.impg] = parseFloat(inp.value) || null; impSheet();
+  });
+}
+
+const IMP_OVR = {}, IMP_G = {};
+
+function impJSON(P, ok){
+  const l = ok.map(x => `["${x.slug}",${x.g}]`).join(',');
+  const cui = P.meta.cuisine ? `,"cui":"${P.meta.cuisine}"` : '';
+  return `{"n":${JSON.stringify(P.meta.nom || 'Sans nom')},"m":${
+    JSON.stringify(P.meta.services)},"w":1${cui},"l":[${l}]}`;
+}
+
 /* ============================ navigation ============================ */
 function go(tab){
   if(S.tab === 'saisie' && tab !== 'saisie' && S.editId){ S.editId = null; S.draft = []; }
@@ -8774,6 +9183,16 @@ go(S.tab);
 /* Premier lancement : les cinq fiches, une seule fois. On laisse la première
    peinture se faire avant d'ouvrir, sinon la fenêtre s'anime sur un écran vide. */
 if(!S.pmVu) setTimeout(pmOpen, 420);
+/* Zone d'import : porte d'auteur. Aucun élément d'interface n'y mène, on n'y
+   entre que par le fragment. On l'efface de l'URL aussitôt pour qu'un partage de
+   lien ne la transmette pas. */
+function impPorte(){
+  if(location.hash.replace('#','').toLowerCase() !== 'import') return;
+  history.replaceState(null, '', location.pathname + location.search);
+  setTimeout(impSheet, 200);
+}
+impPorte();
+window.addEventListener('hashchange', impPorte);
 if(repris) toast('Repas en cours de saisie retrouvé');
 if(rattrape) toast('Profil et favoris récupérés');
 if(SESS && SB.ready()){
