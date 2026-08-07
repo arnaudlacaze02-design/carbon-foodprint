@@ -159,8 +159,8 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
   padding:10px 8px; text-align:center; font-family:inherit; color:var(--ink); cursor:pointer}
 .dcell:active{background:var(--active)}
-.dcell .dt{font-family:var(--mono); font-size:9.5px; letter-spacing:.07em;
-  text-transform:uppercase; color:var(--mute)}
+.dcell .dt{font-family:var(--display); font-weight:800; font-size:15px;
+  letter-spacing:-.005em; text-transform:none; color:var(--ink); margin-bottom:2px}
 .dcell .dc{font-family:var(--mono); font-size:8.5px; color:var(--mute); line-height:1.35}
 .dnt{width:90px; height:90px; display:block; flex:0 0 auto}
 .dnt .dv{font-family:var(--display); font-weight:800; font-size:20px; font-variant-numeric:tabular-nums;
@@ -1566,31 +1566,40 @@ function navRead(){
   catch(e){ return null; }
 }
 
-/* Onglet courant, mémorisé horodaté.
+/* Onglet courant, mémorisé.
 
-   Sans cela, le moindre rechargement de la page ramenait sur le feed : l'onglet
-   ne vivait qu'en mémoire, et le démarrage forçait 'feed' dès qu'il n'y avait pas
-   de brouillon à reprendre. Or une PWA iOS voit son webview jeté quand on la met
-   en arrière-plan — au retour, la page repart de zéro. Sur le Tracker, ou sur la
-   Saisie avant d'avoir ajouté quoi que ce soit, on se retrouvait donc sur le feed
-   sans avoir rien demandé.
+   Une PWA iOS voit son webview jeté quand on la met en arrière-plan : au retour
+   la page repart de zéro, et l'onglet, qui ne vivait qu'en mémoire, était perdu.
 
-   L'horodatage distingue les deux cas qu'il ne faut pas confondre : un retour
-   dans la demi-heure est la reprise d'une session en cours, on rend l'onglet
-   quitté ; au-delà, c'est une ouverture franche et le feed reste la bonne porte
-   d'entrée. */
-const tabKey = () => dataKey() + '.tab';
+   Deux erreurs corrigées ici, dans l'ordre où elles ont été trouvées.
+
+   La première : le démarrage forçait 'feed'. Il rend maintenant l'onglet quitté,
+   sans condition de délai. Il n'y a plus d'écran par défaut du tout — l'app
+   rouvre là où on l'a laissée, un point c'est tout. Une fenêtre de trente minutes
+   avait d'abord été posée pour distinguer la reprise de l'ouverture franche ;
+   c'était une distinction inventée, qui ne servait qu'à recréer le problème pour
+   quiconque revient au bout d'une heure.
+
+   La seconde, plus sournoise, est la vraie raison pour laquelle le premier
+   correctif n'a rien changé aux yeux d'un utilisateur connecté : la clé était
+   dérivée de dataKey(), qui dépend de SESS. Or SESS n'est renseigné qu'après
+   SB.syncIdentity(), qui résout bien après le premier go(). La lecture au
+   démarrage visait donc le seau anonyme, tandis que toutes les écritures de la
+   session visaient le seau du compte. Lecture et écriture ne se rencontraient
+   jamais. La clé est désormais fixe : l'onglet courant est une préférence de
+   l'appareil, pas une donnée d'utilisateur, et rien ne justifiait de l'indexer
+   sur l'identité. */
+const tabKey = () => KEY_ANON + '.tab';
 const TABS = ['biblio','saisie','tracker','jeux','feed'];
 function tabSave(){
-  try{ localStorage.setItem(tabKey(), JSON.stringify({t:S.tab, at:Date.now()})); }catch(e){}
+  try{ localStorage.setItem(tabKey(), S.tab); }catch(e){}
 }
 function tabRead(){
   try{
-    const o = JSON.parse(localStorage.getItem(tabKey()) || 'null');
-    if(!o || !o.at || Date.now() - o.at > 30 * 60 * 1000) return null;
+    const t = localStorage.getItem(tabKey());
     /* 'profil' est exclu volontairement : il n'a pas de bouton dans la barre et
        son lien de retour s'appuie sur pfFrom, que ce chemin ne renseigne pas. */
-    return TABS.includes(o.t) ? o.t : null;
+    return TABS.includes(t) ? t : null;
   }catch(e){ return null; }
 }
 
@@ -7058,7 +7067,7 @@ function tvRepas(a){
   $('#tv').innerHTML = `
     ${duoCards(a)}
 
-    <h2 class="sec">Détail du jour</h2>
+    <h2 class="sec">Aujourd’hui</h2>
     ${axesDuJour(a, t)}
 
     <h2 class="sec">Mes objectifs</h2>
@@ -7098,7 +7107,7 @@ function axesDuJour(a, t){
   const restCO2 = BUDGET_J - j.kg;
   const pctCO2  = Math.round(Math.abs(restCO2) / BUDGET_J * 100);
   const carbone = carteAxeGrande({
-    premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : 'Budget 2050 : ' + n2(BUDGET_J) + ' kg/j',
+    premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : whenWord() === 'demain' ? 'journée close' : 'journée en cours',
     total:j.kg, unite:'kg', fmt:n2, par:j.par.kg, axe:'kg',
     repere:BUDGET_J, repLabel:'budget', sens:'plafond',
     couleur:j.kg > BUDGET_J ? 'var(--brick)' : 'var(--forest)',
@@ -9421,6 +9430,20 @@ function reprise(){
   S.pdjNew = !!n.pdjNew; S.pdjSave = !!n.pdjSave; S.pdjEdit = !!n.pdjEdit;
   S.tab = 'saisie';
   return true;
+}
+/* Reprise d'une valeur écrite par la version précédente, sous l'ancienne clé
+   horodatée du compte. Sans ça, le passage à cette version repartirait une
+   dernière fois sur le feed. */
+if(!localStorage.getItem(KEY_ANON + '.tab')){
+  try{
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.endsWith('.tab')){
+        const v = JSON.parse(localStorage.getItem(k) || 'null');
+        if(v && v.t){ localStorage.setItem(KEY_ANON + '.tab', v.t); break; }
+      }
+    }
+  }catch(e){}
 }
 const repris = reprise();
 if(!repris) S.tab = tabRead() || 'feed';
