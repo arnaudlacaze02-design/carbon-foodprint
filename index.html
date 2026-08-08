@@ -31,6 +31,15 @@
 :root{
   /* palette de marque, invariante */
   --forest:#0E4D45; --forest-2:#3A6E5C; --straw:#D9C05B; --brick:#A32E2B;
+  /* --forest est une couleur de marque : elle sert de FOND, et à ce titre elle
+     ne doit pas changer d'un thème à l'autre. Le problème, c'est qu'elle
+     servait aussi de couleur de TEXTE à une trentaine d'endroits. En thème
+     sombre, #0E4D45 sur une carte #1D2523 donne un contraste de 1,3:1 : le mot
+     est là, on ne le lit pas. Sur une carte sélectionnée (#223324) il disparaît
+     tout à fait.
+     D'où --accent : le même vert en thème clair, un vert lisible en sombre. Le
+     fond garde --forest, le texte prend --accent. */
+  --accent:#0E4D45;
   --s1:#0E4D45; --s2:#3A6E5C; --s3:#6E9075; --s4:#A8B37A; --s5:#D9C05B; --s6:#E7DCA8;
   --serif:ui-serif,"New York",Iowan Old Style,Georgia,serif;
   --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
@@ -66,6 +75,7 @@
   --on-forest:#EAF1EC; --on-forest-soft:#C4D4CB; --on-forest-mute:#8FA79B;
   --topbar:#0B3B35; --on-topbar:#EAF1EC; --on-topbar-strong:#fff; --on-topbar-mute:#7FA398;
   --note-bg:#2E2A16; --note-line:#524A26; --note-ink:#D8C88A; --note-line-2:#4A4322;
+  --accent:#6FC2A6;
   --kpi-good:#223324;
   --shell:#0A0E0D;
   --tabbar:rgba(20,26,24,.92);
@@ -264,7 +274,7 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 #pm p{font-size:14px; line-height:1.5; margin:0 0 9px; color:var(--ink)}
 #pm .pmvis{background:var(--track); border-radius:11px; padding:14px; margin:12px 0 4px; text-align:center}
 #pm .pmvis b{display:block; font-family:var(--display); font-weight:800; font-size:34px;
-  line-height:1; color:var(--forest)}
+  line-height:1; color:var(--accent)}
 :root[data-theme="dark"] #pm .pmvis b{color:var(--straw)}
 #pm .pmvis span{font-family:var(--mono); font-size:9.5px; letter-spacing:.07em;
   text-transform:uppercase; color:var(--ink-soft); display:block; margin-top:6px}
@@ -368,7 +378,7 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .nutri button.nc[aria-pressed="true"]{border-color:var(--forest); background:var(--active)}
 .nutri button.nc .ar{display:block; font-family:var(--mono); font-size:9px; color:var(--mute);
   margin-top:2px; text-transform:none; letter-spacing:0}
-.nutri button.nc[aria-pressed="true"] .ar{color:var(--forest)}
+.nutri button.nc[aria-pressed="true"] .ar{color:var(--accent)}
 
 /* ---------------- cartes calories / protéines ----------------
    Le chiffre passe au premier plan, la jauge par repas derrière lui. La barre
@@ -423,7 +433,7 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   background:var(--b-carotte) center/contain no-repeat}
 :root[data-theme="dark"] #spin[data-mark="carotte"] .m{background-color:transparent}
 #spin .t{position:absolute; bottom:26%; font-family:var(--mono); font-size:10px;
-  letter-spacing:.1em; text-transform:uppercase; color:var(--forest); text-align:center; padding:0 24px}
+  letter-spacing:.1em; text-transform:uppercase; color:var(--accent); text-align:center; padding:0 24px}
 :root[data-theme="dark"] #spin .t{color:var(--straw)}
 @keyframes spinturn{
   0%{transform:rotate(0deg) scale(.55); opacity:0}
@@ -475,7 +485,7 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .qopt[aria-pressed="true"]{border-color:var(--forest); background:var(--active)}
 .qopt .qn{flex:1; min-width:0}
 .qopt .qs{display:block; font-family:var(--mono); font-size:10px; color:var(--mute); margin-top:2px}
-.qopt .qk{font-family:var(--mono); font-size:13px; color:var(--forest); opacity:0}
+.qopt .qk{font-family:var(--mono); font-size:13px; color:var(--accent); opacity:0}
 .qopt[aria-pressed="true"] .qk{opacity:1}
 .qrange{width:100%; margin:16px 0 4px; -webkit-appearance:none; appearance:none;
   background:transparent; height:26px}
@@ -602,7 +612,7 @@ p{margin:0 0 9px}
   border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink);
   font-size:13px; text-decoration:none; white-space:nowrap}
 .rbtns a:active{background:var(--forest); border-color:var(--forest); color:#fff}
-.rbtns a span{font-family:var(--mono); font-size:11px; color:var(--forest)}
+.rbtns a span{font-family:var(--mono); font-size:11px; color:var(--accent)}
 .rbtns a:active span{color:#fff}
 .disclose{
   margin-top:14px; width:100%; text-align:left; border-top:1px solid rgba(255,255,255,.16); padding-top:11px;
@@ -629,7 +639,7 @@ p{margin:0 0 9px}
 .seg button b{font-weight:600}
 .seg button small{font-family:var(--mono); font-size:9px; color:var(--mute)}
 .seg button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.seg button[aria-pressed="true"] small{color:var(--forest)}
+.seg button[aria-pressed="true"] small{color:var(--accent)}
 
 /* ---------------- listes ---------------- */
 .search{
@@ -681,7 +691,7 @@ p{margin:0 0 9px}
   font-variant-numeric:tabular-nums; text-align:right; line-height:1.1}
 .frow .fk small{display:block; font-family:var(--mono); font-size:8.5px; color:var(--mute); letter-spacing:.04em}
 .frow .fm{grid-column:1/-1; font-family:var(--mono); font-size:10px; color:var(--mute); line-height:1.55}
-.frow .fm b{color:var(--forest); font-weight:400}
+.frow .fm b{color:var(--accent); font-weight:400}
 
 /* ---------------- saisie ---------------- */
 .paths{display:flex; gap:6px; margin:10px 0 12px}
@@ -713,11 +723,11 @@ p{margin:0 0 9px}
 .pa b{font-family:var(--mono); font-size:11.5px; font-weight:400}
 .pa:active{background:var(--active)}
 .pa.on{color:var(--brick)}
-.pa.keep{margin-left:auto; color:var(--forest); font-weight:600; font-size:12.5px}
+.pa.keep{margin-left:auto; color:var(--accent); font-weight:600; font-size:12.5px}
 
 /* fil de commentaires */
 .cmt{display:flex; gap:9px; padding:10px 2px; border-bottom:1px solid var(--line-soft)}
-.cmt .av{width:26px; height:26px; border-radius:50%; background:var(--seg-bg); color:var(--forest);
+.cmt .av{width:26px; height:26px; border-radius:50%; background:var(--seg-bg); color:var(--accent);
   display:flex; align-items:center; justify-content:center; font-weight:600; font-size:11.5px; flex:0 0 auto}
 .cmt .bd{min-width:0; flex:1}
 .cmt .bd b{font-size:13px}
@@ -741,7 +751,7 @@ p{margin:0 0 9px}
 /* ---- publications du feed ---- */
 .post{border:1px solid var(--line); border-radius:16px; overflow:hidden; background:var(--card); margin-bottom:12px}
 .post .ph{display:flex; align-items:center; gap:9px; padding:10px 12px}
-.post .av{width:30px; height:30px; border-radius:50%; background:var(--seg-bg); color:var(--forest);
+.post .av{width:30px; height:30px; border-radius:50%; background:var(--seg-bg); color:var(--accent);
   display:flex; align-items:center; justify-content:center; font-weight:600; font-size:13px; flex:0 0 auto}
 .post .pw{min-width:0}
 .post .pw b{display:block; font-size:13.5px; line-height:1.2}
@@ -765,7 +775,7 @@ p{margin:0 0 9px}
 .rchips{display:flex; flex-wrap:wrap; gap:6px; padding:12px 13px 0}
 .rchip{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
   border:1px solid var(--line); border-radius:999px; padding:3px 9px; color:var(--mute)}
-.rmore{padding:10px 13px 14px; font-size:12.5px; color:var(--forest); font-weight:600}
+.rmore{padding:10px 13px 14px; font-size:12.5px; color:var(--accent); font-weight:600}
 
 /* fiche recette à deux onglets */
 .rtabs{display:flex; gap:3px; background:var(--seg-bg); border-radius:10px; padding:3px; margin:12px 0 14px}
@@ -780,7 +790,7 @@ p{margin:0 0 9px}
 .rstep .no{width:24px; height:24px; border-radius:50%; background:var(--forest); color:#fff;
   display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; flex:0 0 auto}
 .rstep p{margin:0; font-size:14px; line-height:1.5}
-a.lk{color:var(--forest); text-decoration:underline; text-underline-offset:2px; word-break:break-word}
+a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; word-break:break-word}
 
 .srchw{position:relative}
 .srchw.mb{margin:2px 0 10px}
@@ -890,8 +900,8 @@ a.lk{color:var(--forest); text-decoration:underline; text-underline-offset:2px; 
 .journal .kg{font-family:var(--display); font-weight:800; font-size:16px; font-variant-numeric:tabular-nums}
 svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .demo{display:flex; align-items:center; gap:10px; background:var(--note-bg); border:1px solid var(--note-line-2); border-radius:10px; padding:10px 12px; font-size:12.5px; color:var(--note-ink)}
-.demo.edit{background:var(--kpi-good); border-color:var(--forest-2); color:var(--forest)}
-.demo.edit button{color:var(--forest)}
+.demo.edit{background:var(--kpi-good); border-color:var(--forest-2); color:var(--accent)}
+.demo.edit button{color:var(--accent)}
 .demo button{margin-left:auto; font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--note-ink); text-decoration:underline; white-space:nowrap}
 
 /* ---------------- sheet ---------------- */
@@ -946,7 +956,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
    qu'on y est. La bordure de 3 px passait pour un liseré de barre — elle est
    élargie et doublée d'un halo, de façon à se lire comme une sélection et non
    comme un contour. */
-.tabbar .bub[aria-current="page"]{color:var(--forest)}
+.tabbar .bub[aria-current="page"]{color:var(--accent)}
 .tabbar .bub[aria-current="page"] .ic{background:var(--forest);
   border-color:var(--straw); border-width:3.5px;
   box-shadow:var(--shadow), 0 0 0 1.5px rgba(217,192,91,.45)}
@@ -970,7 +980,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
    l'encre verte et se cerne de paille, comme la bulle du Feed. Le fond seul ne
    suffisait pas — sur la barre claire, une pastille verte sans cerne se lisait
    comme une icône coloriée plutôt que comme la page où l'on est. */
-.tabbar button[aria-current="page"]{color:var(--forest)}
+.tabbar button[aria-current="page"]{color:var(--accent)}
 .tabbar button[aria-current="page"] .ic{background:var(--forest);
   box-shadow:0 0 0 2px var(--straw)}
 .tabbar button[aria-current="page"] .ic svg{stroke:#fff}
@@ -1003,7 +1013,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
   border-bottom:1px solid var(--line-soft)}
 .chal:last-of-type{border-bottom:0}
 .chal .st{font-family:var(--mono); font-size:14px; text-align:center; line-height:1.2}
-.chal .st.on{color:var(--forest)}
+.chal .st.on{color:var(--accent)}
 .chal .st.off{color:var(--line)}
 .chal .nm{font-size:14.5px}
 .chal .pt{font-family:var(--display); font-weight:800; font-size:16px; font-variant-numeric:tabular-nums; white-space:nowrap}
@@ -1032,7 +1042,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .bfamsub{font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; text-transform:uppercase;
   color:var(--mute); margin-bottom:11px}
 .seemore{width:100%; margin-top:14px; padding:11px; border:1px solid var(--line); border-radius:10px;
-  background:var(--card); color:var(--forest); font-size:13px}
+  background:var(--card); color:var(--accent); font-size:13px}
 .trodet{display:flex; align-items:baseline; gap:9px; margin:12px 0 2px}
 .trodet .tn{font-family:var(--display); font-weight:800; font-size:22px; letter-spacing:-.01em}
 .trodet .te{font-size:20px}
@@ -1053,7 +1063,7 @@ button.tip:active{transform:scale(.995)}
 .tip.good{background:var(--kpi-good); border-color:var(--forest)}
 .tip.bad{background:var(--note-bg); border-color:var(--brick)}
 .tip.bad .ic{color:var(--brick)}
-.tip.good .ic{color:var(--forest)}
+.tip.good .ic{color:var(--accent)}
 .tip .ic{font-family:var(--mono); font-size:13px; line-height:1.3}
 .tip .tx{font-size:12.5px; line-height:1.45; color:var(--ink)}
 .tip .tx b{font-weight:600}
@@ -1069,7 +1079,7 @@ button.tip:active{transform:scale(.995)}
   color:var(--note-ink); background:var(--note-bg); border:1px solid var(--note-line);
   border-radius:7px; padding:5px 9px; margin-top:7px; display:inline-block}
 .backlink{font-family:var(--mono); font-size:10px; letter-spacing:.07em; text-transform:uppercase;
-  color:var(--forest); margin-bottom:8px; display:block}
+  color:var(--accent); margin-bottom:8px; display:block}
 
 /* ---------------- calendrier ---------------- */
 .calnav{display:flex; align-items:center; justify-content:space-between; margin-bottom:9px}
@@ -1098,7 +1108,7 @@ button.tip:active{transform:scale(.995)}
 .calmini:active{background:var(--active)}
 .mininav{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:9px}
 .mininav span{font-family:var(--serif); font-size:15px}
-.mininav .op{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--forest)}
+.mininav .op{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--accent)}
 .callegend{display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:12px}
 .callegend span{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:9.5px;
   letter-spacing:.03em; text-transform:uppercase; color:var(--ink-soft)}
@@ -1156,12 +1166,12 @@ button.tip:active{transform:scale(.995)}
   display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; min-height:78px}
 .hub:active{background:var(--active)}
 .hub .hn{font-family:var(--serif); font-size:17px}
-.hub .hn i{font-style:normal; color:var(--forest); font-size:14px}
+.hub .hn i{font-style:normal; color:var(--accent); font-size:14px}
 .hub .hd{font-family:var(--mono); font-size:9px; letter-spacing:.04em; text-transform:uppercase;
   color:var(--mute); line-height:1.35}
 .hub.on{border-color:var(--forest-2); background:var(--kpi-good)}
 .hub.next{border-color:var(--forest); border-width:1.5px}
-.hub.next .hd{color:var(--forest)}
+.hub.next .hd{color:var(--accent)}
 .wizbar span[data-jump]{cursor:pointer}
 
 /* ---------------- provenance du repas ----------------
@@ -1176,14 +1186,16 @@ button.tip:active{transform:scale(.995)}
 .mcard .mck{font-family:var(--display); font-weight:800; font-size:14px; color:var(--mute);
   font-variant-numeric:tabular-nums; white-space:nowrap}
 .mcard .mcs{grid-column:1/-1; font-size:12px; color:var(--ink-soft); line-height:1.45}
-.mcard.on{border-color:var(--forest); border-width:1.5px; background:var(--kpi-good)}
-.mcard.on .mck{color:var(--forest)}
+.mcard.on{border-color:var(--forest-2); background:var(--kpi-good);
+  box-shadow:inset 0 0 0 1px var(--forest-2)}
+.mcard.on .mct{color:var(--accent)}
+.mcard.on .mck{color:var(--accent)}
 .modeline{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
   padding:9px 12px; margin:8px 0 2px; border:1px solid var(--line); border-radius:10px;
   background:var(--card); font-size:12.5px; text-align:left}
 .modeline b{font-weight:600}
 .modeline i{font-style:normal; font-family:var(--mono); font-size:10px; letter-spacing:.05em;
-  text-transform:uppercase; color:var(--forest); flex:0 0 auto}
+  text-transform:uppercase; color:var(--accent); flex:0 0 auto}
 
 /* ---------------- composeur standard ---------------- */
 .stdgrp{margin-top:15px}
@@ -1196,7 +1208,7 @@ button.tip:active{transform:scale(.995)}
 .wizbar span{font-family:var(--mono); font-size:9px; letter-spacing:.06em; text-transform:uppercase;
   color:var(--mute); padding:4px 8px; border-radius:999px; background:var(--seg-bg)}
 .wizbar span.on{background:var(--forest); color:#fff}
-.wizbar span.done{background:var(--kpi-good); color:var(--forest)}
+.wizbar span.done{background:var(--kpi-good); color:var(--accent)}
 .wizbar i{font-style:normal; color:var(--line); font-size:11px}
 .drinkgrid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:2px}
 .dcard{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 8px;
@@ -1215,7 +1227,7 @@ button.tip:active{transform:scale(.995)}
 .chd{display:flex; align-items:center; gap:8px; margin-bottom:5px}
 .chd .ct{flex:1; font-family:var(--mono); font-size:9.5px; letter-spacing:.09em;
   text-transform:uppercase; color:var(--mute)}
-.chd .ct b{color:var(--forest); font-weight:400}
+.chd .ct b{color:var(--accent); font-weight:400}
 .chd .ck{font-family:var(--display); font-weight:800; font-size:14px; font-variant-numeric:tabular-nums}
 .chd .plus{width:23px; height:23px; border-radius:50%; background:var(--forest); color:#fff;
   display:flex; align-items:center; justify-content:center; font-size:16px; line-height:1; flex:0 0 auto}
@@ -1897,7 +1909,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-81';
+const BUILD = 'cfp-82';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -3998,7 +4010,7 @@ function feedDefis(ctx){
             <span class="nm">${esc(CHAL[ch.kind].l)}
               <i class="small mute" style="font-style:normal">  ·  de ${esc((ch.aut||{}).username || '?')}
                 · ${dLabel(ch.starts)} → ${dLabel(ch.ends)}</i></span>
-            <button class="rm" data-cyes="${i}" style="color:var(--forest);font-size:13px">Rejoindre</button>
+            <button class="rm" data-cyes="${i}" style="color:var(--accent);font-size:13px">Rejoindre</button>
             <button class="rm" data-cno="${i}">×</button>
           </div>`).join('')}
       </div>` : ''}
@@ -4050,7 +4062,7 @@ function feedAmis(ctx){
       <h2 class="sec">Demandes reçues · ${F.in.length}</h2>
       <div class="card">
         ${F.in.map((x,i) => ligne(x.dem.username, x.dem.username_slug,
-          `<button class="rm" data-yes="${i}" style="color:var(--forest);font-size:13px">Accepter</button>
+          `<button class="rm" data-yes="${i}" style="color:var(--accent);font-size:13px">Accepter</button>
            <button class="rm" data-no="${i}">Refuser</button>`)).join('')}
       </div>` : ''}
 
@@ -4102,7 +4114,7 @@ function feedAmis(ctx){
       ${F.friends.length
         ? F.friends.map((x,i) => { const a = frAutre(x);
             return ligne(a.username, a.username_slug,
-              `<button class="rm" data-fiche="${i}" style="color:var(--forest);font-size:13px">Fiche</button>
+              `<button class="rm" data-fiche="${i}" style="color:var(--accent);font-size:13px">Fiche</button>
                <button class="rm" data-un="${i}">×</button>`); }).join('')
         : `<p class="small mute">Personne pour l’instant. Cherchez un pseudo ci-dessus et envoyez
             une demande.</p>`}
@@ -4117,7 +4129,7 @@ function feedAmis(ctx){
         <p class="small">Ces personnes avaient été ajoutées avant que les demandes existent.
           Elles n’ont jamais été prévenues. Envoyez-leur une vraie demande, ou retirez-les.</p>
         ${S.people.map((p,i) => ligne(p.username, p.slug,
-          `<button class="rm" data-mig="${i}" style="color:var(--forest);font-size:13px">Demander</button>
+          `<button class="rm" data-mig="${i}" style="color:var(--accent);font-size:13px">Demander</button>
            <button class="rm" data-old="${i}">×</button>`)).join('')}
       </div>` : ''}
 
@@ -4975,10 +4987,11 @@ const QUICK_PLUS = {
 /* ouvre une étape du parcours */
 function openCourse(k){
   S.course = k; S.comCat = k; S.step = 'course';
-  S.path = 'types'; S.dishQ = ''; S.pickQ = ''; S.pickSlug = null; S.drinkMore = false;
-  /* Le plat ouvre sur le composeur standard, les autres services sur la liste
-     des plats types : « Standard » n'a de sens que pour le cœur du repas. */
-  if(k === 'plat') S.path = null;
+  S.dishQ = ''; S.pickQ = ''; S.pickSlug = null; S.drinkMore = false;
+  /* Aucune méthode présélectionnée : l'écran commence par la question. Ouvrir
+     d'office sur l'une des deux voies revient à choisir à la place de
+     l'utilisateur, et la voie ouverte finit par être la seule utilisée. */
+  S.path = null;
   renderSaisie();
 }
 
@@ -5315,10 +5328,10 @@ function renderPdjChoix(D, isToday){
        celle qu'avait l'habitude au jour où elle a été enregistrée. */
     S.mode = S.mode || h.hmode || 'frais';
     h.l.forEach(l => S.draft.push([l[0], l[1], 'plat', S.mode]));
-    S.pdjNew = true; S.path = 'types'; renderSaisie();
+    S.pdjNew = true; S.path = 'compose'; renderSaisie();
     toast('Habitude chargée · vérifiez et enregistrez');
   };
-  $('#pd_new').onclick = () => { S.pdjNew = true; S.path = 'types'; S.dishQ = ''; renderSaisie(); };
+  $('#pd_new').onclick = () => { S.pdjNew = true; S.path = null; S.dishQ = ''; renderSaisie(); };
 }
 
 
@@ -5351,7 +5364,7 @@ function modeSuite(){
     return renderSaisie();
   }
   if(S.meal === 'dej' || S.meal === 'din') return openCourse('boisson');
-  S.comCat = 'plat'; S.path = 'types'; S.dishQ = ''; S.step = 'saisie';
+  S.comCat = 'plat'; S.path = null; S.dishQ = ''; S.step = 'saisie';
   renderSaisie();
 }
 function renderMode(D, isToday){
@@ -5382,6 +5395,17 @@ function renderMode(D, isToday){
     setMealMode(b.dataset.pmode); modeSuite();
   });
 }
+/* Rappel de la méthode de saisie choisie, sur le même modèle que la provenance.
+   La barre segmentée « Plats types | Composer » restait affichée en permanence
+   au-dessus du panneau, à répéter un choix déjà fait ; une ligne suffit à le
+   rappeler et à revenir dessus, et l'écran s'allège d'une rangée de boutons. */
+function voieLine(isPlat){
+  const l = S.path === 'compose' ? 'Composer'
+          : isPlat ? 'Plat standard' : 'Plats types';
+  return `<button class="modeline" id="voieEdit" style="margin-top:2px">
+    <span><b>${l}</b></span><i>changer</i></button>`;
+}
+
 /* Rappel discret de la provenance, en tête des écrans de saisie. Il remplace le
    sélecteur à trois boutons : le choix est fait, il n'a plus à occuper la
    moitié de l'écran, mais il doit rester lisible et rattrapable. */
@@ -5640,8 +5664,8 @@ function renderSaisie(){
      geste. Le plat, lui, se saisit de deux façons vraiment différentes, et
      ouvrir d'office sur l'une d'elles revient à choisir à la place de l'autre. */
   if(isPlat  && S.path === 'types') S.path = null;
-  if(!isPlat && (S.path === 'std' || !S.path)) S.path = 'types';
-  const platChoix = isPlat && !S.path;
+  if(!isPlat && S.path === 'std')   S.path = null;
+  const platChoix = !S.path;
 
   /* liste unifiée : compositions personnelles puis plats types, favoris en tête */
   const nrm = nrmQ;
@@ -5698,7 +5722,7 @@ function renderSaisie(){
             ? `Passer, pas ${/^[aeéiouh]/i.test(step.label) ? 'd’' : 'de '}${step.label.toLowerCase()} ›`
             : 'Terminer le repas ›')}</button>
     </div>
-    <h2 class="sec">${platChoix ? 'Comment saisir le plat ?' : step.q}</h2>`
+    <h2 class="sec">${platChoix ? 'Comment le saisir ?' : step.q}</h2>`
    : `<h2 class="sec">Comment le saisir ?</h2>`}
 
   ${step && QUICK[step.k] ? `
@@ -5729,24 +5753,27 @@ function renderSaisie(){
 
   ${step && QUICK[step.k] && !S.drinkMore ? '' : modeLine() + (!S.mode ? '' : (platChoix ? `
   <div class="modegrid" style="margin-top:12px">
+    ${isPlat ? `
     <button class="mcard" data-path="std">
       <span class="mct">Standard</span>
       <span class="mck">3 choix</span>
       <span class="mcs">Une protéine, un féculent, un légume, et la taille de l’assiette.
         Le plus rapide, et suffisant pour la plupart des repas de tous les jours.</span>
-    </button>
+    </button>` : `
+    <button class="mcard" data-path="types">
+      <span class="mct">Plats types</span>
+      <span class="mck">${items.length}</span>
+      <span class="mcs">Les plats déjà connus de la base, et les vôtres. Le plus rapide
+        quand ce qu’on a mangé y figure déjà.</span>
+    </button>`}
     <button class="mcard" data-path="compose">
       <span class="mct">Composer</span>
       <span class="mck">${DB.foods.length} aliments</span>
-      <span class="mcs">Aliment par aliment, avec les grammes, ou un plat type déjà connu.
+      <span class="mcs">Aliment par aliment, avec les grammes${
+        isPlat ? ', ou un plat type déjà connu' : ''}.
         Le plus juste quand on sait ce qu’il y avait dedans.</span>
     </button>
-  </div>` : `<div class="paths">
-    ${isPlat
-      ? `<button data-path="std" aria-pressed="${S.path==='std'}">Standard</button>`
-      : `<button data-path="types" aria-pressed="${S.path==='types'}">Plats types</button>`}
-    <button data-path="compose" aria-pressed="${S.path==='compose'}">Composer</button>
-  </div>
+  </div>` : `${voieLine(isPlat)}
 
   ${S.path === 'std' ? stdPanel() : ''}
 
@@ -5879,6 +5906,8 @@ function renderSaisie(){
   /* La ligne de provenance remplace l'ancien sélecteur `[data-mode]` : elle
      renvoie à la page dédiée, qui saura revenir ici grâce à S.modeFrom. */
   const meEd = $('#modeEdit'); if(meEd) meEd.onclick = gotoMode;
+  const voEd = $('#voieEdit');
+  if(voEd) voEd.onclick = () => { S.path = null; S.dishQ = ''; renderSaisie(); };
   view.querySelectorAll('[data-path]').forEach(b => b.onclick = () => { S.path = b.dataset.path; renderSaisie(); });
   view.querySelectorAll('[data-dish]').forEach(b => b.onclick = () => {
     S.openDish = S.openDish === b.dataset.dish ? null : b.dataset.dish; renderSaisie(); });
@@ -6734,7 +6763,7 @@ function renderProfil(){
     S.meal = 'pdj'; S.mode = h.hmode || 'frais'; S.comCat = 'plat';
     S.draft = h.l.map(l => [l[0], l[1], 'plat', S.mode]);
     S.pdjEdit = true; S.pdjNew = true; S.pdjSave = false;
-    S.step = 'saisie'; S.path = 'types'; S.dishQ = '';
+    S.step = 'saisie'; S.path = 'compose'; S.dishQ = '';
     go('saisie');
     toast('Modifiez, puis enregistrez l’habitude');
   };
@@ -7700,10 +7729,10 @@ function objBlock(a){
       ${cibleKg != null
         ? `<div class="v" style="color:${kgSem > cibleKg ? 'var(--brick)' : 'var(--forest)'}">${n2(kgSem)} <span class="unit">kg</span></div>`
         : cibleVege != null
-          ? `<div class="v" style="color:var(--forest)">${vege} <span class="unit">végé</span></div>`
+          ? `<div class="v" style="color:var(--accent)">${vege} <span class="unit">végé</span></div>`
           : cibleCal != null
-            ? `<div class="v" style="color:var(--forest)">${n0(kcalSem)} <span class="unit">kcal</span></div>`
-            : `<div class="v" style="color:var(--forest)">${n0(protSem)} <span class="unit">g prot</span></div>`}
+            ? `<div class="v" style="color:var(--accent)">${n0(kcalSem)} <span class="unit">kcal</span></div>`
+            : `<div class="v" style="color:var(--accent)">${n0(protSem)} <span class="unit">g prot</span></div>`}
     </div>
     <div class="hr"></div>
     <div class="bars">
