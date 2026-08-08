@@ -1140,7 +1140,8 @@ button.tip:active{transform:scale(.995)}
 .mealblocks{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
 .mblock{background:var(--card); border:1px solid var(--line); border-radius:11px; padding:15px 12px;
   display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center}
-.mblock .ml{font-size:14.5px}
+.mblock .ml{font-family:var(--display); font-weight:800; font-size:17px; letter-spacing:-.01em;
+  line-height:1.1}
 .mblock .mv{font-family:var(--mono); font-size:10px; letter-spacing:.05em; color:var(--mute)}
 .mblock[aria-pressed="true"]{background:var(--forest); border-color:var(--forest)}
 .mblock[aria-pressed="true"] .ml{color:#fff}
@@ -1170,8 +1171,10 @@ button.tip:active{transform:scale(.995)}
 .mcard{background:var(--card); border:1px solid var(--line); border-radius:13px; padding:14px;
   display:grid; grid-template-columns:1fr auto; gap:3px 10px; text-align:left; align-items:baseline}
 .mcard:active{background:var(--active)}
-.mcard .mct{font-family:var(--serif); font-size:17px}
-.mcard .mck{font-family:var(--mono); font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--mute)}
+.mcard .mct{font-family:var(--display); font-weight:800; font-size:19px; letter-spacing:-.012em;
+  line-height:1.1}
+.mcard .mck{font-family:var(--display); font-weight:800; font-size:14px; color:var(--mute);
+  font-variant-numeric:tabular-nums; white-space:nowrap}
 .mcard .mcs{grid-column:1/-1; font-size:12px; color:var(--ink-soft); line-height:1.45}
 .mcard.on{border-color:var(--forest); border-width:1.5px; background:var(--kpi-good)}
 .mcard.on .mck{color:var(--forest)}
@@ -1182,23 +1185,7 @@ button.tip:active{transform:scale(.995)}
 .modeline i{font-style:normal; font-family:var(--mono); font-size:10px; letter-spacing:.05em;
   text-transform:uppercase; color:var(--forest); flex:0 0 auto}
 
-/* ---------------- choix du plat principal ---------------- */
-.bigcard{width:100%; background:linear-gradient(135deg,var(--forest),var(--forest-2)); color:#fff;
-  border-radius:var(--r); padding:20px 18px; display:flex; flex-direction:column; gap:7px;
-  text-align:left; margin-bottom:10px}
-.bigcard:active{filter:brightness(.94)}
-.bigcard .bct{font-family:var(--display); font-weight:800; font-size:24px; letter-spacing:-.015em; color:#fff}
-.bigcard .bcs{font-size:12.5px; line-height:1.45; color:var(--on-forest-mute)}
-.tilegrid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px}
-.tile{aspect-ratio:1.4; background:var(--card); border:1px solid var(--line); border-radius:13px;
-  padding:13px; display:flex; flex-direction:column; align-items:flex-start;
-  justify-content:space-between; text-align:left}
-.tile:active{background:var(--active)}
-.tile .tn{font-family:var(--serif); font-size:16px; line-height:1.2}
-.tile .tc{font-family:var(--display); font-weight:800; font-size:20px; color:var(--forest-2);
-  font-variant-numeric:tabular-nums; line-height:1}
-.tile .tc small{font-family:var(--mono); font-weight:400; font-size:8.5px; letter-spacing:.05em;
-  text-transform:uppercase; color:var(--mute); margin-left:4px}
+/* ---------------- composeur standard ---------------- */
 .stdgrp{margin-top:15px}
 .stdgrp > .unit{display:block; margin-bottom:6px}
 /* ---------------- parcours guidé ---------------- */
@@ -1910,7 +1897,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-80';
+const BUILD = 'cfp-81';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -4991,7 +4978,7 @@ function openCourse(k){
   S.path = 'types'; S.dishQ = ''; S.pickQ = ''; S.pickSlug = null; S.drinkMore = false;
   /* Le plat ouvre sur le composeur standard, les autres services sur la liste
      des plats types : « Standard » n'a de sens que pour le cœur du repas. */
-  if(k === 'plat') S.path = 'std';
+  if(k === 'plat') S.path = null;
   renderSaisie();
 }
 
@@ -5647,8 +5634,14 @@ function renderSaisie(){
   /* « Standard » n'existe que pour le plat, « Plats types » que pour le reste :
      une voie affichée sans panneau derrière donnerait un écran vide. */
   const isPlat = !!step && step.k === 'plat';
-  if(isPlat  && S.path === 'types') S.path = 'std';
-  if(!isPlat && S.path === 'std')   S.path = 'types';
+  /* Le plat démarre sans voie choisie : `S.path` vaut null et l'écran ne montre
+     que la question. Les autres services n'ont pas ce sas — leur liste de plats
+     types est la réponse la plus courante, l'afficher d'emblée fait gagner un
+     geste. Le plat, lui, se saisit de deux façons vraiment différentes, et
+     ouvrir d'office sur l'une d'elles revient à choisir à la place de l'autre. */
+  if(isPlat  && S.path === 'types') S.path = null;
+  if(!isPlat && (S.path === 'std' || !S.path)) S.path = 'types';
+  const platChoix = isPlat && !S.path;
 
   /* liste unifiée : compositions personnelles puis plats types, favoris en tête */
   const nrm = nrmQ;
@@ -5705,7 +5698,8 @@ function renderSaisie(){
             ? `Passer, pas ${/^[aeéiouh]/i.test(step.label) ? 'd’' : 'de '}${step.label.toLowerCase()} ›`
             : 'Terminer le repas ›')}</button>
     </div>
-    <h2 class="sec">${step.q}</h2>` : `<h2 class="sec">Comment le saisir ?</h2>`}
+    <h2 class="sec">${platChoix ? 'Comment saisir le plat ?' : step.q}</h2>`
+   : `<h2 class="sec">Comment le saisir ?</h2>`}
 
   ${step && QUICK[step.k] ? `
     <div class="drinkgrid">
@@ -5733,7 +5727,21 @@ function renderSaisie(){
       ? 'Touchez un verre pour l’ajouter, deux fois s’il y en a eu deux. Les volumes se corrigent plus bas. La barre ouvre les boissons protéinées et fermentées, puis toute la base.'
       : 'Touchez la tasse prise en fin de repas. La barre ouvre la recherche. Rien de tout cela ? Passez l’étape.'}</div>` : ''}
 
-  ${step && QUICK[step.k] && !S.drinkMore ? '' : modeLine() + (!S.mode ? '' : `<div class="paths">
+  ${step && QUICK[step.k] && !S.drinkMore ? '' : modeLine() + (!S.mode ? '' : (platChoix ? `
+  <div class="modegrid" style="margin-top:12px">
+    <button class="mcard" data-path="std">
+      <span class="mct">Standard</span>
+      <span class="mck">3 choix</span>
+      <span class="mcs">Une protéine, un féculent, un légume, et la taille de l’assiette.
+        Le plus rapide, et suffisant pour la plupart des repas de tous les jours.</span>
+    </button>
+    <button class="mcard" data-path="compose">
+      <span class="mct">Composer</span>
+      <span class="mck">${DB.foods.length} aliments</span>
+      <span class="mcs">Aliment par aliment, avec les grammes, ou un plat type déjà connu.
+        Le plus juste quand on sait ce qu’il y avait dedans.</span>
+    </button>
+  </div>` : `<div class="paths">
     ${isPlat
       ? `<button data-path="std" aria-pressed="${S.path==='std'}">Standard</button>`
       : `<button data-path="types" aria-pressed="${S.path==='types'}">Plats types</button>`}
@@ -5784,7 +5792,7 @@ function renderSaisie(){
   </div>` : ''}` : ''}
 
   ${S.path === 'compose' ? composePanel(items, foodHits) : ''}
-`)}
+`))}
 
   ${inStep.length ? `<div class="card" style="margin-top:12px">
     ${(step ? inStep.map(l => ({l, i:S.draft.indexOf(l)})) : S.draft.map((l,i) => ({l, i})))
