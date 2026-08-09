@@ -473,10 +473,44 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .ava[data-on="1"] .who{fill:var(--on-topbar-strong)}
 
 /* ---------------- questionnaire de profil ---------------- */
-.qbar{display:flex; gap:4px; margin:2px 0 12px}
-.qbar i{flex:1; height:3px; border-radius:2px; background:var(--line)}
-.qbar i.on{background:var(--forest)}
-.qbar i.now{background:var(--straw)}
+/* Témoins d'avancement, en bas de la fenêtre. Des points et non des barres :
+   une barre pleine largeur se lit comme une progression continue, alors qu'il
+   s'agit d'un nombre fini de questions — et c'est ce nombre qu'on veut voir,
+   pour savoir combien il en reste avant de commencer. */
+.qdots{display:flex; justify-content:center; align-items:center; gap:7px; margin:18px 0 0;
+  flex-wrap:wrap}
+.qdots i{width:7px; height:7px; border-radius:50%; background:var(--line); flex:0 0 auto}
+.qdots i.on{background:var(--forest-2)}
+.qdots i.now{background:var(--straw); transform:scale(1.5)}
+.qcount{font-family:var(--mono); font-size:10px; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--mute); text-align:center; margin-top:8px}
+
+/* Option en gros : le libellé porte la question, le contexte se lit après. Les
+   régimes ont des noms qu'on reconnaît d'un coup d'œil, la nuance qui les
+   sépare tient dans la ligne du dessous. */
+.qopt.big{align-items:flex-start; padding:14px}
+.qopt.big .qn{font-family:var(--display); font-weight:800; font-size:20px; letter-spacing:-.01em;
+  line-height:1.1}
+.qopt.big .qs{font-family:var(--sans); font-size:12.5px; letter-spacing:0; text-transform:none;
+  color:var(--ink-soft); line-height:1.4; margin-top:5px}
+.qic{flex:0 0 auto; width:38px; height:38px; margin-right:2px}
+.qic svg{width:100%; height:100%; fill:none; stroke:var(--accent); stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round}
+.qopt[aria-pressed="true"] .qic svg{stroke:var(--forest-2)}
+/* Réponse suggérée par les réponses déjà données. Un liseré et une étiquette,
+   pas une présélection : suggérer n'est pas répondre à la place. */
+.qopt.reco{border-color:var(--forest-2)}
+.qtag{display:inline-block; margin-left:7px; padding:2px 6px; border-radius:5px;
+  background:var(--kpi-good); color:var(--accent); font-family:var(--mono); font-size:9px;
+  letter-spacing:.05em; text-transform:uppercase; vertical-align:middle}
+/* Bloc de création de compte, première question du questionnaire. */
+.qfield{margin-top:10px}
+.qfield > label{display:block; font-family:var(--mono); font-size:10px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--mute); margin-bottom:5px}
+.qmini{display:flex; gap:6px; flex-wrap:wrap}
+.qmini button{flex:1 1 0; min-width:74px; padding:10px 8px; border:1px solid var(--line);
+  border-radius:10px; background:var(--card); color:var(--ink-soft); font-size:13px}
+.qmini button[aria-pressed="true"]{background:var(--forest); border-color:var(--forest); color:#fff}
 .qopt{display:flex; align-items:center; gap:10px; width:100%; text-align:left;
   background:var(--card); border:1px solid var(--line); border-radius:11px;
   padding:12px 14px; margin-top:7px; font-size:14.5px; color:var(--ink);
@@ -1920,7 +1954,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-83';
+const BUILD = 'cfp-84';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -6212,7 +6246,7 @@ function offerImport(){
 /* Le code de récupération est le seul recours : pas d'adresse e-mail, donc
    aucun lien de réinitialisation possible. L'écran insiste, et refuse de se
    fermer sans confirmation explicite. */
-function showRecoveryCode(code, titre){
+function showRecoveryCode(code, titre, apres){
   openSheet(`
     <div class="unit">${esc(titre)}</div>
     <h3>Notez ce code</h3>
@@ -6232,7 +6266,13 @@ function showRecoveryCode(code, titre){
     catch(e){ toast('Copie refusée, notez-le à la main'); }
   };
   const k = $('#rc_ok');
-  if(k) k.onclick = () => { closeSheet(); go(S.tab); offerImport(); };
+  if(k) k.onclick = () => {
+    /* Une suite peut être fournie — la création de compte au fil du
+       questionnaire enchaîne sur la question suivante plutôt que de refermer
+       tout et de laisser l'utilisateur devant un écran d'accueil. */
+    if(apres) return apres();
+    closeSheet(); go(S.tab); offerImport();
+  };
 }
 
 function signupSheet(pseudo, mdp){
@@ -6330,68 +6370,84 @@ function logoutSheet(){
    Huit questions, une par écran, toutes facultatives. Les réponses restent
    locales au compte : rien n'est publié, rien n'est comparé à quiconque. */
 
-const PROF_ANCRE = {dessus:2600, moyenne:2000, dessous:1200, budget:700};
+const PROF_ANCRE = {dessus:2600, moyenne:2000, entre:1500, dessous:1000, budget:700};
+
+/* Ce que le régime déclaré laisse attendre pour la suite du questionnaire.
+   Trois usages distincts, à ne pas confondre : `situe` est l'ordre de grandeur
+   où l'on se trouve probablement, `obj` la cible qu'il est raisonnable de viser
+   — donc plus basse — et `vege` le rythme végétal correspondant.
+
+   Ces valeurs suggèrent, elles ne remplissent pas. Une réponse préremplie est
+   une réponse qu'on ne relit pas, et l'intérêt de la question « où pensez-vous
+   vous situer » est précisément de recueillir une estimation personnelle avant
+   toute mesure : la souffler d'avance la viderait de son sens. */
+const REG_G = {
+  vegetalien:  {situe:'budget',  obj:700,  objTxt:'700 kg',           vege:14},
+  vegetarien:  {situe:'budget',  obj:700,  objTxt:'700 kg',           vege:14},
+  flexitarien: {situe:'dessous', obj:1000, objTxt:'900 kg à 1,1 t',   vege:5},
+  proteine:    {situe:'entre',   obj:1200, objTxt:'environ 1,2 t',    vege:3},
+  carnivore:   {situe:'dessus',  obj:1450, objTxt:'1,3 à 1,6 t',      vege:1},
+};
+const regG = () => REG_G[(S.prof || {}).regime] || null;
+
+/* Pictogrammes des régimes. Dessinés ici, en traits, plutôt qu'importés : tout
+   l'habillage de l'app est embarqué dans le fichier, et une icône qui dépend
+   d'un réseau est une icône absente le jour où il manque.
+   La vache est une vache souriante quelconque, volontairement : reprendre le
+   dessin d'une marque de fromage serait reprendre une marque déposée. */
+const QIC = {
+  salade: '<svg viewBox="0 0 40 40"><path d="M7 20h26a13 13 0 0 1-26 0z"/><path d="M13 20c0-5 3-8 7-8s7 3 7 8"/><path d="M20 12c0-3 2-5 5-5M20 14c-2-2-5-2-7 0"/><path d="M10 33h20"/></svg>',
+  oeuf:   '<svg viewBox="0 0 40 40"><ellipse cx="15" cy="23" rx="7" ry="9"/><path d="M28 30c6 0 8-4 8-9s-4-9-9-7c1-5-2-8-6-8"/><path d="M28 14v16"/></svg>',
+  poulet: '<svg viewBox="0 0 40 40"><path d="M14 33c-4 0-7-3-7-7 0-6 5-11 11-11 6 0 11 4 11 10 0 5-3 8-7 8z"/><path d="M25 15c0-4 3-7 7-7-1 3 0 5 1 6"/><circle cx="27" cy="19" r="1.2" fill="currentColor" stroke="none"/><ellipse cx="12" cy="30" rx="3.5" ry="4.5"/></svg>',
+  steak:  '<svg viewBox="0 0 40 40"><path d="M8 20c0-7 6-12 14-12s11 5 11 10-4 12-12 12S8 27 8 20z"/><path d="M15 19c0-3 3-5 6-5s5 2 5 5-2 6-5 6-6-3-6-6z"/></svg>',
+  vache:  '<svg viewBox="0 0 40 40"><path d="M9 14c0-3 3-5 6-5h10c3 0 6 2 6 5v6c0 6-5 11-11 11S9 26 9 20z"/><path d="M9 15c-3-1-5-3-5-6 3 0 5 1 6 3M31 15c3-1 5-3 5-6-3 0-5 1-6 3"/><circle cx="16" cy="18" r="1.3" fill="currentColor" stroke="none"/><circle cx="24" cy="18" r="1.3" fill="currentColor" stroke="none"/><path d="M15 25c1.5 2 3 3 5 3s3.5-1 5-3"/><path d="M17 22h6"/></svg>',
+};
 
 const PROFQ = [
-  {k:'gout', q:'Plutôt sucré ou salé ?', opts:[
-    ['sucre','Sucré','Desserts, viennoiseries, fruits'],
-    ['sale','Salé','Fromages, charcuterie, plats en sauce'],
-    ['deux','Les deux','Sans préférence marquée']]},
+  /* Le compte d'abord. Il n'apporte rien au calcul, mais il décide de ce qu'il
+     advient des réponses : sans lui elles vivent dans ce navigateur et nulle
+     part ailleurs. Le demander après huit questions, c'est demander de refaire
+     le chemin à qui change de téléphone. Sexe et âge sont sur le même écran :
+     ils servent aux références énergétiques de l'ANSES et il n'y a pas de quoi
+     faire deux pages. */
+  {k:'compte', compte:true, q:'Votre compte',
+   note:'Aucune adresse e-mail n’est demandée. Le pseudo sera définitif ; le mot de passe fait 8 caractères au moins. Vous pouvez aussi continuer sans compte : tout restera sur cet appareil.'},
 
-  {k:'plat', q:'Votre plat préféré ?', txt:'Blanquette, pad thaï, lasagnes…',
-   note:'Pour le plaisir de la question. Rien n’en est déduit.'},
+  {k:'regime', q:'Quel régime ?', big:true, ic:true,
+   note:'Il oriente toutes les questions qui suivent. C’est la seule qui en commande d’autres.',
+   opts:[
+    ['vegetalien','Végétalien','Aucun produit animal : ni viande, ni poisson, ni œuf, ni lait.', 'salade'],
+    ['vegetarien','Végétarien','Ni viande ni poisson, mais œufs et produits laitiers.', 'oeuf'],
+    ['flexitarien','Flexitarien','De la viande, mais pas tous les jours. Le végétal domine.', 'poulet'],
+    ['proteine','Tout pour la prot','Un apport animal à chaque repas : viande, poisson ou œufs.', 'steak'],
+    ['carnivore','Carnivore','De la viande à volonté, viande rouge comprise.', 'vache']]},
 
-  {k:'dessert', q:'Votre dessert préféré ?', txt:'Tarte au citron, fondant…'},
-
-  {k:'cuisine', q:'Une cuisine favorite ?', opts:[
-    ['traditionnelle','Traditionnelle',''],
-    ['francaise','Française',''],
-    ['mediterraneenne','Méditerranéenne',''],
-    ['italienne','Italienne',''],
-    ['asiatique','Asiatique','']]},
-
-  {k:'regime', q:'Quel régime ?', opts:[
-    ['vegetalien','Végétalien','Aucun produit animal'],
-    ['vegetarien','Végétarien','Ni viande ni poisson'],
-    ['flexitarien','Flexitarien','Viande occasionnelle'],
-    ['proteine','Tout pour la prot','Apport animal à chaque repas'],
-    ['carnivore','Carnivore','Viande sans compter']]},
-
-  {k:'situe', q:'Où pensez-vous vous situer ?',
+  {k:'situe', q:'Où pensez-vous vous situer ?', conseil:'situe',
    note:'Votre estimation est conservée telle quelle. Quand l’app aura assez de saisies, elle vous montrera l’écart avec la mesure — c’est tout l’intérêt de répondre avant de savoir.',
    opts:[
     ['dessus','Au-dessus de la moyenne','plus de 2 t CO₂e par an'],
     ['moyenne','Dans la moyenne française','environ 2 t'],
-    ['dessous','Sous la moyenne','autour de 1 t, profil flexitarien'],
+    ['entre','Un peu en dessous','environ 1,5 t'],
+    ['dessous','Nettement en dessous','environ 1 t'],
     ['budget','Dans le budget soutenable','700 kg ou moins']]},
 
   {k:'objSet', q:'Définir des objectifs ?', opts:[
-    ['oui','Oui','Une cible annuelle et un rythme végétal'],
+    ['oui','Oui','Une cible annuelle et un rythme végé'],
     ['non','Pas maintenant','On pourra y revenir']]},
 
   {k:'objKg', q:'Quelle cible annuelle ?', range:{min:700, max:2500, step:50},
    only:st => st.objSet === 'oui'},
 
-  {k:'objVege', q:'Combien de repas végétaux par semaine ?', range:{min:0, max:14, step:1},
+  {k:'objVege', q:'Combien de repas végé par semaine ?', range:{min:0, max:14, step:1},
    only:st => st.objSet === 'oui'},
 
   /* --- volet nutritionnel --- */
   {k:'calKnow', q:'Connaissez-vous vos besoins caloriques journaliers ?', opts:[
     ['oui','Oui','Je saisis ma valeur'],
-    ['non','Non','Trois questions et l’app l’estime']]},
+    ['non','Non','L’app l’estime à partir de votre profil']]},
 
   {k:'calVal', q:'Quel est votre besoin journalier ?', range:{min:1200, max:4000, step:50},
    fmt:'calVal', only:st => st.calKnow === 'oui'},
-
-  {k:'sexe', q:'Sexe ?',
-   note:'Les références énergétiques de l’ANSES sont établies séparément pour les hommes et les femmes.',
-   opts:[['h','Homme',''],['f','Femme','']],
-   only:st => st.calKnow === 'non'},
-
-  {k:'age', q:'Votre tranche d’âge ?', opts:[
-    ['a18','18 à 39 ans',''],['a40','40 à 59 ans',''],
-    ['a60','60 à 74 ans',''],['a75','75 ans et plus','']],
-   only:st => st.calKnow === 'non'},
 
   {k:'act', q:'Votre activité quotidienne ?',
    note:'Elle ajuste à la fois le besoin calorique et le besoin en protéines.',
@@ -6423,6 +6479,11 @@ const profSteps = () => PROFQ.filter(q => !q.only || q.only(S.prof));
 
 function profDefault(q){
   if(q.k === 'objKg'){
+    /* Le régime prime sur l'historique. Quelqu'un qui vient de déclarer manger
+       végétarien n'a pas à se voir proposer une cible calculée sur trois jours
+       de saisie qui n'ont peut-être rien de représentatifs. */
+    const g = regG();
+    if(g) return g.obj;
     const a = agg();
     if(a.nd >= 3) return Math.min(2500, Math.max(700, Math.round(a.avg * 365 * 0.8 / 50) * 50));
     return PROF_ANCRE[S.prof.situe] ? Math.max(700, PROF_ANCRE[S.prof.situe] - 400) : 1600;
@@ -6434,7 +6495,8 @@ function profDefault(q){
     return b != null ? b : (S.prof.sexe === 'f' ? 2100 : 2600);
   }
   if(q.k === 'objVege'){
-    return /veget/.test(S.prof.regime || '') ? 14 : S.prof.regime === 'flexitarien' ? 5 : 3;
+    const g = regG();
+    return g ? g.vege : 3;
   }
   return null;
 }
@@ -6477,23 +6539,127 @@ function profSave(k, v){
    il n'entre ni dans S.prof, ni dans le stockage local, ni dans la synchro. Il
    ne sert qu'à convertir des g/kg en grammes, le temps d'une fenêtre. */
 let protPoids = null;
+/* Le curseur en g/kg n'apparaît que sur demande : tant qu'il est caché, c'est
+   la valeur conseillée pour l'activité déclarée qui s'applique. */
+let protAjuste = false;
+const protGkg2 = () => S.prof.objProtGkg != null ? S.prof.objProtGkg : protGkg();
+
+const AGE_OPTS = [['a18','18 – 39'],['a40','40 – 59'],['a60','60 – 74'],['a75','75 +']];
+
+/* Première question : le compte, et les deux données qui servent aux références
+   énergétiques. Le mot de passe n'est jamais relu depuis le DOM ailleurs qu'ici
+   et ne transite que vers la fonction signup. */
+function compteCorps(){
+  if(SESS) return `
+    <div class="card" style="margin-top:2px">
+      <div class="unit">Connecté</div>
+      <div class="bt" style="margin-top:3px">${esc(SESS.pseudo || 'votre compte')}</div>
+      <p class="small mute" style="margin:6px 0 0">Vos réponses suivront ce compte sur tous
+        vos appareils.</p>
+    </div>
+    ${sexeAgeCorps()}`;
+  return `
+    <div class="qfield">
+      <label for="q_ps">Pseudo</label>
+      <input class="search" id="q_ps" placeholder="Trois caractères au moins"
+             autocomplete="username" autocapitalize="none" style="margin:0">
+    </div>
+    <div class="qfield">
+      <label for="q_mp">Mot de passe</label>
+      <input class="search" id="q_mp" type="password" placeholder="Huit caractères au moins"
+             autocomplete="new-password" style="margin:0">
+    </div>
+    ${sexeAgeCorps()}`;
+}
+
+function sexeAgeCorps(){
+  return `
+    <div class="qfield">
+      <label>Sexe</label>
+      <div class="qmini">
+        ${[['h','Homme'],['f','Femme']].map(([v, l]) =>
+          `<button data-sexe="${v}" aria-pressed="${S.prof.sexe === v}">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="qfield">
+      <label>Tranche d’âge</label>
+      <div class="qmini">
+        ${AGE_OPTS.map(([v, l]) =>
+          `<button data-age="${v}" aria-pressed="${S.prof.age === v}">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="src" style="margin-top:10px">Sexe et âge servent aux références énergétiques de
+      l’ANSES, établies séparément. Ils restent sur l’appareil et ne sont partagés avec personne.</div>`;
+}
+
+function bindCompte(i){
+  const sh = $('#sheet');
+  sh.querySelectorAll('[data-sexe]').forEach(b => b.onclick = () => {
+    profSave('sexe', b.dataset.sexe); profQuiz(i); });
+  sh.querySelectorAll('[data-age]').forEach(b => b.onclick = () => {
+    profSave('age', b.dataset.age); profQuiz(i); });
+
+  const g = $('#q_signup');
+  if(!g) return;
+  if(SESS){ g.textContent = 'Continuer ›'; g.onclick = () => profQuiz(i + 1); return; }
+  g.onclick = async () => {
+    const p = ($('#q_ps').value || '').trim(), m = $('#q_mp').value || '';
+    if(p.length < 3) return toast('Pseudo : trois caractères au moins');
+    if(m.length < 8) return toast('Mot de passe : huit caractères au moins');
+    g.disabled = true; g.textContent = 'Création…';
+    const r = await SB.fn('signup', {pseudo:p, password:m});
+    if(!r.ok){
+      g.disabled = false; g.textContent = 'Créer mon compte';
+      const e = (r.body || {}).error;
+      return toast(e === 'pseudo_pris' ? 'Ce pseudo est déjà pris'
+        : e === 'mot_de_passe_court' ? 'Mot de passe : 8 caractères minimum'
+        : e === 'pseudo_invalide' ? 'Pseudo trop court ou invalide'
+        : r.status === 0 ? 'Hors ligne : continuez sans compte, vous pourrez en créer un plus tard'
+        : 'Création impossible');
+    }
+    /* Sexe et âge ont été saisis avant que le compte existe : ils vivent dans
+       le stockage anonyme. load() bascule sur le stockage du compte, qui est
+       vide — il faut donc les reporter après, sans quoi ils disparaissent au
+       moment même où l'utilisateur vient de les donner. */
+    const sexe = S.prof.sexe, age = S.prof.age;
+    const code = r.body.recovery_code;
+    const si = await SB.signIn(p, m);
+    if(!si.ok){ return toast('Compte créé, mais connexion impossible'); }
+    load();
+    if(sexe) S.prof.sexe = sexe;
+    if(age)  S.prof.age  = age;
+    save();
+    showRecoveryCode(code, 'Compte créé', () => profQuiz(i + 1));
+  };
+}
 
 function profQuiz(i){
   const steps = profSteps();
   if(i < 0) return profileSheet();
   if(i >= steps.length){
-    S.prof.done = true; save();
+    S.prof.done = true; S.prof.onb = true; save();
     return profileSheet();
   }
   const q = steps[i], cur = S.prof[q.k];
+  const restant = steps.length - i - 1;
   const bar = steps.map((_, j) =>
     `<i class="${j < i ? 'on' : j === i ? 'now' : ''}"></i>`).join('');
 
   let corps = '';
-  if(q.opts){
-    corps = q.opts.map(([v, lab, sub]) => `
-      <button class="qopt" data-v="${v}" aria-pressed="${cur === v}">
-        <span class="qn">${lab}${sub ? `<span class="qs">${sub}</span>` : ''}</span>
+  if(q.compte){
+    corps = compteCorps();
+  } else if(q.opts){
+    /* Réponse suggérée par le régime déjà déclaré. Elle est signalée, jamais
+       cochée : présélectionner reviendrait à enregistrer une réponse que
+       personne n'a donnée, sur la seule question dont l'app veut comparer
+       l'écart avec la mesure. */
+    const reco = q.conseil && regG() ? regG()[q.conseil] : null;
+    corps = q.opts.map(([v, lab, sub, ic]) => `
+      <button class="qopt${q.big ? ' big' : ''}${v === reco ? ' reco' : ''}"
+              data-v="${v}" aria-pressed="${cur === v}">
+        ${q.ic && ic && QIC[ic] ? `<span class="qic">${QIC[ic]}</span>` : ''}
+        <span class="qn">${lab}${v === reco ? '<span class="qtag">conseillé</span>' : ''}${
+          sub ? `<span class="qs">${sub}</span>` : ''}</span>
         <span class="qk">✓</span>
       </button>`).join('');
   } else if(q.txt){
@@ -6508,32 +6674,56 @@ function profQuiz(i){
       <div class="qends"><span id="q_lo"></span><span id="q_hi"></span></div>
       <div class="src" id="q_hint" style="margin-top:10px"></div>`;
   } else if(q.prot){
-    /* Deux commandes dans une seule étape : le poids, qui ne sort pas d'ici, et
-       les grammes par kilo. Le total en grammes est ce qui sera enregistré. */
-    const gkg = S.prof.objProtGkg != null ? S.prof.objProtGkg : protGkg();
-    corps = `
-      <div class="qpoids">
-        <label for="q_poids">Poids corporel</label>
-        <span><input id="q_poids" type="number" inputmode="decimal" min="30" max="200"
-                     step="0.5" placeholder="70" value="${protPoids != null ? protPoids : ''}"> kg</span>
-      </div>
-      <div class="qbig" id="q_out"></div>
-      <input class="qrange" type="range" id="q_rng" min="0.6" max="2.2" step="0.05" value="${gkg}">
-      <div class="qends"><span id="q_lo"></span><span id="q_hi"></span></div>
-      <div class="src" id="q_hint" style="margin-top:10px"></div>`;
+    /* Trois temps plutôt qu'un écran chargé. Le poids d'abord, parce que sans
+       lui rien ne peut s'afficher en grammes. Puis la valeur conseillée pour
+       l'activité déclarée, avec son total : c'est la réponse pour la plupart
+       des gens, et elle se valide sans rien toucher. Le curseur en g/kg n'entre
+       en scène que si on demande à ajuster — le sortir d'emblée invite à
+       bricoler un chiffre qu'on n'a pas de raison de connaître mieux que
+       l'ANSES. */
+    const gkg = protGkg2();
+    corps = protPoids
+      ? `<div class="qbig" id="q_out"></div>
+         ${protAjuste
+           ? `<input class="qrange" type="range" id="q_rng" min="0.6" max="2.2" step="0.05" value="${gkg}">
+              <div class="qends"><span id="q_lo">0,6 g/kg</span><span id="q_hi">2,2 g/kg</span></div>`
+           : `<button class="backlink" id="q_adj" style="margin-top:6px">Ajuster la quantité par kilo ›</button>`}
+         <div class="src" id="q_hint" style="margin-top:10px"></div>
+         <button class="backlink" id="q_repoids" style="margin-top:8px">‹ Corriger le poids (${
+           n1(protPoids)} kg)</button>`
+      : `<div class="qfield">
+           <label for="q_poids">Votre poids corporel</label>
+           <span style="display:flex;align-items:center;gap:8px">
+             <input class="search" id="q_poids" type="number" inputmode="decimal" min="30" max="250"
+                    step="0.5" placeholder="70" style="margin:0"> <b>kg</b></span>
+         </div>
+         <div class="src" style="margin-top:10px">Il sert à convertir des grammes par kilo en
+           grammes par jour, le temps de cet écran. Il n’est ni enregistré, ni synchronisé.</div>`;
   }
 
+  /* Le bouton d'action porte le libellé de ce qu'il fait vraiment : sur l'écran
+     de compte il crée le compte, ailleurs il enregistre et avance. */
+  const actions = q.compte
+    ? `<button class="btn btn-1" id="q_signup">Créer mon compte</button>
+       <button class="btn btn-2" id="q_skip">Continuer sans compte</button>`
+    : `${q.opts ? '' : `<button class="btn btn-1" id="q_next"${
+        q.prot && !protPoids ? '' : ''}>${i === steps.length - 1 ? 'Terminer' : 'Suivant ›'}</button>`}
+       <button class="btn btn-2" id="q_skip">${cur != null && cur !== '' ? 'Garder, suivant' : 'Passer'}</button>`;
+
   openSheet(`
-    <div class="unit">Profil · ${i + 1} sur ${steps.length}</div>
-    <div class="qbar">${bar}</div>
-    <h3 style="margin:0 0 ${q.note ? '6' : '10'}px">${q.q}</h3>
+    <div class="unit">${SESS ? 'Profil' : 'Bienvenue'}</div>
+    <h3 style="margin:2px 0 ${q.note ? '6' : '10'}px">${q.q}</h3>
     ${q.note ? `<p class="small mute" style="margin-bottom:10px">${q.note}</p>` : ''}
     ${corps}
-    <div class="actions" style="margin-top:14px">
-      ${q.opts ? '' : `<button class="btn btn-1" id="q_next">${i === steps.length - 1 ? 'Terminer' : 'Suivant ›'}</button>`}
-      <button class="btn btn-2" id="q_skip">${cur != null && cur !== '' ? 'Garder, suivant' : 'Passer'}</button>
-    </div>
-    <button class="backlink" id="q_back" style="margin-top:6px">${i === 0 ? '‹ Retour au profil' : '‹ Question précédente'}</button>`);
+    <div class="actions" style="margin-top:14px">${actions}</div>
+    <button class="backlink" id="q_back" style="margin-top:6px">${
+      i === 0 ? '‹ Retour au profil' : '‹ Question précédente'}</button>
+    <div class="qdots">${bar}</div>
+    <div class="qcount">${restant
+      ? `question ${i + 1} sur ${steps.length} · ${restant} restante${restant > 1 ? 's' : ''}`
+      : `dernière question`}</div>`);
+
+  if(q.compte) bindCompte(i);
 
   /* choix : sélectionne et avance, un seul geste par question */
   $('#sheet').querySelectorAll('.qopt').forEach(b => b.onclick = () => {
@@ -6550,34 +6740,40 @@ function profQuiz(i){
 
   const pd = $('#q_poids');
   const rg = $('#q_rng');
-  if(rg && q.prot){
+  if(q.prot && !protPoids){
+    /* Premier temps : le poids seul. */
+    const go = () => {
+      const kg = pd && pd.value ? +pd.value : null;
+      if(!kg || kg < 30 || kg > 250) return toast('Indiquez un poids entre 30 et 250 kg');
+      protPoids = kg; protAjuste = false; profQuiz(i);
+    };
+    $('#q_next').onclick = go;
+    if(pd) pd.onkeydown = e => { if(e.key === 'Enter') go(); };
+  } else if(q.prot){
     /* Le total ne s'affiche que si le poids est renseigné : afficher « 0 g »
        laisserait croire à une cible, alors qu'il manque une donnée. */
     const paint = () => {
-      const gkg = +rg.value;
-      const kg = pd && pd.value ? +pd.value : null;
-      protPoids = kg;
-      const tot = kg ? Math.round(kg * gkg) : null;
-      $('#q_out').innerHTML = tot != null
-        ? `${tot} <small>g de protéines / jour</small>`
-        : `${n1(gkg)} <small>g / kg — indiquez votre poids</small>`;
-      $('#q_lo').textContent = '0,6 g/kg';
-      $('#q_hi').textContent = '2,2 g/kg';
+      const gkg = rg ? +rg.value : protGkg2();
+      const tot = Math.round(protPoids * gkg);
+      $('#q_out').innerHTML = `${tot} <small>g de protéines / jour</small>`;
       const rec = protGkg(), act = ACT_LAB[(S.prof || {}).act] || 'actif';
       $('#q_hint').innerHTML =
-        `${n1(gkg)} g/kg. La référence de l’ANSES pour un adulte est de 0,83 g/kg ; `
-        + `pour un profil ${act} cette app propose ${n1(rec)} g/kg`
+        `${n1(gkg)} g/kg × ${n1(protPoids)} kg. La référence de l’ANSES pour un adulte est de `
+        + `0,83 g/kg ; pour un profil ${act} cette app propose ${n1(rec)} g/kg`
         + (gkg > 2.0 ? '. Au-delà de 2 g/kg, la littérature d’entraînement ne montre plus de bénéfice.' : '.')
         + ' Le poids saisi n’est pas enregistré.';
     };
-    if(pd) pd.oninput = paint;
-    rg.oninput = paint; paint();
+    if(rg) rg.oninput = paint;
+    paint();
+    const aj = $('#q_adj');
+    if(aj) aj.onclick = () => { protAjuste = true; profQuiz(i); };
+    const rp = $('#q_repoids');
+    if(rp) rp.onclick = () => { protPoids = null; protAjuste = false; profQuiz(i); };
     $('#q_next').onclick = () => {
-      const kg = pd && pd.value ? +pd.value : null;
-      if(!kg) return toast('Indiquez votre poids pour convertir en grammes');
-      profSave('objProtGkg', +rg.value);
-      profSave(q.k, Math.round(kg * +rg.value));
-      protPoids = null;                     /* ne survit pas à l'étape */
+      const gkg = rg ? +rg.value : protGkg2();
+      profSave('objProtGkg', gkg);
+      profSave(q.k, Math.round(protPoids * gkg));
+      protPoids = null; protAjuste = false;   /* ne survivent pas à l'étape */
       profQuiz(i + 1);
     };
   } else if(rg){
@@ -6602,19 +6798,23 @@ function profQuiz(i){
         $('#q_lo').textContent = 'budget 700';
         $('#q_hi').textContent = 'moyenne FR ' + n0(f.foodAbs);
         const dur = /carnivore|proteine/.test(S.prof.regime || '') && v < 1200;
-        const a = agg();
+        const g = regG();
         $('#q_hint').innerHTML = dur
           ? 'Cible exigeante pour le régime déclaré : sous 1 200 kg, un apport animal à chaque repas ne rentre arithmétiquement pas.'
-          : a.nd >= 3
-            ? `À votre rythme actuel vous êtes sur ${n0(a.avg * 365)} kg par an.`
+          : g
+            ? `Pour le régime que vous venez de déclarer — ${REG_LAB[S.prof.regime]} — une cible de `
+              + `${g.objTxt} est cohérente. La moyenne française est de 2 000 kg, le budget soutenable de 700 kg.`
             : 'La moyenne française pour l’alimentation est de 2 000 kg, le budget soutenable de 700 kg.';
       } else {
-        $('#q_out').innerHTML = `${v} <small>repas / semaine</small>`;
+        const g = regG();
+        $('#q_out').innerHTML = `${v} <small>repas végé / semaine</small>`;
         $('#q_lo').textContent = '0';
         $('#q_hi').textContent = '14 · tous';
-        $('#q_hint').textContent = v === 0
-          ? 'Aucun repas végétal visé.'
-          : `Soit ${(v / 14 * 100).toFixed(0)} % de vos repas, sur deux repas par jour.`;
+        $('#q_hint').innerHTML = (v === 0
+          ? 'Aucun repas végé visé.'
+          : `Soit ${(v / 14 * 100).toFixed(0)} % de vos repas, sur deux repas par jour.`)
+          + (g ? ` Pour un profil ${REG_LAB[S.prof.regime]}, ${g.vege} repas végé par semaine est`
+                 + ` un rythme tenable.` : '');
       }
     };
     rg.oninput = paint; paint();
@@ -6624,6 +6824,61 @@ function profQuiz(i){
   $('#q_skip').onclick = () => profQuiz(i + 1);
   $('#q_back').onclick = () => profQuiz(i - 1);
 }
+
+/* Part du profil réellement remplie. L'écran de compte compte pour ses deux
+   données exploitables — sexe et âge — et non pour le compte lui-même : on peut
+   se servir de l'app sans compte, ce n'est pas un trou dans le profil.
+   Le dénominateur suit les questions réellement posées : quelqu'un qui répond
+   « pas d'objectifs » n'a pas à rester bloqué à 70 % pour des questions que
+   sa propre réponse a fait disparaître. */
+function profPct(){
+  const st = profSteps().filter(q => !q.compte);
+  const champs = ['sexe', 'age', ...st.map(q => q.k)];
+  const n = champs.filter(k => { const v = S.prof[k]; return v != null && v !== ''; }).length;
+  return champs.length ? Math.round(n / champs.length * 100) : 100;
+}
+
+/* Première question encore sans réponse, pour reprendre là où ça s'est arrêté
+   plutôt que de tout refaire depuis le début. */
+function profTrou(){
+  if(!S.prof.sexe || !S.prof.age) return 0;
+  const steps = profSteps();
+  const j = steps.findIndex(q => !q.compte && (S.prof[q.k] == null || S.prof[q.k] === ''));
+  return j < 0 ? 0 : j;
+}
+
+/* Rappel pour les comptes existants dont le profil est resté à moitié rempli.
+   Il ne prétend pas que des fonctions sont verrouillées — elles ne le sont
+   pas — mais dit lesquelles restent éteintes faute de données : promettre un
+   déverrouillage que l'app ne peut pas tenir se retournerait au premier clic. */
+function profRappel(){
+  const p = profPct();
+  if(S.prof.noAsk || p >= 100 || !S.hist.length) return '';
+  return `
+    <div class="tip warn" style="margin-top:14px">
+      <span class="ic">!</span>
+      <div style="min-width:0">
+        <b>Votre profil est rempli à ${p} %.</b>
+        <div class="small" style="margin-top:3px">Le suivi des calories et des protéines, la cible
+          annuelle et l’écart avec votre estimation ont besoin des réponses manquantes pour
+          s’afficher. Il reste quelques questions.</div>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn btn-1" id="pr_go">Compléter mon profil</button>
+          <button class="btn btn-2" id="pr_no">Non, ne plus me demander</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function bindRappel(){
+  const g = $('#pr_go'); if(g) g.onclick = () => profQuiz(profTrou());
+  const n = $('#pr_no');
+  if(n) n.onclick = () => { S.prof.noAsk = true; save(); renderTracker(); toast('Entendu'); };
+}
+
+/* Libellés courts des régimes, partagés par le questionnaire et le résumé. */
+const REG_LAB = {vegetalien:'végétalien', vegetarien:'végétarien', flexitarien:'flexitarien',
+                 proteine:'tout pour la prot', carnivore:'carnivore'};
 
 /* résumé du profil, affiché dans la fenêtre de la pastille */
 function profRows(){
@@ -6931,14 +7186,15 @@ function profBlock(){
 
   if(!n) return `
     <div class="hr"></div>
-    <p class="small">Huit questions rapides sur vos goûts et vos objectifs. Facultatif et
-      interruptible. Vos objectifs et votre estimation restent privés en toute circonstance ;
-      vos goûts ne sont visibles de vos amis que si vous ouvrez le partage.</p>
+    <p class="small">Quelques questions rapides : votre régime, puis vos objectifs. Facultatif
+      et interruptible, une question par écran. Vos objectifs et votre estimation restent privés
+      en toute circonstance ; seul votre régime est visible de vos amis, et seulement si vous
+      ouvrez le partage.</p>
     <button class="btn btn-2" id="pf_go" style="margin-top:4px">Renseigner mon profil</button>`;
 
   return `
     <div class="hr"></div>
-    <div class="unit" style="margin-bottom:6px">Profil · ${n} sur ${tot}</div>
+    <div class="unit" style="margin-bottom:6px">Profil · ${profPct()} % · ${n} sur ${tot}</div>
     <div class="stagelist">
       ${r.map(([k, v]) => `<span class="unit">${k}</span><span class="small">${esc(String(v))}</span><span></span>`).join('')}
     </div>
@@ -6948,8 +7204,8 @@ function profBlock(){
       <div class="total" style="margin-top:0">
         <div style="min-width:0"><div class="unit">Fiche gourmande</div>
           <div class="small mute">${S.tasteShared
-            ? 'Visible de vos amis : goûts, plat et dessert préférés, cuisine, régime.'
-            : 'Fermée. Vos goûts ne sont visibles de personne.'}</div></div>
+            ? 'Visible de vos amis : votre régime, et vos goûts si vous en aviez renseigné.'
+            : 'Fermée. Votre régime et vos goûts ne sont visibles de personne.'}</div></div>
       </div>
       <button class="btn btn-2" id="pf_share" style="margin-top:8px">${
         S.tasteShared ? 'Fermer le partage' : 'Partager avec mes amis'}</button>
@@ -7191,6 +7447,7 @@ function renderTracker(){
     <div class="seg">${tabs.map(([k,l]) =>
       `<button data-tv="${k}" aria-pressed="${S.tv===k}"><b>${l}</b></button>`).join('')}</div>
     <div id="tv"></div>
+    ${profRappel()}
     <h2 class="sec">Sauvegarde locale</h2>
     <div class="card">
       <p class="small">${SESS ? 'Utile en complément du compte : une copie que vous gardez, indépendante du serveur.'
@@ -7201,6 +7458,7 @@ function renderTracker(){
       </div>
     </div>`;
   view.querySelectorAll('[data-tv]').forEach(b => b.onclick = () => { S.tv = b.dataset.tv; renderTracker(); });
+  bindRappel();
   ({repas:tvRepas, an:tvAn, cumule:tvCumule})[S.tv](a);
 
   /* Le conseil du jour ouvre la recette qu'il nomme. Délégué après le rendu de
@@ -10471,7 +10729,26 @@ if(!repris) S.tab = tabRead() || 'feed';
 go(S.tab);
 /* Premier lancement : les cinq fiches, une seule fois. On laisse la première
    peinture se faire avant d'ouvrir, sinon la fenêtre s'anime sur un écran vide. */
-if(!S.pmVu) setTimeout(pmOpen, 420);
+
+/* Toute première ouverture, sans compte et sans rien de saisi : le
+   questionnaire s'ouvre de lui-même. Il commence par la création du compte,
+   qui est le bon moment pour la poser — avant qu'un historique existe, donc
+   sans reprise à négocier, et avant que l'app ait servi à quoi que ce soit,
+   donc sans interrompre personne.
+
+   `onb` marque le passage, indépendamment des réponses : quelqu'un qui ferme
+   la fenêtre sans répondre a fait un choix, et le lui redemander à chaque
+   lancement serait le harceler. Il reste le bandeau du Tracker, qui n'apparaît
+   qu'une fois des repas saisis, et le bouton du profil.
+
+   Les fiches de présentation cèdent le passage : deux fenêtres qui s'ouvrent
+   coup sur coup au tout premier lancement, c'en est une de trop. */
+const premiereFois = !SESS && !S.prof.onb && !S.hist.length
+                     && !Object.keys(S.prof).length && !repris;
+if(premiereFois){
+  S.prof.onb = true; save();
+  setTimeout(() => profQuiz(0), 500);
+} else if(!S.pmVu) setTimeout(pmOpen, 420);
 /* Zone d'import : porte d'auteur. Aucun élément d'interface n'y mène, on n'y
    entre que par le fragment. On l'efface de l'URL aussitôt pour qu'un partage de
    lien ne la transmette pas. */
