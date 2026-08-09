@@ -1188,6 +1188,17 @@ button.tip:active{transform:scale(.995)}
 .mcard .mcs{grid-column:1/-1; font-size:12px; color:var(--ink-soft); line-height:1.45}
 .mcard.on{border-color:var(--forest-2); background:var(--kpi-good);
   box-shadow:inset 0 0 0 1px var(--forest-2)}
+/* Choisi, donc éteint. Pas d'opacité globale : elle écraserait le contraste du
+   texte qu'on vient tout juste de rendre lisible en thème sombre. On éteint
+   plutôt chaque couleur à la main, en gardant l'accent sur la coche. */
+.mcard[disabled]{background:var(--active); border-color:var(--line); box-shadow:none; cursor:default}
+.mcard[disabled] .mct{color:var(--mute)}
+.mcard[disabled] .mcs{color:var(--mute)}
+.mcard[disabled] .mck{color:var(--accent)}
+.mcard[disabled]:active{background:var(--active)}
+/* Compteur des cartes du sas : c'est un nombre, il prend la face des nombres. */
+.mcard .mcn{font-family:var(--display); font-weight:800; font-size:14px; color:var(--accent);
+  font-variant-numeric:tabular-nums; white-space:nowrap}
 .mcard.on .mct{color:var(--accent)}
 .mcard.on .mck{color:var(--accent)}
 .modeline{display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;
@@ -1909,7 +1920,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-82';
+const BUILD = 'cfp-83';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -5376,12 +5387,21 @@ function renderMode(D, isToday){
     </div>
     <h2 class="sec">D’où vient ce repas ?</h2>
     <div class="modegrid">
-      ${Object.entries(MODE).map(([k, v]) => `
-        <button class="mcard${S.mode === k ? ' on' : ''}" data-pmode="${k}">
+      ${Object.entries(MODE).map(([k, v]) => {
+        /* Le mode en cours est grisé et désactivé. Le recliquer ne ferait rien
+           d'autre que refermer la page, ce qui ressemble à une annulation alors
+           que c'est une confirmation — deux gestes indiscernables pour deux
+           intentions opposées. Pour repartir sans changer, il y a le lien de
+           retour, qui dit ce qu'il fait. */
+        const sel = S.mode === k;
+        const coef = v.k === 1 ? 'référence' : '+' + Math.round((v.k - 1) * 100) + ' %';
+        return `
+        <button class="mcard${sel ? ' on' : ''}" data-pmode="${k}"${
+          sel ? ' disabled aria-disabled="true"' : ''}>
           <span class="mct">${esc(v.l)}</span>
-          <span class="mck">${v.k === 1 ? 'référence' : '+' + Math.round((v.k - 1) * 100) + ' %'}</span>
+          <span class="mck">${sel ? '✓ choisi · ' + coef : coef}</span>
           <span class="mcs">${esc(v.s)}</span>
-        </button>`).join('')}
+        </button>`; }).join('')}
     </div>
     <div class="src" style="margin-top:14px">Le coefficient s’applique à tout ce que vous saisirez
       pour ce repas. Il reste modifiable ensuite, depuis la ligne en haut de l’écran de saisie.</div>`;
@@ -5399,8 +5419,18 @@ function renderMode(D, isToday){
    La barre segmentée « Plats types | Composer » restait affichée en permanence
    au-dessus du panneau, à répéter un choix déjà fait ; une ligne suffit à le
    rappeler et à revenir dessus, et l'écran s'allège d'une rangée de boutons. */
+/* Nom du bloc de favoris selon le service, et sa tournure en complément de
+   lieu. « Mes entrées » se comprend seul ; « ce que vous mettez le plus souvent
+   en entrée » demande la préposition, qui n'est pas la même partout. */
+const SERV_MIENS = {entree:'Mes entrées', plat:'Mes plats', dessert:'Mes desserts',
+                    boisson:'Mes boissons', cafethe:'Mes cafés'};
+const SERV_LA    = {entree:'en entrée', plat:'dans le plat', dessert:'en dessert',
+                    boisson:'en boisson', cafethe:'au café'};
+
 function voieLine(isPlat){
-  const l = S.path === 'compose' ? 'Composer'
+  const l = S.path === 'compose'  ? 'Composer'
+          : S.path === 'favoris'  ? (SERV_MIENS[S.comCat] || 'Mes habitudes')
+          : S.path === 'recettes' ? 'Mes recettes'
           : isPlat ? 'Plat standard' : 'Plats types';
   return `<button class="modeline" id="voieEdit" style="margin-top:2px">
     <span><b>${l}</b></span><i>changer</i></button>`;
@@ -5510,62 +5540,98 @@ function stdPanel(){
    trouvait « lentilles » — et la réponse était : les deux. */
 const favMealsOf = f => Array.isArray(f.m) ? f.m : [f.m || 'dej'];
 
-function composePanel(items, foodHits){
-  /* Les six plats standards posés d'office au premier lancement sont exclus :
-     ce ne sont pas les recettes de l'utilisateur, et la voie Standard les
-     remplace. Le reste — favoris composés à la main, recettes reprises d'un
-     ami — est bien à lui. */
-  const mes = S.favs.map((f, i) => ({...f, i, kg:kgOf(f.l)}))
-    .filter(f => !f.std && favMealsOf(f).includes(S.meal))
-    .sort((a, b) => a.kg - b.kg);
-
-  const ligneDish = d => `<div class="dish">
+/* Une ligne de résultat, plat type ou aliment brut : même gabarit, une
+   étiquette pour dire lequel. Les distinguer par la mise en page ferait croire
+   à deux listes, or c'en est une seule, classée. */
+function ligneRes(x){
+  const kg = x.kg, nom = x.nom;
+  const bar = `<div class="bar"><i style="width:${clamp(kg/(BUDGET_J*1.5)*100, 2, 100)}%;background:${
+    kg > BUDGET_J ? 'var(--brick)' : 'var(--forest-2)'}"></i></div>`;
+  if(x.t === 'aliment') return `<div class="dish">
       <div class="top">
-        <button class="nm" data-dish="${esc(d.n)}" style="text-align:left">${esc(d.n)}${
-          d.custom ? '<span class="tag">à moi</span>' : '<span class="tag">plat</span>'}</button>
-        <span class="kg">${n2(d.kg)}</span>
-        <button class="add" data-additem="${esc(d.n)}">Ajouter</button>
+        <button class="nm" data-foodinfo="${esc(x.f.s)}" style="text-align:left">${esc(nom)}<span
+          class="tag">aliment</span></button>
+        <span class="kg">${n2(kg)}</span>
+        <button class="add" data-foodadd="${esc(x.f.s)}">Ajouter</button>
+      </div>${bar}</div>`;
+  const d = x.d;
+  return `<div class="dish">
+      <div class="top">
+        <button class="star${d.fav ? ' on' : ''}" data-star="${esc(nom)}" aria-pressed="${!!d.fav}"
+          aria-label="${d.fav ? 'Retirer des favoris' : 'Mettre en favori'}">
+          <svg viewBox="0 0 24 24"><path d="M12 3.2l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.7l6.1-.9z"/></svg>
+        </button>
+        <button class="nm" data-dish="${esc(nom)}" style="text-align:left">${esc(nom)}<span
+          class="tag">${d.custom ? 'à moi' : 'plat'}</span></button>
+        <span class="kg">${n2(kg)}</span>
+        <button class="add" data-additem="${esc(nom)}">Ajouter</button>
       </div>
-      ${S.openDish === d.n ? `<div class="comp">${d.l.map(([s, g]) =>
-        `${F.get(s).n.toLowerCase()} ${g} g`).join(' · ')}</div>` : ''}
-      <div class="bar"><i style="width:${clamp(d.kg/(BUDGET_J*1.5)*100, 2, 100)}%;background:${
-        d.kg > BUDGET_J ? 'var(--brick)' : 'var(--forest-2)'}"></i></div>
-    </div>`;
+      ${S.openDish === nom ? `<div class="comp">${d.l.map(([s, g]) =>
+        `${F.get(s).n.toLowerCase()} ${g} g`).join(' · ')}</div>` : ''}${bar}</div>`;
+}
 
+function composePanel(res){
+  const nPlats = res.filter(x => x.t === 'plat').length;
+  const nAlim  = res.length - nPlats;
   return `
     <div class="srchw mb${S.dishQ ? ' on' : ''}">
-      <input class="search" id="dq" type="search" placeholder="Chercher un plat type ou un aliment"
+      <input class="search" id="dq" type="search" placeholder="Chercher un aliment ou un plat"
              autocorrect="on" autocapitalize="sentences" spellcheck="true" value="${esc(S.dishQ)}">
       <button class="srchx" id="dqx" type="button" aria-label="Effacer la recherche">✕</button>
     </div>
-
     ${S.dishQ ? `<div class="list">
-      ${items.length ? items.map(ligneDish).join('') : ''}
-      ${foodHits.map(f => `<div class="dish">
-        <div class="top">
-          <button class="nm" data-foodinfo="${esc(f.s)}" style="text-align:left">${esc(f.n)}<span class="tag">aliment</span></button>
-          <span class="kg">${n2(kgOf([[f.s, comPortion(f.s)]]))}</span>
-          <button class="add" data-foodadd="${esc(f.s)}">Ajouter</button>
-        </div>
-        <div class="bar"><i style="width:${clamp(kgOf([[f.s, comPortion(f.s)]])/(BUDGET_J*1.5)*100, 2, 100)}%;background:${
-          kgOf([[f.s, comPortion(f.s)]]) > BUDGET_J ? 'var(--brick)' : 'var(--forest-2)'}"></i></div>
-      </div>`).join('')}
-      ${(items.length + foodHits.length) ? `<div class="count">${items.length} plat${
-        items.length > 1 ? 's' : ''} · ${foodHits.length} aliment${foodHits.length > 1 ? 's' : ''}
-        · « Ajouter » pose la portion de référence, modifiable juste en dessous</div>`
-      : `<div class="empty">Rien ne correspond à « ${esc(S.dishQ)} ». Essayez « pâtes », « poulet »,
-          « lentilles ».</div>`}
-    </div>`
-    : `<div class="src" style="margin:-2px 0 4px">Tapez trois lettres : la recherche couvre les
-        ${DISHES().length} plats types et les ${DB.foods.length} aliments de la base.</div>`}
+      ${res.length ? res.map(ligneRes).join('') +
+        `<div class="count">${nAlim} aliment${nAlim > 1 ? 's' : ''} · ${nPlats} plat${
+          nPlats > 1 ? 's' : ''} · classés du plus proche de « ${esc(S.dishQ.trim())} » au plus
+          lointain, les plats qui en contiennent seulement venant en dernier</div>`
+      : `<div class="empty">Rien ne correspond à « ${esc(S.dishQ.trim())} ». Essayez « pâtes »,
+          « poulet », « lentilles ».</div>`}
+    </div>` : `<div class="src" style="margin:-2px 0 4px">Tapez deux lettres : la recherche couvre
+        les ${DB.foods.length} aliments et les ${DISHES().length} plats types de la base, d’un
+        seul tenant.</div>`}`;
+}
 
-    ${mes.length ? `<h2 class="sec" style="margin-top:18px">Mes recettes</h2>
-      <div class="list">${mes.map(f => ligneDish({...f, custom:true})).join('')}
-        <div class="count">${mes.length} recette${mes.length > 1 ? 's' : ''} enregistrée${
-          mes.length > 1 ? 's' : ''} · composées ici ou reprises d’un ami</div>
+/* ---- Mes entrées / Mes plats / Mes desserts ----
+   Deux listes, et elles ne disent pas la même chose. La première vient de
+   l'historique : ce sont les aliments réellement saisis dans ce service, du
+   plus fréquent au moins fréquent, avec la portion médiane des fois
+   précédentes plutôt qu'une portion de référence — quelqu'un qui met toujours
+   40 g de fromage en entrée n'a pas à recorriger 60 g à chaque fois.
+   La seconde, ce sont les plats mis en étoile : un choix explicite, qui ne
+   dépend d'aucune statistique. */
+function favorisPanel(hab, etoiles){
+  return `
+    ${hab.length ? `<div class="list">
+      ${hab.map(x => `<div class="dish">
+        <div class="top">
+          <button class="nm" data-foodinfo="${esc(x.s)}" style="text-align:left">${
+            esc(F.get(x.s).n)}<span class="tag">${x.n}×</span></button>
+          <span class="kg">${n2(kgOf([[x.s, x.g]]))}</span>
+          <button class="add" data-habadd="${esc(x.s)}" data-habg="${x.g}">Ajouter</button>
+        </div>
+        <div class="bar"><i style="width:${clamp(kgOf([[x.s, x.g]])/(BUDGET_J*1.5)*100, 2, 100)}%;background:${
+          kgOf([[x.s, x.g]]) > BUDGET_J ? 'var(--brick)' : 'var(--forest-2)'}"></i></div>
+      </div>`).join('')}
+      <div class="count">Vos ${hab.length} habitude${hab.length > 1 ? 's' : ''} pour ce service,
+        de la plus fréquente à la moins fréquente · « Ajouter » pose votre portion habituelle,
+        pas la portion de référence</div>
+    </div>` : ''}
+
+    ${etoiles.length ? `<h2 class="sec" style="margin-top:${hab.length ? 18 : 4}px">Mes plats en étoile</h2>
+      <div class="list">
+        ${etoiles.map(d => ligneRes({t:'plat', d, nom:d.n, kg:d.kg, fav:true})).join('')}
+        <div class="count">${etoiles.length} plat${etoiles.length > 1 ? 's' : ''} mis en étoile
+          · l’étoile se retire d’un second appui</div>
       </div>` : ''}`;
 }
 
+function recettesPanel(mes){
+  return `<div class="list">
+    ${mes.map(f => ligneRes({t:'plat', d:f, nom:f.n, kg:f.kg, fav:true})).join('')}
+    <div class="count">${mes.length} recette${mes.length > 1 ? 's' : ''} enregistrée${
+      mes.length > 1 ? 's' : ''} · composées ici, ou reprises d’un ami depuis le fil</div>
+  </div>`;
+}
 
 function renderSaisie(){
   topbar();
@@ -5663,9 +5729,10 @@ function renderSaisie(){
      types est la réponse la plus courante, l'afficher d'emblée fait gagner un
      geste. Le plat, lui, se saisit de deux façons vraiment différentes, et
      ouvrir d'office sur l'une d'elles revient à choisir à la place de l'autre. */
-  if(isPlat  && S.path === 'types') S.path = null;
-  if(!isPlat && S.path === 'std')   S.path = null;
-  const platChoix = !S.path;
+  /* 'types' est une voie disparue : les brouillons repris d'une version
+     précédente peuvent encore la porter, ils retombent sur la question. */
+  if(S.path === 'types') S.path = null;
+  if(!isPlat && S.path === 'std') S.path = null;
 
   /* liste unifiée : compositions personnelles puis plats types, favoris en tête */
   const nrm = nrmQ;
@@ -5677,6 +5744,25 @@ function renderSaisie(){
   const dq = nrm(S.dishQ.trim());
   const favMeals = f => Array.isArray(f.m) ? f.m : [f.m || 'dej'];
   const match = d => !dq || nrm(d.n).includes(dq) || d.l.some(([sl]) => nrm(F.get(sl).n).includes(dq));
+
+  /* Pertinence d'un nom face à la recherche. Chercher « tomate » ramenait
+     d'abord les quarante plats qui en contiennent une, et l'aliment Tomate
+     arrivait bon dernier — la réponse la plus évidente était la plus loin.
+
+     Cinq rangs, du plus précis au plus lâche : nom exact, nom qui commence par,
+     mot qui commence par, nom qui contient, et enfin trouvé sans que le mot
+     figure dans le nom — par un ingrédient ou par un rayon. Ce dernier rang est
+     celui des plats bolognaise pour « tomate » : légitime, mais après. */
+  const echap = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rang = nom => {
+    if(!dq) return 4;
+    const n = nrm(nom);
+    if(n === dq) return 0;
+    if(n.startsWith(dq)) return 1;
+    if(new RegExp('[ ,(\'’\\-/]' + echap(dq)).test(n)) return 2;
+    if(n.includes(dq)) return 3;
+    return 9;
+  };
   /* desserts et boissons vivent dans la catégorie « en-cas » : sans cela, le service Dessert
      d'un déjeuner n'afficherait que des plats principaux. */
   const listMeals = step && (step.k === 'boisson' || step.k === 'cafethe') ? ['encas']
@@ -5695,6 +5781,65 @@ function renderSaisie(){
   const foodHits = dq.length >= 2
     ? DB.foods.filter(f => nrm(f.n).includes(dq) || nrm(f.g).includes(dq)).slice(0, 40)
     : [];
+
+  /* Résultats fondus en une seule liste et classés par pertinence. Les
+     séparer en deux blocs — les plats, puis les aliments — obligeait à
+     parcourir tout le premier avant d'atteindre le second, quel que soit le
+     rapport de chacun avec ce qui était tapé. */
+  const resultats = dq ? [
+    ...items.map(d => ({t:'plat', d, nom:d.n, kg:d.kg, fav:d.fav, custom:d.custom})),
+    ...foodHits.map(f => ({t:'aliment', f, nom:f.n, kg:kgOf([[f.s, comPortion(f.s)]])})),
+  ].map(x => ({...x, r:rang(x.nom)}))
+   .sort((a, b) => a.r - b.r
+                || (b.fav?1:0) - (a.fav?1:0)
+                || a.nom.length - b.nom.length
+                || a.kg - b.kg)
+   .slice(0, 60) : [];
+
+  /* Ce que l'utilisateur met habituellement dans ce service, tiré de son
+     historique. Les plats types de la base n'ont pas d'étiquette entrée /
+     plat / dessert — rien ne permet donc de dire d'un plat de la base qu'il
+     est une entrée. L'historique, lui, le sait : chaque ligne enregistrée
+     porte son service. « Mes entrées » est donc ce qui a été saisi en entrée,
+     classé par fréquence, avec la portion médiane des fois précédentes. */
+  const habituels = (() => {
+    const c = new Map();
+    S.hist.forEach(e => (e.l || []).forEach(l => {
+      if((l[2] || 'plat') !== S.comCat || !F.has(l[0])) return;
+      const o = c.get(l[0]) || {n:0, g:[], d:''};
+      o.n++; o.g.push(l[1]);
+      if(e.d > o.d) o.d = e.d;
+      c.set(l[0], o);
+    }));
+    return [...c.entries()].map(([s, o]) => {
+      const t = o.g.slice().sort((x, y) => x - y);
+      return {s, n:o.n, g:t[t.length >> 1], d:o.d};
+    /* À fréquence égale, le plus récent d'abord. L'ordre alphabétique, qui
+       tenait lieu de départage, plaçait le fromage d'il y a trois mois devant
+       la tomate d'hier au seul motif que F précède T. */
+    }).sort((a, b) => b.n - a.n || (a.d < b.d ? 1 : a.d > b.d ? -1 : 0)
+                   || F.get(a.s).n.localeCompare(F.get(b.s).n, 'fr'))
+      .slice(0, 30);
+  })();
+  /* Les plats de la base mis en étoile, pour ce repas. Sans filtre de service :
+     l'étoile ne dit pas à quel moment du repas le plat se mange. */
+  const etoiles = DISHES().filter(d => S.starred.includes(d.n)
+      && d.m.some(m => listMeals.includes(m)))
+    .map(d => ({...d, fav:true, kg:kgOf(d.l)}))
+    .sort((a, b) => a.kg - b.kg);
+  /* Les six standards posés d'office au premier lancement ne sont pas des
+     recettes de l'utilisateur : la voie Standard les remplace. */
+  const mesRecettes = S.favs.map((f, i) => ({...f, i, custom:true, kg:kgOf(f.l)}))
+    .filter(f => !f.std && favMeals(f).some(m => listMeals.includes(m)))
+    .sort((a, b) => a.kg - b.kg);
+
+  /* Un bloc vidé entre-temps — un favori retiré, une recette supprimée —
+     renvoie à la question plutôt qu'à un panneau blanc. Ce contrôle doit venir
+     ici et pas plus haut : les trois listes sont des const, les lire avant leur
+     déclaration lève une ReferenceError au lieu de valoir undefined. */
+  if(S.path === 'favoris'  && !habituels.length && !etoiles.length) S.path = null;
+  if(S.path === 'recettes' && !mesRecettes.length) S.path = null;
+  const platChoix = !S.path;
 
   const inStep = step ? S.draft.filter(l => (l[2]||'plat') === S.comCat) : S.draft;
   const stepKg = kgOf(inStep);
@@ -5756,69 +5901,45 @@ function renderSaisie(){
     ${isPlat ? `
     <button class="mcard" data-path="std">
       <span class="mct">Standard</span>
-      <span class="mck">3 choix</span>
+      <span class="mcn">3 choix</span>
       <span class="mcs">Une protéine, un féculent, un légume, et la taille de l’assiette.
         Le plus rapide, et suffisant pour la plupart des repas de tous les jours.</span>
-    </button>` : `
-    <button class="mcard" data-path="types">
-      <span class="mct">Plats types</span>
-      <span class="mck">${items.length}</span>
-      <span class="mcs">Les plats déjà connus de la base, et les vôtres. Le plus rapide
-        quand ce qu’on a mangé y figure déjà.</span>
-    </button>`}
+    </button>` : ''}
     <button class="mcard" data-path="compose">
       <span class="mct">Composer</span>
-      <span class="mck">${DB.foods.length} aliments</span>
-      <span class="mcs">Aliment par aliment, avec les grammes${
-        isPlat ? ', ou un plat type déjà connu' : ''}.
-        Le plus juste quand on sait ce qu’il y avait dedans.</span>
+      <span class="mcn">${DB.foods.length + DISHES().length}</span>
+      <span class="mcs">Une seule barre pour tout : les aliments bruts avec leurs grammes,
+        et les plats types de la base. Le plus juste quand on sait ce qu’il y avait dedans.</span>
+    </button>
+    <button class="mcard" data-path="favoris"${
+      habituels.length + etoiles.length ? '' : ' disabled aria-disabled="true"'}>
+      <span class="mct">${SERV_MIENS[S.comCat] || 'Mes habitudes'}</span>
+      <span class="mcn">${habituels.length + etoiles.length || '—'}</span>
+      <span class="mcs">${habituels.length + etoiles.length
+        ? `Ce que vous mettez le plus souvent ${SERV_LA[S.comCat] || 'ici'}, et vos plats en étoile.`
+        : `Rien encore. Ce bloc se remplit tout seul à mesure que vous saisissez ${
+            SERV_LA[S.comCat] || 'ce service'}.`}</span>
+    </button>
+    <button class="mcard" data-path="recettes"${
+      mesRecettes.length ? '' : ' disabled aria-disabled="true"'}>
+      <span class="mct">Mes recettes</span>
+      <span class="mcn">${mesRecettes.length || '—'}</span>
+      <span class="mcs">${mesRecettes.length
+        ? 'Les plats que vous avez composés vous-même, et ceux repris d’un ami.'
+        : 'Rien encore. Composez un plat puis enregistrez-le pour le retrouver ici.'}</span>
     </button>
   </div>` : `${voieLine(isPlat)}
 
   ${S.path === 'std' ? stdPanel() : ''}
 
-  ${S.path === 'types' && !isPlat ? `
-    <div class="srchw mb${S.dishQ ? ' on' : ''}">
-      <input class="search" id="dq" type="search" placeholder="Chercher un plat ou un aliment"
-             autocorrect="on" autocapitalize="sentences" spellcheck="true"
-             value="${esc(S.dishQ)}">
-      <button class="srchx" id="dqx" type="button" aria-label="Effacer la recherche">✕</button>
-    </div>
-    <div class="list">
-    ${items.length ? items.map(d => `<div class="dish">
-      <div class="top">
-        <button class="star${d.fav ? ' on' : ''}" data-star="${esc(d.n)}"
-          aria-label="${d.fav ? 'Retirer des favoris' : 'Mettre en favori'}" aria-pressed="${d.fav}">
-          <svg viewBox="0 0 24 24"><path d="M12 3.2l2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1L3.2 9.7l6.1-.9z"/></svg>
-        </button>
-        <button class="nm" data-dish="${esc(d.n)}" style="text-align:left">${esc(d.n)}${d.std ? '<span class="tag">standard</span>' : ''}</button>
-        <span class="kg">${n2(d.kg)}</span>
-        <button class="add" data-additem="${esc(d.n)}">Ajouter</button>
-      </div>
-      ${S.openDish === d.n ? `<div class="comp">${d.l.map(([s,g]) => `${F.get(s).n.toLowerCase()} ${g} g`).join(' · ')}</div>` : ''}
-      <div class="bar"><i style="width:${clamp(d.kg/(BUDGET_J*1.5)*100,2,100)}%;background:${d.kg>BUDGET_J?'var(--brick)':'var(--forest-2)'}"></i></div>
-    </div>`).join('') + `<div class="count">L’étoile fait remonter un plat en tête de liste.
-      Barre pleine = un repas dépasse à lui seul le budget d’une journée.</div>`
-    : `<div class="empty">Aucun plat type ne correspond${S.dishQ?` à « ${esc(S.dishQ)} »`:''}${
-        foodHits.length ? ', mais des aliments oui — voir ci-dessous' : '. Essayez « pâtes » ou « tofu », ou composez librement'}.</div>`}
-  </div>
-
-  ${foodHits.length ? `<div class="list" style="margin-top:14px">
-    <div class="count" style="margin:0 0 8px">Aliments · ${foodHits.length} résultat${
-      foodHits.length > 1 ? 's' : ''}${foodHits.length === 40 ? ' affichés' : ''}.
-      « Ajouter » les pose dans le composer avec leur portion par défaut.</div>
-    ${foodHits.map(f => `<div class="dish">
-      <div class="top">
-        <button class="nm" data-foodinfo="${esc(f.s)}" style="text-align:left">${esc(f.n)}<span class="tag">aliment</span></button>
-        <span class="kg">${n2(kgOf([[f.s, f.p]]))}</span>
-        <button class="add" data-foodadd="${esc(f.s)}">Ajouter</button>
-      </div>
-      <div class="bar"><i style="width:${clamp(kgOf([[f.s, f.p]])/(BUDGET_J*1.5)*100,2,100)}%;background:${
-        kgOf([[f.s, f.p]]) > BUDGET_J ? 'var(--brick)' : 'var(--forest-2)'}"></i></div>
-    </div>`).join('')}
-  </div>` : ''}` : ''}
-
-  ${S.path === 'compose' ? composePanel(items, foodHits) : ''}
+  /* Le panneau « Plats types », deux listes empilées — les plats puis les
+     aliments — a disparu avec la carte qui y menait. Ses deux listes sont
+     désormais fondues et classées par pertinence dans le composeur, et ses
+     plats en étoile ont rejoint le bloc des favoris. Trois endroits pour
+     chercher la même chose, c'était deux de trop. */
+  ${S.path === 'compose'  ? composePanel(resultats) : ''}
+  ${S.path === 'favoris'  ? favorisPanel(habituels, etoiles) : ''}
+  ${S.path === 'recettes' ? recettesPanel(mesRecettes) : ''}
 `))}
 
   ${inStep.length ? `<div class="card" style="margin-top:12px">
@@ -5936,6 +6057,15 @@ function renderSaisie(){
      55 % d'une portion de plat, et en dessert 60 %. C'est ce que faisait
      l'ancien widget d'autocomplétion ; le perdre en changeant de barre de
      recherche aurait gonflé toutes les entrées d'un coup, sans rien dire. */
+  /* Une habitude s'ajoute avec SA portion, celle qu'on a l'habitude d'y
+     mettre, et non la portion de référence de l'aliment. */
+  view.querySelectorAll('[data-habadd]').forEach(b => b.onclick = () => {
+    const sl = b.dataset.habadd, g = Math.max(1, +b.dataset.habg || 0);
+    if(!F.has(sl) || !g) return;
+    S.draft.push([sl, g, S.comCat, S.mode]);
+    S.platLarge = false;
+    renderSaisie(); toast(`${F.get(sl).n} ajouté`);
+  });
   view.querySelectorAll('[data-foodadd]').forEach(b => b.onclick = () => {
     const sl = b.dataset.foodadd;
     if(!F.has(sl)) return;
