@@ -8,7 +8,7 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-3.20.0';
+const VERSION = 'cfp-3.21.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
@@ -76,7 +76,7 @@ self.addEventListener('notificationclick', e => {
      il manquait au milieu. Une notification sans `vue` garde l'ancien
      comportement : la page retombe sur 'actu' d'elle-même. */
   const data = e.notification.data || {};
-  const tab  = data.tab || 'feed';
+  const tab  = data.tab || 'saisie';
   const vue  = data.vue;
   e.waitUntil((async () => {
     const list = await self.clients.matchAll({type:'window', includeUncontrolled:true});

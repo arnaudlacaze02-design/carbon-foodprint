@@ -561,7 +561,8 @@ h2.sec:first-child{margin-top:2px}
    réduit : il ne doit pas concurrencer le titre de section au-dessus de lui. */
 .bt{font-family:var(--display); font-weight:800; font-size:17px; line-height:1.15;
   letter-spacing:-.005em; color:var(--ink)}
-.lede{font-family:var(--serif); font-size:19px; line-height:1.3; margin:0 0 10px}
+.lede{font-family:var(--display); font-weight:800; font-size:19px; letter-spacing:-.008em;
+  line-height:1.2; margin:0 0 10px}
 p{margin:0 0 9px}
 .small{font-size:12.5px; color:var(--ink-soft)}
 .mute{color:var(--mute)}
@@ -860,6 +861,23 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 .draft-line .qin{width:66px; flex:0 0 auto; padding:6px 8px; border:1px solid var(--line);
   border-radius:8px; background:var(--field); font-family:var(--mono); font-size:12px;
   text-align:right; color:var(--ink)}
+
+/* ---------------- modification d'un repas, service par service ----------------
+   Le pointillé dit ce que le trait plein ne dirait pas : ces cadres sont des
+   contenants, pas des cartes. Un service vide reste visible et reste une cible
+   — c'est tout l'intérêt, pouvoir ajouter une entrée à un repas qui n'en avait
+   pas. Une carte pleine, elle, aurait l'air d'un contenu. */
+.ebox{border:1.5px dashed var(--line); border-radius:12px; padding:11px 12px; margin-top:10px}
+.ebox.vide{border-color:var(--line-soft)}
+.ebox.cible{border-color:var(--forest-2); border-style:solid; background:var(--kpi-good)}
+.ebox > .eh{display:flex; align-items:baseline; justify-content:space-between; gap:10px}
+.ebox > .eh .en{font-family:var(--display); font-weight:800; font-size:15px; letter-spacing:-.01em}
+.ebox > .eh .ek{font-family:var(--mono); font-size:10px; color:var(--mute)}
+.ebox .draft-line{padding:7px 0}
+.ebox .evide{font-size:12px; color:var(--mute); padding:6px 0 2px}
+.ebox .eadd{width:100%; margin-top:8px; padding:8px; border:1px solid var(--line);
+  border-radius:9px; background:var(--card); color:var(--accent); font-size:12.5px}
+.ebox.cible .eadd{border-color:var(--forest-2)}
 .draft-line .kg{font-family:var(--display); font-weight:800; font-variant-numeric:tabular-nums; font-size:15px}
 .draft-line .rm{color:var(--brick); font-family:var(--mono); font-size:16px; padding:0 4px}
 .total{display:flex; align-items:baseline; justify-content:space-between; margin-top:12px}
@@ -1117,7 +1135,7 @@ button.tip:active{transform:scale(.995)}
 
 /* ---------------- calendrier ---------------- */
 .calnav{display:flex; align-items:center; justify-content:space-between; margin-bottom:9px}
-.calnav .m{font-family:var(--serif); font-size:16px}
+.calnav .m{font-family:var(--display); font-weight:800; font-size:17px; letter-spacing:-.01em}
 .calnav button{width:30px; height:30px; border-radius:8px; background:var(--seg-bg); color:var(--ink);
   font-size:15px; display:flex; align-items:center; justify-content:center}
 .calnav button[disabled]{opacity:.3}
@@ -1199,7 +1217,8 @@ button.tip:active{transform:scale(.995)}
 .hub{background:var(--card); border:1px solid var(--line); border-radius:13px; padding:15px 13px;
   display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left; min-height:78px}
 .hub:active{background:var(--active)}
-.hub .hn{font-family:var(--serif); font-size:17px}
+.hub .hn{font-family:var(--display); font-weight:800; font-size:17px; letter-spacing:-.01em;
+  line-height:1.15}
 .hub .hn i{font-style:normal; color:var(--accent); font-size:14px}
 .hub .hd{font-family:var(--mono); font-size:9px; letter-spacing:.04em; text-transform:uppercase;
   color:var(--mute); line-height:1.35}
@@ -1259,7 +1278,8 @@ button.tip:active{transform:scale(.995)}
 .dcard{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 8px;
   display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center}
 .dcard:active{background:var(--active)}
-.dcard .dn2{font-family:var(--serif); font-size:16px}
+.dcard .dn2{font-family:var(--display); font-weight:800; font-size:16px; letter-spacing:-.01em;
+  line-height:1.15}
 .dcard .dk{font-family:var(--mono); font-size:8.5px; letter-spacing:.04em; text-transform:uppercase;
   color:var(--mute); line-height:1.3}
 .dcard.done{background:var(--forest); border-color:var(--forest)}
@@ -1833,7 +1853,7 @@ const NOTIF0 = () => ({on:false, vu:{}, lastPost:null, luPost:null,
                        vuLikes:null, vuAmis:null, vuDefis:null,
                        pushOn:false, demande:null, vuTro:null});
 
-let S = {tab:'feed', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
+let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false, drinkMore:false,
          pmVu:false,
          dishQ:'', comCat:'plat', editId:null, calMonth:null, entryDate:null,
@@ -1954,7 +1974,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-84';
+const BUILD = 'cfp-85';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -5574,6 +5594,63 @@ function stdPanel(){
    trouvait « lentilles » — et la réponse était : les deux. */
 const favMealsOf = f => Array.isArray(f.m) ? f.m : [f.m || 'dej'];
 
+/* ==================== modification d'un repas ====================
+   À la correction, on ne saisit plus : on relit. Une liste à plat de dix lignes
+   ne dit pas laquelle était l'entrée et laquelle le dessert, alors que c'est
+   précisément la question qu'on se pose en rouvrant un repas — « qu'est-ce que
+   j'ai oublié ». Les services deviennent donc des cadres, y compris ceux qui
+   sont vides : un service absent est une cible, pas un blanc à masquer.
+
+   Le cadre visé par l'ajout se distingue en trait plein : c'est là que
+   partiront les lignes du composeur affiché en dessous, et rien d'autre à
+   l'écran ne le dirait. */
+function editBoxes(){
+  return COURSE_HUB.map(c => {
+    const lignes = S.draft.map((l, i) => ({l, i})).filter(x => (x.l[2] || 'plat') === c.k);
+    const kg = kgOf(lignes.map(x => x.l));
+    const cible = S.comCat === c.k;
+    return `
+    <div class="ebox${cible ? ' cible' : lignes.length ? '' : ' vide'}">
+      <div class="eh">
+        <span class="en">${c.l}</span>
+        <span class="ek">${lignes.length ? n2(kg) + ' kg' : 'vide'}</span>
+      </div>
+      ${lignes.length ? lignes.map(x => `<div class="draft-line">
+        <span class="nm">${esc(F.get(x.l[0]).n)}</span>
+        <input class="qin" type="number" inputmode="numeric" min="1" step="5"
+               data-qi="${x.i}" value="${x.l[1]}" aria-label="Grammes">
+        <span class="kg">${n2(kgOf([x.l]))}</span>
+        <button class="rm" data-rm="${x.i}" aria-label="Retirer">×</button>
+      </div>`).join('') : `<div class="evide">${esc(c.d)}</div>`}
+      <button class="eadd" data-ebox="${c.k}">${cible
+        ? '✓ les ajouts vont ici'
+        : 'Ajouter ' + (c.k === 'boisson' ? 'une boisson'
+          : c.k === 'entree' ? 'une entrée'
+          : c.k === 'plat' ? 'au plat'
+          : c.k === 'dessert' ? 'un dessert' : 'un café ou un thé')}</button>
+    </div>`;
+  }).join('') + `
+    <div class="total" style="margin-top:12px">
+      <div><div class="unit">Total — ${MEAL[S.meal].l.toLowerCase()}</div>
+        <div class="small mute">${kgOf(S.draft) > BUDGET_J
+          ? 'Ce repas dépasse le budget de la journée.'
+          : `${Math.round(kgOf(S.draft) / BUDGET_J * 100)} % du budget du jour.`}</div></div>
+      <div class="v">${n2(kgOf(S.draft))} <span class="unit">kg</span></div>
+    </div>`;
+}
+
+/* Le panneau « Plats types », deux listes empilées — les plats puis les
+   aliments — a disparu avec la carte qui y menait. Ses deux listes sont
+   désormais fondues et classées par pertinence dans le composeur, et ses plats
+   en étoile ont rejoint le bloc des favoris. Trois endroits pour chercher la
+   même chose, c'était deux de trop.
+
+   Ce commentaire vivait à l'intérieur du gabarit de chaîne qu'il expliquait.
+   Entre accents graves, une ouverture de commentaire n'ouvre rien : c'est du
+   texte, et il s'affichait à l'écran entre les deux panneaux. Un commentaire de
+   code n'a rien à faire dans une chaîne, sa place est ici, à côté de la
+   fonction. */
+
 /* Une ligne de résultat, plat type ou aliment brut : même gabarit, une
    étiquette pour dire lequel. Les distinguer par la mise en page ferait croire
    à deux listes, or c'en est une seule, classée. */
@@ -5965,18 +6042,14 @@ function renderSaisie(){
   </div>` : `${voieLine(isPlat)}
 
   ${S.path === 'std' ? stdPanel() : ''}
-
-  /* Le panneau « Plats types », deux listes empilées — les plats puis les
-     aliments — a disparu avec la carte qui y menait. Ses deux listes sont
-     désormais fondues et classées par pertinence dans le composeur, et ses
-     plats en étoile ont rejoint le bloc des favoris. Trois endroits pour
-     chercher la même chose, c'était deux de trop. */
   ${S.path === 'compose'  ? composePanel(resultats) : ''}
   ${S.path === 'favoris'  ? favorisPanel(habituels, etoiles) : ''}
   ${S.path === 'recettes' ? recettesPanel(mesRecettes) : ''}
 `))}
 
-  ${inStep.length ? `<div class="card" style="margin-top:12px">
+  ${editing && hasCourses ? editBoxes() : ''}
+
+  ${inStep.length && !(editing && hasCourses) ? `<div class="card" style="margin-top:12px">
     ${(step ? inStep.map(l => ({l, i:S.draft.indexOf(l)})) : S.draft.map((l,i) => ({l, i})))
       .map(x => `<div class="draft-line">
         <span class="nm">${esc(F.get(x.l[0]).n)}</span>
@@ -6113,6 +6186,21 @@ function renderSaisie(){
 
   /* Poids modifiables : on écrit au changement et non à chaque frappe, sinon un
      champ vidé pour être retapé vaudrait zéro le temps d'une frappe. */
+  /* Choisir le cadre où atterriront les ajouts. Le composeur s'ouvre du même
+     geste : demander « où ? » puis « comment ? » sur deux écrans, pour une
+     correction, serait deux de trop. */
+  view.querySelectorAll('[data-ebox]').forEach(b => b.onclick = () => {
+    S.comCat = b.dataset.ebox; S.path = 'compose'; S.dishQ = '';
+    renderSaisie();
+    /* Le composeur s'ouvre plus bas que le cadre qu'on vient de viser : sans
+       ce recentrage, le clic n'a l'air de rien faire. Appel gardé — tous les
+       moteurs n'implémentent pas scrollIntoView, et une exception ici avalerait
+       la suite du gestionnaire. */
+    const dq = $('#dq');
+    if(dq && typeof dq.scrollIntoView === 'function')
+      dq.scrollIntoView({block:'center', behavior:'smooth'});
+  });
+
   view.querySelectorAll('[data-qi]').forEach(inp => inp.onchange = () => {
     const i = +inp.dataset.qi, v = Math.max(1, Math.round(+inp.value || 0));
     if(!S.draft[i]) return;
@@ -10613,7 +10701,7 @@ function notesSheet(){
       notesLu();
       closeSheet();
       if(tab === 'feed') S.fv = vue || 'actu';
-      go(tab || 'feed');
+      go(tab || 'saisie');
     });
     const bl = $('#nt_lu');
     if(bl) bl.onclick = async () => { await notesLu(); notesSheet(); };
@@ -10725,7 +10813,11 @@ if(!localStorage.getItem(KEY_ANON + '.tab')){
   }catch(e){}
 }
 const repris = reprise();
-if(!repris) S.tab = tabRead() || 'feed';
+/* Aucun repli sur le fil. L'app rouvre là où on l'a laissée, et à la toute
+   première ouverture elle rouvre sur la saisie : c'est ce que l'app fait, et
+   déposer un nouvel arrivant devant un fil social vide n'annonce ni ce qu'elle
+   sert à faire, ni ce qu'il peut en attendre. */
+if(!repris) S.tab = tabRead() || 'saisie';
 go(S.tab);
 /* Premier lancement : les cinq fiches, une seule fois. On laisse la première
    peinture se faire avant d'ouvrir, sinon la fenêtre s'anime sur un écran vide. */
