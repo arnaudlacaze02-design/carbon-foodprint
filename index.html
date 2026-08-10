@@ -2205,7 +2205,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-91';
+const BUILD = 'cfp-92';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -2812,8 +2812,17 @@ async function scopeSupport(){
   const r = await SB.rest('posts?select=scope&limit=1');
   if(r.status === 0) return false;          /* hors ligne : on ne conclut pas */
   const brut = JSON.stringify(r.body || {});
-  SCOPE_OK = !!r.ok && !/42703|does not exist|PGRST204/i.test(brut);
-  return SCOPE_OK;
+  /* Trois issues, et la nuance a coûté un mauvais diagnostic. Une colonne
+     absente est une réponse : le serveur n'a pas la portée, on l'annonce. Une
+     panne n'en est pas une — une récursion de policy renvoyait 500 sur toute
+     lecture de `posts`, et l'app en concluait « ce serveur ne sait pas
+     restreindre » alors que la vraie phrase était « ce serveur est cassé ». On
+     laisse donc `null` : le choix reste caché, aucune promesse n'est faite, et
+     la sonde retentera au prochain chargement. */
+  SCOPE_OK = r.ok ? true
+    : /42703|PGRST204|column .*scope/i.test(brut) ? false
+    : null;
+  return SCOPE_OK === true;
 }
 
 async function frAsk(id, nom){
@@ -4943,6 +4952,11 @@ function feedActu(){
             ? 'La table <b>Publications</b> manque : passez <b>social_schema.sql</b> dans Supabase.'
           : /relationship|foreign|posts_author_fkey/i.test(String(S.perr || ''))
             ? 'La jointure vers les profils est cassée — clé étrangère renommée ou absente. Le feed a déjà réessayé sans elle.'
+          : /infinite recursion/i.test(String(S.perr || ''))
+            ? 'Deux policies s’interrogent l’une l’autre : celle de <b>posts</b> consulte une table dont ' +
+              'la policy consulte <b>posts</b>. Postgres coupe et refuse toute lecture de la table. ' +
+              'Passez <b>feed_scope_fix.sql</b> ; en attendant, supprimer la policy <b>posts_portee</b> ' +
+              'rétablit le feed immédiatement.'
           : /permission|policy|42501/i.test(String(S.perr || ''))
             ? 'Lecture refusée par une policy. Le Diagnostic serveur, dans votre profil, dit laquelle.'
           : 'Le Diagnostic serveur, dans votre profil, teste chaque table une par une.'}</div>
