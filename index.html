@@ -2205,7 +2205,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-90';
+const BUILD = 'cfp-91';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -3687,24 +3687,27 @@ function recipeSheet(){
     if(!amis.length) return '';
     const tous = !Array.isArray(q.dst);
     const n = tous ? amis.length : q.dst.length;
-    /* Tant que la sonde n'a pas répondu, le choix est montré mais inerte : offrir
-       des cases cochables avant de savoir si le serveur les honore reviendrait à
-       faire promettre à l'écran ce que la base ne tiendra peut-être pas. */
-    const fige = SCOPE_OK !== true;
+
+    /* Un serveur qui ne sait pas restreindre ne mérite pas sept cases grisées :
+       elles occupent la moitié de la feuille et ne mènent à rien. Une ligne
+       suffit à dire ce qu'il en est, et pourquoi le choix n'est pas là. Tant que
+       la sonde n'a pas répondu, on ne montre rien du tout plutôt qu'un choix
+       qu'on ne saura peut-être pas tenir. */
+    if(SCOPE_OK !== true) return SCOPE_OK === false
+      ? `<div class="src" style="margin:14px 0 0">Visible de vos ${amis.length} amis. Choisir
+           lesquels demande <b>feed_scope.sql</b>, que ce serveur n’a pas encore reçu.</div>`
+      : '';
+
     return `
       <div class="unit" style="margin:14px 0 2px">Qui la verra</div>
-      ${SCOPE_OK === false ? `<div class="src" style="margin-bottom:4px">Ce serveur ne sait pas
-        restreindre une publication : elle sera visible de tous vos amis. Le choix s’ouvrira
-        une fois <b>feed_scope.sql</b> passé.</div>` : ''}
-      <button class="chk" data-dtous role="checkbox" aria-checked="${tous}"${
-        fige ? ' disabled style="opacity:.5"' : ''}>
+      <button class="chk" data-dtous role="checkbox" aria-checked="${tous}">
         <span class="bx">\u2713</span>
         <span class="tx"><b>Tous mes amis</b><span>${amis.length} aujourd’hui, et ceux qui le
           deviendront ensuite</span></span>
       </button>
       ${amis.map(a => `<button class="chk" data-dst="${esc(a.uid)}" role="checkbox"
           aria-checked="${tous || q.dst.includes(a.uid)}"${
-          tous || fige ? ' disabled style="opacity:.5"' : ''}>
+          tous ? ' disabled style="opacity:.5"' : ''}>
         <span class="bx">\u2713</span>
         <span class="tx"><b>${esc(a.nom)}</b><span>${esc(a.slug)}</span></span>
       </button>`).join('')}
@@ -3782,7 +3785,9 @@ function recipeSheet(){
         <button class="btn btn-1" id="rq_go">Publier</button>
         <button class="btn btn-2" id="rq_no">Annuler</button>
       </div>
-      <div class="src" style="margin-top:8px">Visible de vos amis, qui pourront l’enregistrer dans leurs
+      <div class="src" style="margin-top:8px">${Array.isArray(q.dst)
+        ? `Visible des seules personnes cochées`
+        : `Visible de vos amis`}, qui pourront l’enregistrer dans leurs
         plats types. Ce qui figure dans « Autres » ne compte pas dans l’empreinte : elle est donc minorante.</div>`);
 
     brancheOnglets();
@@ -4013,12 +4018,49 @@ async function comDrop(cid, pid){
   return true;
 }
 
+/* Trois issues, et il faut les distinguer : en cours, chargé, échoué.
+
+   Ce code n'en connaissait que deux. `S.posts` passait à `null` dès que la
+   requête ratait, or c'est aussi la valeur qui fait afficher « Chargement… » :
+   un refus de la base, un 400 sur la jointure ou une table absente donnaient
+   donc un écran qui charge indéfiniment, sans rien dire, et effaçaient au
+   passage un feed déjà affiché. Un échec doit se voir et se nommer — c'est même
+   la seule chose qu'un écran puisse faire d'utile dans ce cas.
+
+   La jointure vers les profils est la partie fragile de cette requête : elle
+   dépend du nom exact d'une clé étrangère. Si elle échoue, on relit sans elle
+   plutôt que de tout perdre — les publications s'affichent, les pseudos
+   retombent sur ce que l'app sait déjà par ailleurs. Un feed sans les noms reste
+   un feed ; un écran vide n'est rien. */
+const POSTS_SEL = 'posts?select=id,author,kind,body,created_at';
+const POSTS_ORD = '&order=created_at.desc&limit=40';
+
 async function frPosts(){
   if(!SESS || !SB.ready()) return;
-  const r = await SB.rest('posts?select=id,author,kind,body,created_at,' +
-    'aut:profiles!posts_author_fkey(username)&order=created_at.desc&limit=40');
-  S.posts = r.ok ? (r.body || []) : null;
-  if(r.ok) await frSocial();
+  S.pstate = 'charge';
+  if(S.posts === undefined) S.posts = null;
+  feedPaint();
+
+  let r = await SB.rest(POSTS_SEL + ',aut:profiles!posts_author_fkey(username)' + POSTS_ORD);
+  let degrade = false;
+  if(!r.ok && r.status !== 0){
+    const r2 = await SB.rest(POSTS_SEL + POSTS_ORD);
+    if(r2.ok){ r = r2; degrade = true; }
+  }
+
+  if(r.ok){
+    S.posts  = r.body || [];
+    S.pstate = 'ok';
+    S.perr   = degrade ? 'pseudos indisponibles · jointure profiles refusée' : null;
+    await frSocial();
+  } else {
+    /* Le feed déjà chargé reste à l'écran : une coupure réseau n'est pas une
+       raison de vider ce qu'on avait. */
+    S.pstate = r.status === 0 ? 'hors-ligne' : 'erreur';
+    const b = r.body || {};
+    S.perr = r.status === 0 ? null
+      : (r.status + (b.message ? ' · ' + String(b.message).slice(0, 90) : ''));
+  }
   postsAlerte();
   alerteLikes();
   feedPaint();
@@ -4891,7 +4933,25 @@ function feedActu(){
       <div class="src" style="margin-top:8px">Un badge se partage depuis sa fiche, dans Trophées.</div>
     </div>
 
-    ${P === null ? `
+    ${S.pstate === 'erreur' ? `
+      <div class="card" style="margin-top:12px">
+        <p class="lede">Le feed n’a pas pu être lu</p>
+        <p class="small">La base a répondu <b>${esc(String(S.perr || 'sans message'))}</b>.
+          Ce n’est pas un problème de réseau : la requête est arrivée et a été refusée.</p>
+        <div class="src" style="margin-top:8px">${
+          /PGRST205|schema cache|does not exist/i.test(String(S.perr || ''))
+            ? 'La table <b>Publications</b> manque : passez <b>social_schema.sql</b> dans Supabase.'
+          : /relationship|foreign|posts_author_fkey/i.test(String(S.perr || ''))
+            ? 'La jointure vers les profils est cassée — clé étrangère renommée ou absente. Le feed a déjà réessayé sans elle.'
+          : /permission|policy|42501/i.test(String(S.perr || ''))
+            ? 'Lecture refusée par une policy. Le Diagnostic serveur, dans votre profil, dit laquelle.'
+          : 'Le Diagnostic serveur, dans votre profil, teste chaque table une par une.'}</div>
+        <button class="btn btn-2" id="ac_ref2" style="margin-top:10px">Réessayer</button>
+      </div>`
+    : S.pstate === 'hors-ligne' && !(P && P.length) ? `
+      <div class="card" style="margin-top:12px"><p class="small mute">Hors ligne : le feed
+        s’affichera dès que la connexion revient.</p></div>`
+    : P === null ? `
       <div class="card" style="margin-top:12px"><p class="small mute">Chargement…</p></div>`
     : !P.length ? `
       <div class="card" style="margin-top:12px">
@@ -5107,6 +5167,7 @@ function renderFeed(){
   if(S.fv === 'actu'){ actuLue(); paintFeedCount(); }
   const rec = $('#ac_rec'); if(rec) rec.onclick = recipeSheet;
   const ref = $('#ac_ref'); if(ref) ref.onclick = () => { frPosts(); toast('Actualisé'); };
+  const ref2 = $('#ac_ref2'); if(ref2) ref2.onclick = () => { frPosts(); toast('Nouvelle tentative'); };
   view.querySelectorAll('[data-pdel]').forEach(b => b.onclick = () => postDrop(b.dataset.pdel));
   view.querySelectorAll('[data-popen]').forEach(b =>
     b.onclick = () => postOpen(b.dataset.popen, b.dataset.ptab));
