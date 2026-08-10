@@ -2205,7 +2205,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-89';
+const BUILD = 'cfp-90';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -3183,9 +3183,30 @@ function rqNorm(t){
 }
 
 /* Table de synonymes normalisée une fois pour toutes, clés les plus longues
-   d'abord : « huile d olive » doit être essayé avant « huile ». */
+   d'abord : « huile d olive » doit être essayé avant « huile ».
+
+   Et surtout : un synonyme ne peut pas masquer un aliment qui porte exactement
+   ce nom. La table est plus vieille que la base ; elle a été écrite quand
+   celle-ci manquait de lignes, et un renvoi posé à l'époque y survit une fois
+   l'aliment ajouté. « quinoa » renvoyait ainsi au boulgour, « patate douce » à
+   la pomme de terre, « petit pois » aux pois chiches — alors que les trois
+   existent aujourd'hui, avec leur propre facteur. Le rapprochement exact étant
+   tenté avant tout le reste, l'aliment réel n'avait jamais sa chance.
+
+   La règle rend l'ajout d'un aliment auto-réparateur : dès qu'une ligne portant
+   ce nom entre dans la base, le renvoi qui le masquait cesse de s'appliquer, et
+   il n'y a rien à penser à retirer à la main. Les renvois vers `null` sont
+   conservés : ils disent « ignore-le même si tu l'as », ce qui est un choix, pas
+   un oubli. */
+const RQ_NOMS = new Map(DB.foods.map(f => [rqNorm(f.n), f.s]));
+
+const RQ_MASQUES = Object.entries(RQ_SYN_SRC)
+  .map(([k, v]) => [rqNorm(k), v])
+  .filter(([k, v]) => v && RQ_NOMS.has(k) && RQ_NOMS.get(k) !== v);
+
 const RQ_SYN = new Map(Object.entries(RQ_SYN_SRC)
   .map(([k, v]) => [rqNorm(k), v])
+  .filter(([k, v]) => !(v && RQ_NOMS.has(k) && RQ_NOMS.get(k) !== v))
   .sort((a, b) => b[0].length - a[0].length));
 
 /* Les unités passent par la même normalisation, sans quoi elles seraient
@@ -3257,6 +3278,23 @@ function rqLigne(brut){
   return {q, uni, nom: mots.join(' '), plein, brut: t};
 }
 
+/* Compléments de destination, retirés avant tout rapprochement. Dans une liste
+   d'ingrédients française, ce qui suit « pour » ne nomme pas l'ingrédient : il
+   dit où il va. « beurre pour le moule » est du beurre, et le moule n'est pas un
+   coquillage — c'est pourtant ce que la base répondait, « moule » étant un nom
+   plus court que « beurre » à égalité de note. Le mot de trop était dans la
+   ligne, pas dans la table.
+
+   La coupe ne s'applique que s'il reste quelque chose devant : « pour le
+   service » seul n'a pas de tête à garder, et vaut mieux non reconnu que
+   silencieusement rapproché de n'importe quoi. */
+const RQ_DESTINATION = /\s(?:pour|au choix|a servir|en accompagnement|en garniture|si besoin|si necessaire|a part|de cote|facultatif|facultative)\b.*$/;
+
+function rqSansDestination(s){
+  const coupe = s.replace(RQ_DESTINATION, '').trim();
+  return coupe.length >= 3 ? coupe : s;
+}
+
 /* Rapprochement avec la base. Rend le slug, ou null pour un ingrédient
    volontairement ignoré, ou undefined quand rien ne correspond — trois issues
    distinctes, que l'écran de relecture traite différemment.
@@ -3271,9 +3309,29 @@ function rqSlug(nom){
 
   /* Une masse citée dans la désignation (« 1 pavé de saumon de 150 g ») sert à
      la conversion, pas au rapprochement : elle est écartée ici. */
-  let mots = nom.replace(/\b(?:de\s+)?\d+(?:[.,]\d+)?\s*(?:kg|gr|g|cl|ml|dl|l)\b/g, ' ')
+  let mots = rqSansDestination(nom)
+                .replace(/\b(?:de\s+)?\d+(?:[.,]\d+)?\s*(?:kg|gr|g|cl|ml|dl|l)\b/g, ' ')
                 .replace(/\s+/g, ' ').trim().split(/\s+/).filter(Boolean);
   if(!mots.length) mots = nom.split(/\s+/).filter(Boolean);
+
+  /* Deux passes sur la désignation entière, avant toute réduction.
+
+     Les réductions qui suivent — retrait des déterminants de tête, puis des
+     adjectifs — sont des heuristiques utiles mais aveugles : « petit » et
+     « douce » y figurent, si bien que « petit pois » devenait « pois » et
+     tombait sur les pois chiches, « patate douce » devenait « patate » et
+     tombait sur la pomme de terre. Les deux existent pourtant dans la base,
+     sous ce nom exact. Une désignation qui nomme exactement un aliment n'a pas
+     besoin d'être devinée : elle est déjà juste, et aucune heuristique ne doit
+     pouvoir la contredire.
+
+     Le renvoi de la table passe d'abord, et il le faut : « moutarde » est un
+     aliment de la base que le lecteur écarte volontairement, et cet ordre est
+     ce qui distingue un choix d'un accident. */
+  const entier = mots.join(' ');
+  if(RQ_SYN.has(entier)) return RQ_SYN.get(entier);
+  if(RQ_NOMS.has(entier)) return RQ_NOMS.get(entier);
+
   mots = rqTete(mots.join(' ')).split(/\s+/).filter(Boolean);
 
   const large = mots.join(' ');
@@ -3307,7 +3365,7 @@ function rqSlug(nom){
 
 /* Note de ressemblance entre une désignation et le nom des aliments. */
 function rqNote(f){
-  let meilleur = null, note = 0, lg = 99;
+  let meilleur = null, note = 0, lg = 99, tete = false;
   const jetons = f.split(/\s+/).filter(Boolean);
   for(const x of RQ_IDX){
     /* Le nom de report (`xs`) rapproche aussi — « Emmental » se trouve par
@@ -3316,10 +3374,11 @@ function rqNote(f){
        est justement le report, et « carotte » sur le mix de légumes. */
     for(const [cible, malus] of [[x.n, 0], [x.x, 12]]){
       if(!cible) continue;
-      let n = 0;
-      if(cible === f) n = 100;
-      else if(cible.startsWith(f + ' ')) n = 88;
-      else if(f.startsWith(cible + ' ') || f.endsWith(' ' + cible)) n = 84;
+      let n = 0, t = false;
+      if(cible === f){ n = 100; t = true; }
+      else if(cible.startsWith(f + ' ')){ n = 88; t = true; }
+      else if(f.startsWith(cible + ' ')){ n = 84; t = true; }
+      else if(f.endsWith(' ' + cible)) n = 84;
       else {
         const jc = cible.split(/\s+/);
         const communs = jetons.filter(m => m.length > 2 && jc.includes(m)).length;
@@ -3328,18 +3387,51 @@ function rqNote(f){
            thon ». L'écart de longueur pénalise les plats composés : deux
            mots communs avec « Banger and mash, saucisses et écrasé de
            pommes de terre » ne valent pas deux mots avec « Pomme de terre ». */
-        if(communs && (communs > 1 || jetons[0] === jc[0]))
+        if(communs && (communs > 1 || jetons[0] === jc[0])){
           n = 40 + communs * 12 - Math.min(24, Math.abs(jc.length - jetons.length) * 5);
+          t = jetons[0] === jc[0];
+        }
       }
       n -= malus;
-      /* À note égale, le nom le plus court : c'est l'aliment le plus
-         générique, donc le moins risqué. */
-      if(n > note || (n === note && n > 0 && cible.length < lg)){
-        note = n; meilleur = x.s; lg = cible.length;
-      }
+      /* À note égale, la tête de la désignation d'abord, et seulement ensuite le
+         nom le plus court.
+
+         L'ordre de ces deux règles est tout le correctif. En français, la tête
+         d'une désignation d'ingrédient est l'ingrédient ; ce qui suit le
+         qualifie, le destine ou le décore. Un aliment reconnu au début du texte
+         a donc plus de titres qu'un aliment reconnu à la fin, et « beurre pour
+         le moule » est du beurre même si « moule » est le mot le plus court de
+         la base. Départager d'abord par la longueur ignorait la position et
+         rendait le résultat dépendant de l'ordre du tableau des aliments. */
+      const mieux = n > note
+        || (n === note && n > 0 && t && !tete)
+        || (n === note && n > 0 && t === tete && cible.length < lg);
+      if(mieux){ note = n; meilleur = x.s; lg = cible.length; tete = t; }
     }
   }
   return {slug: meilleur, note};
+}
+
+/* Auto-contrôle du rapprochement, pour que ce genre d'écart cesse d'être
+   silencieux. Il ne teste pas des cas choisis à la main — qui ne trouvent que
+   ce qu'on y a mis — mais un invariant : le nom de chaque aliment de la base
+   doit se rapprocher de cet aliment-là. Un nom qui mène ailleurs signale une
+   collision, et c'est exactement sous cette forme que « beurre pour le moule »
+   devenu moule, « tomates mûres » devenue mûre et « quinoa » devenu boulgour se
+   ressemblent : trois symptômes, un seul contrôle pour les voir.
+
+   Séparé en trois listes, parce qu'elles n'appellent pas le même geste :
+   `perdus` sont des défauts à corriger, `nuls` des aliments écartés à dessein
+   par la table, `masques` des renvois que la règle a neutralisés d'elle-même —
+   utile à lire, c'est la trace du garde-fou en action. */
+function rqAudit(){
+  const perdus = [], nuls = [];
+  for(const f of DB.foods){
+    const r = rqSlug(rqNorm(f.n));
+    if(r === f.s) continue;
+    (r === null ? nuls : perdus).push({n:f.n, s:f.s, r});
+  }
+  return {perdus, nuls, masques: RQ_MASQUES};
 }
 
 /* Conversion en grammes. Sans unité, un nombre compte des pièces et se
@@ -8655,6 +8747,17 @@ async function diagSheet(){
     }
   }
   out.push(['Écrire une publication', ecriture, tonEcr]);
+
+  /* Contrôle local, sans réseau : il porte sur la base embarquée, pas sur le
+     serveur, mais c'est ici qu'on vient quand « ça met n'importe quoi ». */
+  const aud = rqAudit();
+  out.push(['Rapprochement · noms perdus',
+            aud.perdus.length ? aud.perdus.length + ' · ' + aud.perdus.map(x => x.n).join(', ').slice(0, 60)
+                              : 'aucun sur ' + DB.foods.length,
+            aud.perdus.length ? 'var(--brick)' : 'var(--forest)']);
+  out.push(['Rapprochement · renvois neutralisés',
+            aud.masques.length ? aud.masques.map(m => m[0]).join(', ').slice(0, 60) : 'aucun',
+            'var(--mute)']);
 
   const nAmis = S.fr.friends.length;
   const acquis = TROPHIES.filter((t,i) => troValue(t, scoring()) >= t.need).length;
