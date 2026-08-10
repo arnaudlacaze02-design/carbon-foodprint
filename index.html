@@ -1272,12 +1272,29 @@ button.tip:active{transform:scale(.995)}
 .mealhead{display:flex; align-items:baseline; gap:9px; margin:2px 0 4px}
 .mealhead .mh{font-family:var(--display); font-weight:800; font-size:22px; letter-spacing:-.01em}
 .mealhead .md{font-family:var(--mono); font-size:9.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--mute)}
-.wizbar{display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin:8px 0 2px}
-.wizbar span{font-family:var(--mono); font-size:9px; letter-spacing:.06em; text-transform:uppercase;
-  color:var(--mute); padding:4px 8px; border-radius:999px; background:var(--seg-bg)}
-.wizbar span.on{background:var(--forest); color:#fff}
-.wizbar span.done{background:var(--kpi-good); color:var(--accent)}
+/* Les cinq services occupent toute la largeur, une colonne chacun. En pastilles
+   flottantes elles se lisaient comme un fil d'Ariane décoratif ; en grille elles
+   se lisent comme ce qu'elles sont — cinq boutons de même poids, dont un est
+   celui où l'on se trouve. La cible de clic passe de 20 à 40 px de haut, ce qui
+   est le minimum utilisable au pouce. */
+.wizbar{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; margin:10px 0 4px}
+.wizbar span{font-family:var(--display); font-weight:600; font-size:11px; line-height:1.15;
+  color:var(--mute); padding:12px 3px; border-radius:12px; background:var(--seg-bg);
+  text-align:center; display:flex; align-items:center; justify-content:center;
+  border:1px solid transparent}
+.wizbar span.on{background:var(--forest); color:#fff; font-weight:700}
+.wizbar span.done{background:var(--kpi-good); color:var(--accent); font-weight:700}
+.wizbar span.done::after{content:'✓'; font-size:9px; margin-left:3px; opacity:.7}
 .wizbar i{font-style:normal; color:var(--line); font-size:11px}
+
+/* Provenance en retrait. Elle est posée entre les services et la question, à sa
+   place logique — elle vaut pour le repas entier, pas pour la façon de saisir ce
+   service — mais grisée : le choix est déjà fait, il n'a plus à réclamer
+   l'attention. Il reste une cible de clic pleine largeur pour le corriger. */
+.modeline.soft{background:transparent; border-style:dashed; border-color:var(--line-soft);
+  color:var(--mute); padding:8px 12px; margin:2px 0 10px}
+.modeline.soft b{font-weight:600; color:var(--ink-soft)}
+.modeline.soft i{opacity:.75}
 .drinkgrid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:2px}
 .dcard{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 8px;
   display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center}
@@ -2533,6 +2550,18 @@ function modeAuto(item){
    Recherche exacte seulement, sans annuaire à parcourir : il faut connaître le
    pseudo, comme sur une messagerie. */
 
+/* Le feed ne se peint que si on le regarde. C'est la règle que frPosts()
+   appliquait déjà, avec la bonne raison en commentaire — « re-rendre sans
+   condition écraserait l'écran de saisie en cours de frappe » — mais frLoad() et
+   chalLoad() l'avaient manquée. Or ces deux-là sont appelées par la veille de
+   fond toutes les 90 secondes, et surtout au retour au premier plan : on
+   revenait sur l'app, la requête se résolvait une ou deux secondes plus tard, et
+   le feed remplaçait l'écran qu'on était en train de remplir. C'est le « feed par
+   défaut au bout de quelques secondes » — pas un onglet qui bascule, un rendu
+   qui écrase. Un seul point de passage désormais, pour qu'aucun appelant ne
+   puisse à nouveau l'oublier. */
+const feedPaint = () => { if(S.tab === 'feed') renderFeed(); };
+
 let fbusy = false;
 
 async function feedSearch(){
@@ -2559,7 +2588,7 @@ async function frLoad(silent){
     'dem:profiles!friend_requests_requester_fkey(username,username_slug),' +
     'dst:profiles!friend_requests_addressee_fkey(username,username_slug)' +
     '&order=created_at.desc');
-  if(!r.ok){ S.fr.state = r.status === 0 ? 'hors-ligne' : 'erreur'; return renderFeed(); }
+  if(!r.ok){ S.fr.state = r.status === 0 ? 'hors-ligne' : 'erreur'; return feedPaint(); }
   const rows = r.body || [];
   S.fr = {
     in:      rows.filter(x => x.addressee === SESS.uid && x.status === 'pending'),
@@ -2570,7 +2599,7 @@ async function frLoad(silent){
   };
   alerteAmis();
   paintAlertes();
-  renderFeed();
+  feedPaint();
 }
 
 /* Ce qui réclame une réponse, calculé en un seul endroit. La pastille de la
@@ -3598,9 +3627,7 @@ async function frPosts(){
   if(r.ok) await frSocial();
   postsAlerte();
   alerteLikes();
-  /* La veille de fond appelle cette fonction toutes les 90 s : re-rendre sans
-     condition écraserait l'écran de saisie en cours de frappe. */
-  if(S.tab === 'feed') renderFeed();
+  feedPaint();
 }
 
 /* Retrouver un pseudo à partir d'un identifiant. Les likes ne rapportent que
@@ -3833,9 +3860,9 @@ async function chalLoad(silent){
   if(!SESS || !SB.ready()) return;
   const c = await SB.rest('challenges?select=id,kind,label,starts,ends,created_by,' +
     'aut:profiles!challenges_created_by_fkey(username)&order=ends.desc&limit=20');
-  if(!c.ok){ if(!silent) toast('Défis indisponibles'); S.chal = null; return renderFeed(); }
+  if(!c.ok){ if(!silent) toast('Défis indisponibles'); S.chal = null; return feedPaint(); }
   const list = c.body || [];
-  if(!list.length){ S.chal = []; alerteDefis(); return renderFeed(); }
+  if(!list.length){ S.chal = []; alerteDefis(); return feedPaint(); }
   const ids = list.map(x => x.id);
   const inList = 'in.(' + ids.join(',') + ')';
   const [pp, ss] = await Promise.all([
@@ -3851,7 +3878,7 @@ async function chalLoad(silent){
   await chalPublish();
   alerteDefis();
   paintAlertes();
-  renderFeed();
+  feedPaint();
 }
 
 /* Publication silencieuse de mon score, à chaque passage sur le feed : le
@@ -5704,9 +5731,9 @@ function voieLine(isPlat){
 /* Rappel discret de la provenance, en tête des écrans de saisie. Il remplace le
    sélecteur à trois boutons : le choix est fait, il n'a plus à occuper la
    moitié de l'écran, mais il doit rester lisible et rattrapable. */
-function modeLine(){
+function modeLine(soft){
   const m = MODE[S.mode];
-  return `<button class="modeline" id="modeEdit">
+  return `<button class="modeline${soft ? ' soft' : ''}" id="modeEdit">
     <span><b>${m ? esc(m.l) : 'Provenance à choisir'}</b>${
       m && m.k !== 1 ? ` · +${Math.round((m.k - 1) * 100)} %` : ''}</span>
     <i>modifier</i></button>`;
@@ -6027,6 +6054,29 @@ function recettesPanel(mes){
   </div>`;
 }
 
+/* Après un ajout, l'écran remonte sur le bouton d'action. Le geste est le même
+   que celui d'un tiroir qu'on referme : ce qui vient d'être ajouté est acquis,
+   ce qui reste à faire est de valider — et ce bouton se trouve en haut, hors du
+   champ dès qu'on a fait défiler la liste des plats. Sans ce rappel, on ajoute,
+   on regarde la liste, et rien ne dit que l'étape n'est pas terminée.
+
+   Le défilement est différé d'un tour de boucle : renderSaisie() vient de
+   remplacer le contenu de la vue, le bouton n'a pas encore de position quand le
+   gestionnaire de clic se termine. Doux et non brutal, pour que le mouvement se
+   lise comme une réponse au geste plutôt que comme un saut. */
+function versValider(){
+  requestAnimationFrame(() => {
+    /* Dans un repas à services, c'est « Valider l'entrée » ; dans un
+       petit-déjeuner ou un en-cas, qui n'ont pas de services, c'est
+       « Enregistrer le repas ». Le second sert de repli, jamais les deux à la
+       fois. */
+    const b = $('#wizNext') || $('#rec');
+    if(!b) return;
+    try{ b.scrollIntoView({behavior:'smooth', block:'center'}); }
+    catch(e){ b.scrollIntoView(); }
+  });
+}
+
 function renderSaisie(){
   topbar();
   /* Un brouillon vide s'écrit aussi : c'est ce qui purge la reprise dès qu'un
@@ -6263,8 +6313,9 @@ function renderSaisie(){
             ? `Passer, pas ${/^[aeéiouh]/i.test(step.label) ? 'd’' : 'de '}${step.label.toLowerCase()} ›`
             : 'Terminer le repas ›')}</button>
     </div>
+    ${S.mode ? modeLine(true) : ''}
     <h2 class="sec">${platChoix ? 'Comment le saisir ?' : step.q}</h2>`
-   : `<h2 class="sec">Comment le saisir ?</h2>`}
+   : `${S.mode ? modeLine(true) : ''}<h2 class="sec">Comment le saisir ?</h2>`}
 
   ${step && QUICK[step.k] ? `
     <div class="drinkgrid">
@@ -6292,7 +6343,7 @@ function renderSaisie(){
       ? 'Touchez un verre pour l’ajouter, deux fois s’il y en a eu deux. Les volumes se corrigent plus bas. La barre ouvre les boissons protéinées et fermentées, puis toute la base.'
       : 'Touchez la tasse prise en fin de repas. La barre ouvre la recherche. Rien de tout cela ? Passez l’étape.'}</div>` : ''}
 
-  ${step && QUICK[step.k] && !S.drinkMore ? '' : modeLine() + (!S.mode ? '' : (platChoix ? `
+  ${step && QUICK[step.k] && !S.drinkMore ? '' : (!S.mode ? modeLine() : (platChoix ? `
   <div class="modegrid" style="margin-top:12px">
     ${isPlat ? `
     <button class="mcard" data-path="std">
@@ -6450,7 +6501,7 @@ function renderSaisie(){
               composeur standard ne le concerne pas et ne doit pas court-circuiter
               le garde-fou de portion. */
            S.platLarge = false;
-           renderSaisie(); toast(`${d.n} ajouté`); } });
+           renderSaisie(); versValider(); toast(`${d.n} ajouté`); } });
   view.querySelectorAll('[data-star]').forEach(b => b.onclick = () => {
     const n = b.dataset.star, fi = S.favs.findIndex(f => f.n === n);
     if(fi >= 0){ S.favs.splice(fi, 1); toast(`${n} retiré des favoris`); }
@@ -6471,7 +6522,7 @@ function renderSaisie(){
     if(!F.has(sl) || !g) return;
     S.draft.push([sl, g, S.comCat, S.mode]);
     S.platLarge = false;
-    renderSaisie(); toast(`${F.get(sl).n} ajouté`);
+    renderSaisie(); versValider(); toast(`${F.get(sl).n} ajouté`);
   });
   view.querySelectorAll('[data-foodadd]').forEach(b => b.onclick = () => {
     const sl = b.dataset.foodadd;
