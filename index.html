@@ -1928,7 +1928,7 @@ const navKey = () => dataKey() + '.nav';
 function navSave(){
   try{
     localStorage.setItem(navKey(), JSON.stringify({
-      meal:S.meal, path:S.path, step:S.step, comCat:S.comCat, mode:S.mode,
+      meal:S.meal, path:S.path, step:S.step, comCat:S.comCat, mode:S.mode, partner:S.partner,
       course:S.course, entryDate:S.entryDate, editId:S.editId, wiz:S.wiz,
       platLarge:S.platLarge,
       dishQ:S.dishQ, pdjNew:S.pdjNew, pdjSave:S.pdjSave, pdjEdit:S.pdjEdit,
@@ -1996,6 +1996,7 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          fv:'actu', notif:NOTIF0(), nutri:true, marques:{}, notes:undefined,
          plike:{}, pcom:{}, rq:null, rtab:'ing',
          cv:'frigo', frigo:[], fgq:'', fgCarb:'', fgSais:false, fgCui:'',
+         partner:null, parts:[],
          platLarge:false, modeFrom:null,
          stdP:null, stdF:null, stdL:null, stdSize:'normal',
          pdjNew:false, pdjSave:false, pdjEdit:false};
@@ -2004,7 +2005,7 @@ function save(){
   try{ localStorage.setItem(dataKey(), JSON.stringify({favs:S.favs, hist:S.hist,
         tomb:S.tomb, stdInit:S.stdInit, starred:S.starred, lastSync:S.lastSync,
         prof:S.prof, people:S.people, notif:S.notif, nutri:S.nutri,
-        marques:S.marques, pmVu:S.pmVu, frigo:S.frigo})); }catch(e){}
+        marques:S.marques, pmVu:S.pmVu, frigo:S.frigo, parts:S.parts})); }catch(e){}
   /* Les signaux d'attente se recalculent à partir de S : les repeindre ici,
      c'est garantir qu'ils ne mentent jamais après une écriture, sans avoir à
      penser à les appeler depuis chacun des vingt endroits qui écrivent.
@@ -2014,6 +2015,7 @@ function save(){
 function load(){
   S.favs=[]; S.hist=[]; S.tomb=[]; S.starred=[]; S.stdInit=false; S.lastSync=null; S.prof={};
   S.people=[]; S.notif=NOTIF0(); S.nutri=true; S.marques={}; S.pmVu=false; S.frigo=[];
+  S.parts=[]; S.partner=null;
   try{
     const raw = localStorage.getItem(dataKey());
     if(raw){ const o = JSON.parse(raw);
@@ -2033,6 +2035,7 @@ function load(){
          aucune raison d'en partager le contenu, et le remonter au serveur
          reviendrait à stocker une donnée de vie privée sans contrepartie. */
       S.frigo = Array.isArray(o.frigo) ? o.frigo.filter(s => F.has(s)) : [];
+      S.parts = Array.isArray(o.parts) ? o.parts.filter(x => x && x.k && x.n) : [];
       stamp(); return true; }
   }catch(e){}
   return false;
@@ -5322,8 +5325,12 @@ function saveCourse(c){
   $('#cok').onclick = () => {
     const nm = $('#cname').value.trim() || `${label} composé`;
     if(S.favs.some(f => f.n === nm)) return toast('Ce nom existe déjà.');
-    S.favs.push({n:nm, m:[S.meal], l:lines});
-    save(); closeSheet(); renderSaisie(); toast(`${nm} ajouté aux plats types`);
+    /* Composé depuis la fiche d'un lieu : il y reste rangé. C'est ce qui fait
+       qu'une adresse vide se garnit toute seule, sans catalogue à saisir. */
+    const chez = S.partner && partDe(S.partner);
+    S.favs.push({n:nm, m:[S.meal], l:lines, ...(chez ? {pk:chez.k} : {})});
+    save(); closeSheet(); renderSaisie();
+    toast(chez ? `${nm} ajouté chez ${chez.n}` : `${nm} ajouté aux plats types`);
   };
 }
 
@@ -5611,17 +5618,78 @@ function renderMode(D, isToday){
    La barre segmentée « Plats types | Composer » restait affichée en permanence
    au-dessus du panneau, à répéter un choix déjà fait ; une ligne suffit à le
    rappeler et à revenir dessus, et l'écran s'allège d'une rangée de boutons. */
-/* Nom du bloc de favoris selon le service, et sa tournure en complément de
-   lieu. « Mes entrées » se comprend seul ; « ce que vous mettez le plus souvent
-   en entrée » demande la préposition, qui n'est pas la même partout. */
-const SERV_MIENS = {entree:'Mes entrées', plat:'Mes plats', dessert:'Mes desserts',
-                    boisson:'Mes boissons', cafethe:'Mes cafés'};
-const SERV_LA    = {entree:'en entrée', plat:'dans le plat', dessert:'en dessert',
-                    boisson:'en boisson', cafethe:'au café'};
+/* ---------------- restaurants et partenaires ----------------
+   Ce bloc remplace « Mes entrées / Mes plats / Mes desserts ». Ces trois-là
+   étaient un classement de l'historique par service : utile, mais redondant
+   avec la recherche, qui remonte déjà les habitudes en tête, et surtout muet
+   sur la question qu'on se pose vraiment devant un écran de saisie — « j'ai
+   mangé dehors, où ça ? ». Un lieu, contrairement à un service, porte une
+   information que l'app ne peut pas deviner : la provenance, donc le
+   coefficient, et un catalogue qui se remplit tout seul à force d'y retourner.
+
+   Deux natures de partenaires, et elles ne se remplissent pas pareil :
+   — les marques dont la base porte déjà les plats (`lk` sur un plat type) ;
+   — les adresses, vides au départ, qui se garnissent des plats que vous y
+     composez. Rien n'est inventé pour elles : personne ici ne connaît la carte
+     de ces restaurants, et poser des chiffres au jugé serait pire que de ne
+     rien poser du tout.
+
+   Le mode de préparation suit le partenaire : surgelé chez Picard, restaurant
+   pour une adresse, frais pour un kit cuisiné chez soi. C'est le genre
+   d'oubli — un dîner au restaurant compté comme du fait maison — qui
+   sous-estime sans jamais se voir. */
+const PARTENAIRES = [
+  {k:'hellofresh', n:'HelloFresh',  t:'Kit repas',  mode:'frais',
+   d:'Kits livrés, cuisinés chez vous.'},
+  {k:'picard',     n:'Picard',      t:'Surgelés',   mode:'surgele',
+   d:'Plats du congélateur.'},
+  {k:'mimo',       n:'Gruppomimo',  t:'Restaurant', mode:'resto',
+   d:'Pizzas, pâtes et desserts.'},
+  {k:'oxymore',    n:'Oxymore',     t:'Restaurant', mode:'resto',
+   d:'Les pizzas à prénoms.'},
+  {k:'urbanbagel', n:'Urban Bagel', t:'Restaurant', mode:'resto',
+   d:'Bagels et salades.'},
+  {k:'mlleshawn',  n:'Mlle Shawn',  t:'Restaurant', mode:'resto',
+   d:'Ce que vous y prenez d’habitude.'},
+  {k:'jow',        n:'Jow',         t:'Kit repas',  mode:'frais',
+   d:'Catalogue à venir.'},
+];
+
+/* Les adresses ajoutées à la main viennent s'ajouter aux sept ci-dessus. Elles
+   vivent dans l'état persisté, pas dans une constante : c'est une donnée
+   d'utilisateur, elle doit suivre le compte. */
+const partTous = () => PARTENAIRES.concat(S.parts || []);
+const partDe   = k => partTous().find(p => p.k === k) || null;
+
+/* Les plats d'un lieu. Trois provenances possibles, et c'est voulu : la base
+   étiquette les cartes de restaurant par `src`, les catalogues de marque par
+   `lk`, et l'utilisateur ajoute les siens en composant sur place (`pk`).
+   `DB.dishes` et non `DISHES()` — être entré dans la fiche d'une marque vaut
+   consentement à en voir le catalogue, la case du profil ne règle que la
+   recherche générale. */
+function partPlats(k){
+  const miens = S.favs.map((f, i) => ({...f, i, custom:true, kg:kgOf(f.l)}))
+    .filter(f => f.pk === k);
+  const base = DB.dishes.filter(d => d.src === k || d.lk === k)
+    .map(d => ({...d, fav:S.starred.includes(d.n), kg:kgOf(d.l)}));
+  return miens.concat(base).sort((a, b) => a.kg - b.kg);
+}
+
+/* Picard est le seul lieu dont la base porte des produits et non des plats
+   composés : ses vingt références sont des aliments surgelés, saisissables au
+   gramme. Elles se rendent donc comme des aliments, pas comme des plats. */
+function partAlims(k){
+  if(k !== 'picard') return [];
+  return DB.foods.filter(f => f.sg)
+    .map(f => ({s:f.s, g:f.p, kg:kgOf([[f.s, f.p]])}))
+    .sort((a, b) => a.kg - b.kg);
+}
+
+const partCompte = k => partPlats(k).length + partAlims(k).length;
 
 function voieLine(isPlat){
-  const l = S.path === 'compose'  ? 'Composer'
-          : S.path === 'favoris'  ? (SERV_MIENS[S.comCat] || 'Mes habitudes')
+  const l = S.path === 'compose'  ? (S.partner ? 'Composer · ' + esc((partDe(S.partner)||{}).n || '') : 'Composer')
+          : S.path === 'part'     ? (S.partner ? esc((partDe(S.partner)||{}).n || 'Partenaires') : 'Restaurants et partenaires')
           : S.path === 'recettes' ? 'Mes recettes'
           : isPlat ? 'Plat standard' : 'Plats types';
   return `<button class="modeline" id="voieEdit" style="margin-top:2px">
@@ -5840,38 +5908,110 @@ function composePanel(res){
         seul tenant.</div>`}`;
 }
 
-/* ---- Mes entrées / Mes plats / Mes desserts ----
-   Deux listes, et elles ne disent pas la même chose. La première vient de
-   l'historique : ce sont les aliments réellement saisis dans ce service, du
-   plus fréquent au moins fréquent, avec la portion médiane des fois
-   précédentes plutôt qu'une portion de référence — quelqu'un qui met toujours
-   40 g de fromage en entrée n'a pas à recorriger 60 g à chaque fois.
-   La seconde, ce sont les plats mis en étoile : un choix explicite, qui ne
-   dépend d'aucune statistique. */
-function favorisPanel(hab, etoiles){
-  return `
-    ${hab.length ? `<div class="list">
-      ${hab.map(x => `<div class="dish">
-        <div class="top">
-          <button class="nm" data-foodinfo="${esc(x.s)}" style="text-align:left">${
-            esc(F.get(x.s).n)}<span class="tag">${x.n}×</span></button>
-          <span class="kg">${n2(kgOf([[x.s, x.g]]))}</span>
-          <button class="add" data-habadd="${esc(x.s)}" data-habg="${x.g}">Ajouter</button>
-        </div>
-        <div class="bar"><i style="width:${clamp(kgOf([[x.s, x.g]])/(BUDGET_J*1.5)*100, 2, 100)}%;background:${
-          kgOf([[x.s, x.g]]) > BUDGET_J ? 'var(--brick)' : 'var(--forest-2)'}"></i></div>
-      </div>`).join('')}
-      <div class="count">Vos ${hab.length} habitude${hab.length > 1 ? 's' : ''} pour ce service,
-        de la plus fréquente à la moins fréquente · « Ajouter » pose votre portion habituelle,
-        pas la portion de référence</div>
-    </div>` : ''}
+/* ---- Restaurants et partenaires ----
+   Deux écrans dans un seul panneau : la liste des lieux, puis la carte d'un
+   lieu. Un seul état les distingue, S.partner, ce qui évite d'ajouter une
+   étape à la navigation — le retour reste le même bouton pour tout le monde. */
+function partenairesPanel(){
+  if(!S.partner){
+    const tous = partTous();
+    return `
+      <div class="modegrid" style="margin-top:12px">
+        ${tous.map(p => { const n = partCompte(p.k); return `
+          <button class="mcard" data-part="${esc(p.k)}">
+            <span class="mct">${esc(p.n)}</span>
+            <span class="mcn">${n || '—'}</span>
+            <span class="mcs">${esc(p.t)} · ${n
+              ? `${n} référence${n > 1 ? 's' : ''} à la carte.`
+              : esc(p.d)}</span>
+          </button>`; }).join('')}
+        <button class="mcard" id="pt_add">
+          <span class="mct">Ajouter une adresse</span>
+          <span class="mcn">+</span>
+          <span class="mcs">Une cantine, un traiteur, le restaurant du coin :
+            ses plats se garderont ici d’une fois sur l’autre.</span>
+        </button>
+      </div>
+      <div class="src" style="margin-top:12px">Choisir un lieu applique sa provenance —
+        restaurant, surgelé ou frais — au repas entier. Les plats que vous y composez
+        y restent rangés.</div>`;
+  }
 
-    ${etoiles.length ? `<h2 class="sec" style="margin-top:${hab.length ? 18 : 4}px">Mes plats en étoile</h2>
-      <div class="list">
-        ${etoiles.map(d => ligneRes({t:'plat', d, nom:d.n, kg:d.kg, fav:true})).join('')}
-        <div class="count">${etoiles.length} plat${etoiles.length > 1 ? 's' : ''} mis en étoile
-          · l’étoile se retire d’un second appui</div>
-      </div>` : ''}`;
+  const p = partDe(S.partner);
+  if(!p) return '';
+  const plats = partPlats(p.k), alims = partAlims(p.k);
+  return `
+    <button class="modeline" id="pt_back" style="margin-top:2px">
+      <span><b>${esc(p.n)}</b> · ${esc(p.t)}</span><i>changer de lieu</i></button>
+    ${alims.length ? `<div class="list" style="margin-top:10px">
+        ${alims.map(x => `<div class="dish">
+          <div class="top">
+            <button class="nm" data-foodinfo="${esc(x.s)}" style="text-align:left">${
+              esc(F.get(x.s).n.replace(/\s*\(Picard\)\s*$/, ''))}</button>
+            <span class="kg">${n2(x.kg)}</span>
+            <button class="add" data-habadd="${esc(x.s)}" data-habg="${x.g}">Ajouter</button>
+          </div>
+          <div class="bar"><i style="width:${clamp(x.kg/(BUDGET_J*1.5)*100, 2, 100)}%;background:${
+            x.kg > BUDGET_J ? 'var(--brick)' : 'var(--forest-2)'}"></i></div>
+        </div>`).join('')}
+        <div class="count">${alims.length} références du congélateur, de la plus légère à la plus
+          lourde · la portion proposée est celle de la barquette</div>
+      </div>` : ''}
+    ${plats.length ? `<div class="list" style="margin-top:10px">
+        ${plats.map(d => ligneRes({t:'plat', d, nom:d.n.replace(/\s*\((?:Gruppomimo|Oxymore|Urban Bagel)\)\s*$/, ''),
+          kg:d.kg, fav:!!d.fav})).join('')}
+        <div class="count">${plats.length} plat${plats.length > 1 ? 's' : ''} chez ${esc(p.n)}
+          · mode ${esc(((MODE[p.mode] || {}).l || '').toLowerCase())} appliqué au repas</div>
+      </div>` : ''}
+    ${plats.length || alims.length ? '' : `<div class="card" style="margin-top:10px">
+          <p class="small mute">Rien encore chez ${esc(p.n)}. Personne ici ne connaît sa carte :
+            plutôt que d’inventer des plats et des chiffres, l’app attend que vous composiez
+            le premier. Il sera rangé ici et proposé d’un doigt les fois suivantes.</p>
+        </div>`}
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-1" id="pt_comp">Composer un plat pris ${
+        p.t === 'Restaurant' ? 'ici' : 'chez ' + esc(p.n)}</button>
+    </div>`;
+}
+
+/* Ajout d'une adresse. La clé est dérivée du nom et rendue unique : c'est elle
+   qui étiquette les plats, elle ne doit jamais changer une fois posée, sinon
+   les plats déjà rangés se détacheraient de leur lieu. */
+function partAddSheet(){
+  openSheet(`
+    <div class="unit">Nouveau lieu</div>
+    <h3 style="margin:2px 0 4px">Ajouter une adresse</h3>
+    <p class="small mute">Une cantine, un traiteur, une chaîne, le restaurant d’en bas.</p>
+    <input class="search" id="pa_n" maxlength="40" placeholder="Nom du lieu" autocomplete="off">
+    <div class="unit" style="margin:10px 0 6px">Provenance appliquée</div>
+    ${Object.entries(MODE).map(([k, m], i) => `
+      <button class="qopt" data-pamode="${k}" aria-pressed="${i === 2}">
+        <span class="qn">${esc(m.l)}<span class="qs">${esc(m.s)}</span></span>
+        <span class="qk">✓</span>
+      </button>`).join('')}
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-1" id="pa_ok">Ajouter</button>
+      <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
+    </div>`);
+  let mode = 'resto';
+  $('#sheet').querySelectorAll('[data-pamode]').forEach(b => b.onclick = () => {
+    mode = b.dataset.pamode;
+    $('#sheet').querySelectorAll('[data-pamode]').forEach(x =>
+      x.setAttribute('aria-pressed', x.dataset.pamode === mode));
+  });
+  $('#pa_ok').onclick = () => {
+    const n = ($('#pa_n').value || '').trim().slice(0, 40);
+    if(n.length < 2) return toast('Il faut un nom');
+    const base = 'x' + nrmT(n).replace(/[^a-z0-9]+/g, '') .slice(0, 16);
+    let k = base, i = 2;
+    while(partDe(k)) k = base + (i++);
+    S.parts = (S.parts || []).concat([{k, n, t:(MODE[mode] || {}).l || 'Lieu', mode,
+                                       d:'Ce que vous y prenez d’habitude.'}]);
+    save(); closeSheet();
+    S.partner = k; setMealMode(mode);
+    renderSaisie();
+    toast(`${n} ajouté`);
+  };
 }
 
 function recettesPanel(mes){
@@ -6086,8 +6226,10 @@ function renderSaisie(){
      renvoie à la question plutôt qu'à un panneau blanc. Ce contrôle doit venir
      ici et pas plus haut : les trois listes sont des const, les lire avant leur
      déclaration lève une ReferenceError au lieu de valoir undefined. */
-  if(S.path === 'favoris'  && !habituels.length && !etoiles.length) S.path = null;
   if(S.path === 'recettes' && !mesRecettes.length) S.path = null;
+  /* Un lieu supprimé entre-temps ne doit pas laisser un panneau vide : on
+     retombe sur la liste des lieux, jamais sur du blanc. */
+  if(S.path === 'part' && S.partner && !partDe(S.partner)) S.partner = null;
   const platChoix = !S.path;
 
   const inStep = step ? S.draft.filter(l => (l[2]||'plat') === S.comCat) : S.draft;
@@ -6160,14 +6302,11 @@ function renderSaisie(){
       <span class="mcs">Une seule barre pour tout : les aliments bruts avec leurs grammes,
         et les plats types de la base. Le plus juste quand on sait ce qu’il y avait dedans.</span>
     </button>
-    <button class="mcard" data-path="favoris"${
-      habituels.length + etoiles.length ? '' : ' disabled aria-disabled="true"'}>
-      <span class="mct">${SERV_MIENS[S.comCat] || 'Mes habitudes'}</span>
-      <span class="mcn">${habituels.length + etoiles.length || '—'}</span>
-      <span class="mcs">${habituels.length + etoiles.length
-        ? `Ce que vous mettez le plus souvent ${SERV_LA[S.comCat] || 'ici'}, et vos plats en étoile.`
-        : `Rien encore. Ce bloc se remplit tout seul à mesure que vous saisissez ${
-            SERV_LA[S.comCat] || 'ce service'}.`}</span>
+    <button class="mcard" data-path="part">
+      <span class="mct">Restaurants et partenaires</span>
+      <span class="mcn">${partTous().length}</span>
+      <span class="mcs">HelloFresh, Picard, vos adresses habituelles. Le lieu applique
+        sa provenance au repas et garde vos plats d’une fois sur l’autre.</span>
     </button>
     <button class="mcard" data-path="recettes"${
       mesRecettes.length ? '' : ' disabled aria-disabled="true"'}>
@@ -6181,7 +6320,7 @@ function renderSaisie(){
 
   ${S.path === 'std' ? stdPanel() : ''}
   ${S.path === 'compose'  ? composePanel(resultats) : ''}
-  ${S.path === 'favoris'  ? favorisPanel(habituels, etoiles) : ''}
+  ${S.path === 'part'     ? partenairesPanel() : ''}
   ${S.path === 'recettes' ? recettesPanel(mesRecettes) : ''}
 `))}
 
@@ -6274,7 +6413,25 @@ function renderSaisie(){
   const meEd = $('#modeEdit'); if(meEd) meEd.onclick = gotoMode;
   const voEd = $('#voieEdit');
   if(voEd) voEd.onclick = () => { S.path = null; S.dishQ = ''; renderSaisie(); };
-  view.querySelectorAll('[data-path]').forEach(b => b.onclick = () => { S.path = b.dataset.path; renderSaisie(); });
+  view.querySelectorAll('[data-path]').forEach(b => b.onclick = () => {
+    S.path = b.dataset.path;
+    if(S.path !== 'part' && S.path !== 'compose') S.partner = null;
+    renderSaisie();
+  });
+
+  /* Restaurants et partenaires. Choisir un lieu applique sa provenance au repas
+     entier : c'est la raison d'être du bloc, et l'oublier ferait passer un
+     dîner dehors pour du fait maison. */
+  view.querySelectorAll('[data-part]').forEach(b => b.onclick = () => {
+    const p = partDe(b.dataset.part);
+    if(!p) return;
+    S.partner = p.k;
+    if(p.mode && S.mode !== p.mode) setMealMode(p.mode);
+    renderSaisie();
+  });
+  const ptb = $('#pt_back'); if(ptb) ptb.onclick = () => { S.partner = null; renderSaisie(); };
+  const pta = $('#pt_add');  if(pta) pta.onclick = partAddSheet;
+  const ptc = $('#pt_comp'); if(ptc) ptc.onclick = () => { S.path = 'compose'; renderSaisie(); };
   view.querySelectorAll('[data-dish]').forEach(b => b.onclick = () => {
     S.openDish = S.openDish === b.dataset.dish ? null : b.dataset.dish; renderSaisie(); });
 
@@ -6969,8 +7126,16 @@ const PROFQ = [
     ['non','Pas maintenant','']],
    only:st => st.calKnow != null},
 
+  /* Le curseur des calories apparaissait deux fois : une fois en « besoin »
+     (calVal), une fois en « cible » (objCal), avec la même échelle et presque
+     le même titre. La distinction est réelle sur le papier — ce dont on a
+     besoin n'est pas ce qu'on vise — mais elle ne l'est pas dans les faits pour
+     quelqu'un qui vient de saisir son propre chiffre : il le retape à
+     l'identique en se demandant si l'app a perdu sa réponse. La question n'est
+     donc plus posée qu'à ceux qui ont laissé l'app estimer leur besoin ; aux
+     autres, la cible reprend le nombre déjà donné (voir calMirror). */
   {k:'objCal', q:'Quelle cible calorique par jour ?', range:{min:1200, max:4000, step:50},
-   fmt:'objCal', only:st => /^(deux|cal)$/.test(st.objNut || '')},
+   fmt:'objCal', only:st => /^(deux|cal)$/.test(st.objNut || '') && st.calKnow !== 'oui'},
 
   {k:'objProt', q:'Quelle cible protéinique par jour ?', prot:true,
    note:'Le poids saisi sert uniquement à ce calcul. Il n’est pas enregistré.',
@@ -7041,11 +7206,21 @@ function applyKit(v){
   S.marques = Object.assign({}, S.marques, on);
 }
 
+/* Report du besoin saisi sur la cible, quand l'utilisateur a donné son propre
+   chiffre. Sans lui, couper la question objCal laisserait la cible vide et le
+   suivi calorique éteint alors qu'on vient de le demander. */
+function calMirror(){
+  const P = S.prof;
+  if(P.calKnow === 'oui' && P.calVal != null && /^(deux|cal)$/.test(P.objNut || ''))
+    P.objCal = P.calVal;
+}
+
 function profSave(k, v){
   S.prof[k] = v;
   S.prof.at = new Date().toISOString();
   if(k === 'situe') S.prof.situeAt = S.prof.at;
   if(k === 'kit') applyKit(v);
+  if(/^(calKnow|calVal|objNut)$/.test(k)) calMirror();
   save();
   if(TASTE_KEYS.includes(k)) tastePush();
 }
