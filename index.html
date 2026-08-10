@@ -2205,7 +2205,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-92';
+const BUILD = 'cfp-93';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -8823,6 +8823,22 @@ async function diagSheet(){
   }
   out.push(['Écrire une publication', ecriture, tonEcr]);
 
+  /* La chaîne de push, maillon par maillon. C'est la seule façon de répondre à
+     « rien n'arrive à 21 h » autrement que par une supposition. */
+  const pa = await pushAudit();
+  out.push(['Push · écran d’accueil', pa.standalone ? 'oui' : 'NON · onglet Safari',
+            pa.standalone ? 'var(--forest)' : 'var(--brick)']);
+  out.push(['Push · autorisation', pa.perm,
+            pa.perm === 'granted' ? 'var(--forest)' : 'var(--brick)']);
+  out.push(['Push · abonnement local', pa.local ? '…' + pa.local.slice(-14) : 'AUCUN',
+            pa.local ? 'var(--forest)' : 'var(--brick)']);
+  out.push(['Push · lignes enregistrées',
+            pa.err ? 'erreur ' + pa.err
+              : pa.lignes === null ? 'pas de session'
+              : pa.lignes.length + (pa.ici ? ' · dont cet appareil' : ' · SANS cet appareil'),
+            (!pa.err && pa.ici) ? 'var(--forest)' : 'var(--brick)']);
+  if(pa.tz) out.push(['Push · fuseau déclaré', String(pa.tz), 'var(--mute)']);
+
   /* Contrôle local, sans réseau : il porte sur la base embarquée, pas sur le
      serveur, mais c'est ici qu'on vient quand « ça met n'importe quoi ». */
   const aud = rqAudit();
@@ -12037,6 +12053,63 @@ async function pushArm(silencieux){
   }
 }
 
+/* Rattrapage d'un abonnement renouvelé pendant que l'app était fermée. Le
+   worker ne peut pas déclarer le nouveau point de terminaison lui-même — il n'a
+   pas de jeton — il le dépose donc dans le cache. C'est ici qu'on le relève, et
+   surtout qu'on retire l'ancienne ligne : sans cela le serveur garde deux
+   adresses, dont une morte, et un envoi qui échoue sur la première peut ne
+   jamais atteindre la seconde. */
+async function pushReprise(){
+  if(!('caches' in window) || !SESS || !SB.ready()) return;
+  let info = null;
+  try{
+    const hit = await caches.match('./__push_renouvelle');
+    if(!hit) return;
+    info = await hit.json();
+  }catch(e){ return; }
+
+  if(info && info.ancien){
+    await SB.rest('push_subscriptions?endpoint=eq.' + encodeURIComponent(info.ancien),
+      {method:'DELETE', headers:{Prefer:'return=minimal'}});
+  }
+  await pushArm(true);
+  try{
+    for(const k of await caches.keys()){
+      const c = await caches.open(k);
+      await c.delete('./__push_renouvelle');
+    }
+  }catch(e){}
+}
+
+/* État de la chaîne complète, de l'autorisation du téléphone à la ligne
+   enregistrée côté base. Elle compte six maillons dont aucun n'était visible :
+   quand rien n'arrive à 21 h, il n'y avait aucun moyen de savoir lequel avait
+   lâché. Le maillon décisif est le dernier — le point de terminaison de cet
+   appareil est-il bien celui que le serveur connaît ? S'ils diffèrent, le
+   serveur écrit à une adresse morte, et tout le reste peut être parfait. */
+async function pushAudit(){
+  const a = {standalone: enStandalone(),
+             perm: (typeof Notification !== 'undefined' ? Notification.permission : 'absent'),
+             local: null, lignes: null, ici: false, err: null};
+  try{
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg && await reg.pushManager.getSubscription();
+    a.local = sub ? sub.endpoint : null;
+    a.handler = !!(reg && reg.active);
+  }catch(e){}
+  if(SESS && SB.ready()){
+    const r = await SB.rest('push_subscriptions?select=endpoint,tz,ua&user_id=eq.' +
+      encodeURIComponent(SESS.uid));
+    if(r.ok){
+      a.lignes = r.body || [];
+      a.ici = !!(a.local && a.lignes.some(x => x.endpoint === a.local));
+      const m = a.lignes.find(x => x.endpoint === a.local);
+      a.tz = m ? m.tz : (a.lignes[0] || {}).tz;
+    } else a.err = r.status + ((r.body && r.body.message) ? ' · ' + String(r.body.message).slice(0,60) : '');
+  }
+  return a;
+}
+
 /* Désabonnement. On retire la ligne d'abord : mieux vaut un abonnement
    fantôme côté navigateur qu'une ligne qui continue de recevoir des envois
    après que l'utilisateur a coupé les rappels. */
@@ -12568,7 +12641,7 @@ troWatch();
    pushsubscriptionchange nous parvienne — Safari ne le déclenche pas de façon
    fiable. Un upsert par lancement est le filet le plus simple et le plus sûr :
    silencieux, et sans effet si rien n'a changé. */
-if(S.notif.on) pushArm(true);
+if(S.notif.on){ pushArm(true).then(() => pushReprise()); }
 
 /* Minuteries. Une passe par minute pour les rappels horaires, une toutes les
    90 s pour les publications — et rien du tout quand l'écran est éteint ou

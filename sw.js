@@ -8,7 +8,7 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-3.42.0';
+const VERSION = 'cfp-3.43.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
@@ -69,6 +69,90 @@ self.addEventListener('fetch', e => {
   }
   /* cache d'abord pour le reste */
   e.respondWith(caches.match(e.request).then(hit => hit || fresh(e.request)));
+});
+
+/* Réception d'un push. C'est le seul code de toute l'app capable de faire
+   apparaître quelque chose alors qu'elle est fermée — et il manquait. Le worker
+   se réveillait à chaque envoi, ne trouvait personne pour écouter, et se
+   rendormait : le serveur pouvait émettre parfaitement, rien ne s'affichait
+   jamais.
+
+   Deux exigences gouvernent ce gestionnaire.
+
+   D'abord, il doit afficher quelque chose à tous les coups. L'abonnement est
+   pris avec `userVisibleOnly: true`, qui est une promesse faite au navigateur :
+   aucun push ne sera silencieux. Un push reçu sans notification affichée rompt
+   cette promesse, et Safari comme Chrome finissent par révoquer l'abonnement —
+   la panne se répare donc d'elle-même en pire. D'où le repli jusqu'au bout :
+   charge illisible, charge vide, texte brut, on affiche tout de même.
+
+   Ensuite, il ne présume pas de la forme de la charge. `titre`/`corps` du côté
+   français, `title`/`body` du côté des conventions Web Push : les deux sont
+   acceptés, parce qu'une notification perdue pour un nom de champ serait une
+   panne invisible de plus. */
+self.addEventListener('push', e => {
+  let d = {};
+  try{ d = e.data ? e.data.json() : {}; }
+  catch(_){
+    /* Charge non-JSON : on garde le texte, il valait sans doute un titre. */
+    try{ d = {corps: e.data.text()}; }catch(__){ d = {}; }
+  }
+  if(!d || typeof d !== 'object') d = {};
+
+  const titre = d.titre || d.title || 'Carbon FOODprint';
+  const corps = d.corps || d.body || d.message || '';
+  const tag   = d.tag || 'cfp';
+
+  e.waitUntil(self.registration.showNotification(titre, {
+    body: corps,
+    tag,                       /* remplace la précédente du même sujet */
+    icon:  './icon-192.png',
+    badge: './icon-192.png',
+    /* `tab` et `vue` voyagent jusqu'au clic, où notificationclick les relaie à
+       la page — mêmes noms des deux côtés, c'est déjà le contrat plus bas. */
+    data: {tab: d.tab || 'saisie', vue: d.vue},
+  }));
+});
+
+/* Abonnement renouvelé par le navigateur, sans que personne l'ait demandé. Cela
+   arrive : iOS et Chrome font tourner leurs points de terminaison. L'ancien
+   devient caduc, le serveur continue d'écrire à une adresse morte, et l'app
+   passe pour muette alors qu'elle est simplement injoignable.
+
+   Le worker ne peut pas prévenir le serveur lui-même : il n'a pas de jeton de
+   session. Il se réabonne donc et dépose le nouveau point de terminaison dans le
+   cache ; la page le relèvera au prochain lancement pour le déclarer. Un
+   réabonnement muet vaut mieux qu'un abonnement mort, car il rétablit au moins
+   la réception dès que l'app est ouverte une fois. */
+const VAPID_PUB = 'BKph812ngi7R8n41FcnHxmm5zmMFUAc3j2Qd5IckPoP7rXQ2rAnhXy1lyjfs64Zl2Xw_8x_bLGlLWoPdFAiW7QQ';
+
+const vapidOctets = b64 => {
+  const p = '='.repeat((4 - b64.length % 4) % 4);
+  const brut = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...brut].map(c => c.charCodeAt(0)));
+};
+
+self.addEventListener('pushsubscriptionchange', e => {
+  e.waitUntil((async () => {
+    const ancien = e.oldSubscription && e.oldSubscription.endpoint;
+    let neuf = null;
+    try{
+      const s = await self.registration.pushManager.subscribe({
+        userVisibleOnly: true, applicationServerKey: vapidOctets(VAPID_PUB)});
+      neuf = s.toJSON();
+    }catch(err){ /* rien à faire ici : la page réessaiera */ }
+    try{
+      const c = await caches.open(VERSION);
+      await c.put('./__push_renouvelle', new Response(
+        JSON.stringify({ancien, neuf, quand: Date.now()}),
+        {headers:{'Content-Type':'application/json'}}));
+    }catch(err){}
+    /* Prévenir une fenêtre ouverte, si par chance il y en a une : la page écoute
+       déjà `reabonner` et rappelle pushArm(). Le message existait des deux côtés
+       sauf ici — comme `vue` plus bas, le contrat était à moitié posé. */
+    const list = await self.clients.matchAll({type:'window', includeUncontrolled:true});
+    for(const cl of list) cl.postMessage({cfp:'reabonner'});
+  })());
 });
 
 /* Clic sur une notification : ramener la fenêtre existante au premier plan
