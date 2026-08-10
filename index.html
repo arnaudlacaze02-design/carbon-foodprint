@@ -22,11 +22,15 @@
 <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
 <link rel="manifest" href="./manifest.json">
-<!-- Police d'affichage des titres de bloc. Chargée en swap : si le réseau manque
-     (PWA hors ligne), la pile arrondie système prend le relais sans décaler la mise en page. -->
+<!-- Police d'affichage. Chargée en swap : si le réseau manque (PWA hors ligne), la pile
+     arrondie système prend le relais sans décaler la mise en page.
+     Quatre graisses et non plus une seule : 800 ne servait qu'à crier, et tout ce qui
+     n'était pas un titre retombait sur la police système. La hiérarchie est désormais
+     portée par la graisse à l'intérieur d'une même famille — voir « échelle Baloo 2 »
+     plus bas, qui dit ce que chaque graisse signifie. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap">
 <style>
 :root{
   /* palette de marque, invariante */
@@ -1368,6 +1372,134 @@ button.tip:active{transform:scale(.995)}
 
 @media(prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
 
+/* ---------------- échelle Baloo 2 ----------------
+   Une police d'affichage n'a de sens que si chaque graisse veut dire quelque
+   chose. Jusqu'ici il n'y en avait qu'une, le 800, posée sur les titres et sur
+   les chiffres : deux rôles très différents rendus de la même façon, et tout le
+   reste — libellés d'options, accroches, réponses — qui retombait sur la police
+   système, si bien que la moitié d'un écran de questionnaire était écrite dans
+   une famille et l'autre moitié dans une autre.
+
+   Trois graisses, trois emplois, et on s'y tient :
+     800  les chiffres et les titres de section. C'est la voix qui annonce.
+     700  les titres de fenêtre et les libellés qu'on choisit d'un doigt.
+     600  les accroches et les sous-titres, qui accompagnent sans concurrencer.
+   Le texte courant, lui, reste en police système : Baloo est une romaine
+   arrondie dessinée pour le grand corps, elle se lit mal en paragraphe.
+
+   Baloo porte une chasse verticale généreuse et une hauteur d'x haute : sans
+   `line-height` explicite, deux lignes se touchent et une ligne isolée flotte
+   au-dessus de sa boîte. Chaque règle ci-dessous en pose un. */
+.sheet h3{font-family:var(--display); font-weight:700; font-size:24px;
+  letter-spacing:-.015em; line-height:1.18; margin:2px 0 4px}
+/* Question du questionnaire : même rang qu'un titre de fenêtre. */
+.qh{font-family:var(--display); font-weight:700; font-size:24px; letter-spacing:-.015em;
+  line-height:1.18; margin:2px 0 6px}
+.qlede{font-family:var(--display); font-weight:600; font-size:14px; line-height:1.4;
+  color:var(--ink-soft); margin:0 0 12px}
+/* Libellé d'option : c'est la réponse, elle doit se lire avant sa glose. */
+.qopt .qn{font-family:var(--display); font-weight:700; font-size:16.5px;
+  letter-spacing:-.005em; line-height:1.25}
+.qopt .qs{font-family:var(--sans); font-weight:400; font-size:11.5px; line-height:1.4;
+  letter-spacing:0; text-transform:none; color:var(--mute); margin-top:3px}
+.qopt.big .qn{font-weight:700; font-size:20px; letter-spacing:-.015em; line-height:1.15}
+.qopt.big .qs{font-family:var(--sans); font-size:12.5px; line-height:1.4; color:var(--ink-soft);
+  margin-top:5px}
+/* Les mini-choix — sexe, tranche d'âge — sont des réponses comme les autres,
+   simplement plus courtes : même famille, même graisse que les options. */
+.qmini button{font-family:var(--display); font-weight:600; font-size:14.5px; line-height:1.25}
+.qmini button[aria-pressed="true"]{font-weight:700}
+/* Un bouton d'action est un ordre qu'on donne : 700, comme les libellés qu'on
+   choisit. Il portait jusqu'ici un 600 de police système, un peu terne à côté
+   d'un titre en Baloo 800 posé dix pixels au-dessus. */
+.btn{font-family:var(--display); font-weight:700; font-size:15px; line-height:1.2}
+/* Le chiffre d'un curseur : 800, comme tous les chiffres de l'app. */
+.qbig{font-weight:800; line-height:1.05}
+.qbig small{font-family:var(--mono); font-weight:400}
+
+/* ---------------- écran d'accueil bloquant ----------------
+   L'app ne s'ouvre plus sans compte. Ce n'est pas une feuille qu'on referme
+   d'un geste vers le bas : c'est une suite de pages pleines, sans barre
+   d'onglets ni bouton de fermeture, parce qu'il n'y a rien derrière à aller
+   voir.
+
+   Le verrou est en CSS et pas seulement en JavaScript. Tant que <html> porte
+   `data-gate`, la coque de l'app n'est pas dans le rendu — pas cachée dessous,
+   pas rendue puis recouverte : absente. C'est ce qui manquait à la première
+   version, où l'app était peinte puis masquée un dixième de seconde plus tard :
+   on la voyait passer, et si quoi que ce soit échouait entre les deux elle
+   restait là. */
+html[data-gate="1"] .phone{display:none}
+.gate{position:fixed; inset:0; z-index:45; background:var(--shell); display:none; overflow:hidden}
+.gate.on{display:flex}
+.gatewrap{width:100%; max-width:430px; margin:0 auto; height:100%; background:var(--paper);
+  display:flex; flex-direction:column}
+/* Écran d'annonce : tout est centré, il n'y a qu'une chose à lire. */
+.gatewrap.center{justify-content:center; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:30px 22px calc(30px + env(safe-area-inset-bottom))}
+/* Écran de parcours : entête qui ne bouge pas, corps qui défile, pied collé en
+   bas. Le bouton d'action reste sous le pouce quelle que soit la longueur de la
+   question — c'est ce qui distingue un parcours d'une pile de formulaires. */
+.gatewrap.flow{justify-content:flex-start}
+.gtop{flex:0 0 auto; display:flex; align-items:center; gap:12px;
+  padding:calc(14px + env(safe-area-inset-top)) 16px 12px}
+.gback{width:32px; height:32px; flex:0 0 auto; border-radius:50%; background:var(--card);
+  border:1px solid var(--line); font-size:20px; line-height:1; color:var(--ink);
+  display:flex; align-items:center; justify-content:center; padding-bottom:2px}
+.gback:active{background:var(--active)}
+.gback.ghost{visibility:hidden}
+.gprog{flex:1; height:5px; border-radius:3px; background:var(--track); overflow:hidden}
+.gprog i{display:block; height:100%; border-radius:3px; background:var(--forest);
+  transition:width .3s ease}
+.gstep{flex:0 0 auto; font-family:var(--mono); font-size:10.5px; color:var(--mute);
+  min-width:32px; text-align:right}
+.gstep i{font-style:normal; opacity:.55}
+.gbody{flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  padding:4px 20px 22px}
+.gfoot{flex:0 0 auto; background:var(--card); border-top:1px solid var(--line-soft);
+  padding:12px 20px calc(14px + env(safe-area-inset-bottom))}
+.gfoot .actions{margin-top:0}
+.gfoot .backlink{margin-top:8px; width:100%; text-align:center}
+.gatewrap .brandbig{margin:0 auto 16px}
+.gate h1{font-family:var(--display); font-weight:800; font-size:28px; letter-spacing:-.02em;
+  line-height:1.12; margin:0 0 8px; color:var(--ink); text-align:center}
+.gate .lede{font-family:var(--display); font-weight:600; font-size:14.5px; line-height:1.45;
+  color:var(--ink-soft); text-align:center; margin:0 auto 18px; max-width:32ch}
+/* Titre de question : aligné à gauche, comme le corps qu'il annonce. */
+.gq{font-family:var(--display); font-weight:800; font-size:26px; letter-spacing:-.02em;
+  line-height:1.14; margin:10px 0 8px; color:var(--ink)}
+.gate .lede.left{text-align:left; margin:0 0 14px; max-width:none;
+  font-size:13.5px; color:var(--mute)}
+/* Les trois promesses de l'écran d'ouverture. Numérotées : elles se lisent dans
+   l'ordre où l'app les tient. */
+.gpts{margin:4px 0 6px; display:flex; flex-direction:column; gap:13px; text-align:left}
+.gpt{display:flex; gap:11px; align-items:flex-start}
+.gpt .n{flex:0 0 auto; width:27px; height:27px; border-radius:9px; background:var(--kpi-good);
+  color:var(--accent); font-family:var(--display); font-weight:800; font-size:13px;
+  display:flex; align-items:center; justify-content:center; line-height:1}
+.gpt b{display:block; font-family:var(--display); font-weight:700; font-size:15px;
+  line-height:1.25; color:var(--ink)}
+.gpt span{display:block; font-size:12.5px; line-height:1.42; color:var(--ink-soft); margin-top:1px}
+.gate .gseg{display:flex; gap:2px; background:var(--seg-bg); border-radius:11px; padding:3px;
+  margin-bottom:14px}
+.gate .gseg button{flex:1; padding:9px 6px; border-radius:8px; font-family:var(--display);
+  font-weight:600; font-size:14px; line-height:1.2; color:var(--mute)}
+.gate .gseg button[aria-selected="true"]{background:var(--card); color:var(--ink);
+  font-weight:700; box-shadow:0 1px 3px rgba(0,0,0,.10)}
+.gate .glabel{display:block; font-family:var(--mono); font-size:10px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--mute); margin:10px 0 5px}
+.gate .src{margin-top:14px}
+.gate .actions{margin-top:14px}
+/* Récapitulatif de fin : une ligne par réponse, sans carte ni fioriture. */
+.grecap{margin:2px 0 0}
+.grecap div{display:flex; justify-content:space-between; gap:12px; padding:9px 0;
+  border-bottom:1px solid var(--line-soft)}
+.grecap div:last-child{border-bottom:0}
+.grecap span{font-family:var(--mono); font-size:10px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--mute); padding-top:2px}
+.grecap b{font-family:var(--display); font-weight:700; font-size:15px; line-height:1.3;
+  text-align:right; color:var(--ink)}
+
 /* surcharges petits écrans — placées en fin de feuille pour primer dans la cascade */
 @media(max-width:359px){
   .wordmark{font-size:15px}
@@ -1431,6 +1563,7 @@ button.tip:active{transform:scale(.995)}
     </button>
   </nav>
 </div>
+<div class="gate" id="gate" role="dialog" aria-modal="true" aria-label="Créer un compte"></div>
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 <div class="toast" id="toast"></div>
@@ -2068,7 +2201,10 @@ SB.fresh = async (force) => {
      la session est irrécupérable. On l'oublie sans toucher aux données. */
   if(r.status === 400 || r.status === 401){
     SESS = null; SB.keepSess(); SB._uid = null;
-    toast('Session expirée : reconnectez-vous depuis votre profil');
+    toast('Session expirée : reconnectez-vous');
+    /* Sans session, plus d'app : le parcours d'entrée reprend la main au lieu
+       de laisser un écran qui ne sait plus de qui il parle. */
+    if(typeof gateCheck === 'function') gateCheck();
   }
   return null;
 };
@@ -2359,7 +2495,9 @@ function openSheet(html){
   $('#sheet').classList.add('on'); $('#scrim').classList.add('on');
 }
 function closeSheet(){ $('#sheet').classList.remove('on'); $('#scrim').classList.remove('on'); }
-$('#scrim').onclick = closeSheet;
+/* Pendant l'accueil, la feuille ne se referme pas d'un clic à côté : il n'y a
+   rien derrière, et une feuille refermée laisserait un écran mort. */
+$('#scrim').onclick = () => { if(typeof GATE === 'undefined' || !GATE.on) closeSheet(); };
 
 /* Détection automatique : un produit surgelé de la base ou un plat repris d'une
    carte de restaurant présélectionne son mode. Sans ça, l'oubli du sélecteur
@@ -6305,8 +6443,14 @@ function anonPayload(){
 function offerImport(){
   const a = anonPayload();
   if(!a || S.hist.length) return;
-  if(!a.hist.length && a.prof){   /* rien à reprendre sinon le profil : on le fait sans demander */
-    S.prof = a.prof; save(); return;
+  /* Rien à reprendre sinon le profil : on le fait sans demander — mais jamais
+     par-dessus un profil déjà renseigné. Depuis que le questionnaire précède
+     l'entrée dans l'app, ce cas se produit à chaque création de compte sur un
+     appareil qui a servi sans compte : la copie anonyme, plus ancienne, venait
+     effacer les réponses tout juste données. */
+  if(!a.hist.length && a.prof){
+    if(!Object.keys(S.prof).filter(k => k !== 'onb').length){ S.prof = a.prof; save(); }
+    return;
   }
   openSheet(`
     <div class="unit">Premier accès à ce compte</div>
@@ -6359,6 +6503,10 @@ function showRecoveryCode(code, titre, apres){
        questionnaire enchaîne sur la question suivante plutôt que de refermer
        tout et de laisser l'utilisateur devant un écran d'accueil. */
     if(apres) return apres();
+    /* Le code peut être affiché pendant l'accueil — création de compte, ou mot
+       de passe réinitialisé depuis l'écran de connexion. Refermer la feuille
+       laisserait alors l'écran bloquant nu, sans rien à faire dessus. */
+    if(typeof GATE !== 'undefined' && GATE.on) return gateSuite();
     closeSheet(); go(S.tab); offerImport();
   };
 }
@@ -6445,6 +6593,8 @@ function logoutSheet(){
     if(wipe){ try{ localStorage.removeItem(dataKey()); }catch(e){} }
     SB.signOut(); load(); closeSheet(); go(S.tab);
     toast(wipe ? 'Déconnecté, copie locale effacée' : 'Déconnecté');
+    /* Sans compte, plus d'app : on repasse par la porte d'entrée. */
+    gateCheck();
   };
   const k = $('#lo_keep'); if(k) k.onclick = done(false);
   const w = $('#lo_wipe'); if(w) w.onclick = () => {
@@ -6452,6 +6602,258 @@ function logoutSheet(){
     if(b.dataset.ok) return done(true)();
     b.dataset.ok = '1'; b.textContent = 'Confirmer l\'effacement';
   };
+}
+
+/* ==================== parcours d'entrée ====================
+   L'app ne s'ouvre plus sans compte, et le chemin est le même pour tout le
+   monde : on annonce ce que l'app fait, on crée le compte, on répond aux
+   questions, on entre. Quatre temps, plein écran, un seul geste à la fois.
+
+   Deux choses ont été apprises de la version précédente. La première : le
+   verrou ne peut pas être un rideau posé après coup. `gateArm()` retire la
+   coque de l'app du rendu au moment même où l'on décide qu'il faut passer par
+   ici, avant toute peinture, et `go()` refuse de dessiner un onglet tant que le
+   parcours est ouvert. La seconde : le questionnaire ne doit pas rester dans
+   une feuille glissante. Une feuille dit « ceci est facultatif, tirez vers le
+   bas pour l'écarter » ; ici rien n'est facultatif. Les mêmes questions sont
+   donc rendues plein écran, avec une barre d'avancement et un retour, et la
+   feuille n'est reprise que lorsqu'on revient les modifier depuis le profil. */
+const GATE = {on:false, mode:'up'};
+
+/* Un profil est considéré comme rempli s'il a été mené jusqu'au bout, ou s'il
+   porte déjà les trois réponses dont l'app ne peut rien faire sans elles. La
+   seconde branche existe pour les comptes créés avant cette version : les
+   renvoyer dans un questionnaire qu'ils ont déjà à moitié rempli serait leur
+   faire payer un changement qui ne les concerne pas. */
+const profOk = () => !!(S.prof.done || (S.prof.sexe && S.prof.age && S.prof.regime));
+
+/* Arme le verrou. Séparé de l'affichage parce que le questionnaire, lui,
+   s'affiche par profQuiz : il faut que le verrou soit déjà en place quand
+   profQuiz choisit entre la feuille et le plein écran. */
+function gateArm(){
+  GATE.on = true;
+  document.documentElement.dataset.gate = '1';
+  $('#gate').classList.add('on');
+}
+
+function gateShow(html, mode){
+  gateArm();
+  const g = $('#gate');
+  g.innerHTML = '<div class="gatewrap ' + (mode || 'center') + '">' + html + '</div>';
+  const b = g.querySelector('.gbody'); if(b) b.scrollTop = 0;
+}
+
+function gateHide(){
+  const g = $('#gate');
+  g.classList.remove('on'); g.innerHTML = '';
+  GATE.on = false;
+  delete document.documentElement.dataset.gate;
+}
+
+/* --- 1. annonce --- */
+const GATE_PTS = [
+  ['Chaque assiette, son chiffre', 'Plus de 260 aliments et 250 plats, calculés sur la base ADEME / AGRIBALYSE. Deux gestes par repas, pas davantage.'],
+  ['Un budget, pas une punition', '700 kg CO₂e par an, c’est la part alimentaire compatible avec 2050. La moyenne française est à 2 000. L’app dit où vous êtes, sans commenter.'],
+  ['Mieux à plusieurs', 'Un fil entre amis, des défis, des trophées. Ce que vous publiez, vous le choisissez repas par repas.'],
+];
+
+function gateIntro(){
+  gateShow(`
+    <div class="brandbig" role="img" aria-label="Carbon FOODprint"></div>
+    <h1>L’empreinte de ce que vous mangez</h1>
+    <p class="lede">Trois minutes pour installer vos repères. Ensuite, c’est l’affaire de quelques secondes par repas.</p>
+    <div class="gpts">
+      ${GATE_PTS.map(([t, d], i) => `
+        <div class="gpt"><span class="n">${i + 1}</span>
+          <span><b>${t}</b><span>${d}</span></span></div>`).join('')}
+    </div>
+    <div class="actions">
+      <button class="btn btn-1" id="gi_up">Créer mon compte</button>
+    </div>
+    <button class="backlink" id="gi_in" style="margin-top:10px;width:100%;text-align:center">J’ai déjà un compte ›</button>
+    <div class="src">Aucune adresse e-mail n’est demandée : un pseudo et un mot de passe suffisent. Le compte sert à retrouver vos repas d’un appareil à l’autre, et à vous relier à vos amis.</div>`);
+  $('#gi_up').onclick = () => gateAuth('up');
+  $('#gi_in').onclick = () => gateAuth('in');
+}
+
+/* --- 2. compte --- */
+function gateAuth(mode){
+  GATE.mode = mode || GATE.mode || 'up';
+  const up = GATE.mode === 'up';
+  gateShow(`
+    <div class="gtop">
+      <button class="gback" id="ga_back" aria-label="Retour">‹</button>
+      <div class="gprog"><i style="width:12%"></i></div>
+      <span class="gstep">1<i>/2</i></span>
+    </div>
+    <div class="gbody">
+      <h1 class="gq">${up ? 'Créer votre compte' : 'Content de vous revoir'}</h1>
+      <p class="lede left">${up
+        ? 'Un pseudo, un mot de passe, rien d’autre. Le pseudo est définitif et visible de vos amis.'
+        : 'Reprenez votre historique là où vous l’aviez laissé.'}</p>
+      <div class="gseg" role="tablist">
+        <button role="tab" data-gm="up" aria-selected="${up}">Créer un compte</button>
+        <button role="tab" data-gm="in" aria-selected="${!up}">J’ai un compte</button>
+      </div>
+      <label class="glabel" for="g_p">Pseudo</label>
+      <input class="search" id="g_p" style="margin:0" autocomplete="username" autocapitalize="none"
+             placeholder="${up ? 'Trois caractères au moins' : 'Votre pseudo'}">
+      <label class="glabel" for="g_m">Mot de passe</label>
+      <input class="search" id="g_m" type="password" style="margin:0"
+             autocomplete="${up ? 'new-password' : 'current-password'}"
+             placeholder="${up ? 'Huit caractères au moins' : 'Votre mot de passe'}">
+      ${up ? '' : '<button class="backlink" id="g_lost" style="margin-top:12px">Mot de passe oublié ›</button>'}
+      <div class="src">${up
+        ? 'Un code de récupération vous sera donné juste après : c’est le seul recours si vous oubliez le mot de passe, puisqu’il n’y a pas d’adresse e-mail à qui envoyer un lien.'
+        : 'Le mot de passe se récupère avec le code noté à l’inscription.'}</div>
+    </div>
+    <div class="gfoot">
+      <div class="actions"><button class="btn btn-1" id="g_go">${up ? 'Créer mon compte' : 'Se connecter'}</button></div>
+    </div>`, 'flow');
+
+  $('#ga_back').onclick = gateIntro;
+  $('#gate').querySelectorAll('[data-gm]').forEach(b => b.onclick = () => gateAuth(b.dataset.gm));
+
+  const go = $('#g_go');
+  go.onclick = async () => {
+    const p = ($('#g_p').value || '').trim(), m = $('#g_m').value || '';
+    const lib = go.textContent;
+    if(GATE.mode === 'in'){
+      if(!p || !m) return toast('Pseudo et mot de passe');
+      go.disabled = true; go.textContent = 'Connexion…';
+      const r = await SB.signIn(p, m);
+      if(!r.ok){
+        go.disabled = false; go.textContent = lib;
+        return toast(r.status === 0 ? 'Hors ligne' : 'Pseudo ou mot de passe incorrect');
+      }
+      load();
+      await syncNow(true);
+      return gateSuite();
+    }
+    if(SB.slugify(p).length < 2) return toast('Pseudo : trois caractères au moins');
+    if(m.length < 8) return toast('Mot de passe : huit caractères au moins');
+    go.disabled = true; go.textContent = 'Création…';
+    const r = await SB.fn('signup', {pseudo:p, password:m});
+    if(!r.ok){
+      go.disabled = false; go.textContent = lib;
+      const e = (r.body || {}).error;
+      return toast(e === 'pseudo_pris' ? 'Ce pseudo est déjà pris'
+        : e === 'mot_de_passe_court' ? 'Mot de passe : 8 caractères minimum'
+        : e === 'pseudo_invalide' ? 'Pseudo trop court ou invalide'
+        : r.status === 0 ? 'Hors ligne : la création d’un compte demande une connexion'
+        : 'Création impossible');
+    }
+    const code = r.body.recovery_code;
+    const si = await SB.signIn(p, m);
+    if(!si.ok){
+      go.disabled = false; go.textContent = lib;
+      return toast('Compte créé, mais connexion impossible : reconnectez-vous');
+    }
+    load();
+    gateCode(code);
+  };
+
+  const lost = $('#g_lost');
+  if(lost) lost.onclick = () => recoverSheet(($('#g_p').value || '').trim());
+}
+
+/* --- 3. code de récupération, plein écran lui aussi ---
+   Il est rendu ici plutôt que dans la feuille commune : au milieu d'un parcours
+   plein écran, une feuille qui remonte donnerait l'impression d'un aparté qu'on
+   peut écarter, alors que c'est l'écran le plus important des quatre. */
+function gateCode(code){
+  gateShow(`
+    <div class="gtop">
+      <span class="gback ghost"></span>
+      <div class="gprog"><i style="width:25%"></i></div>
+      <span class="gstep">2<i>/2</i></span>
+    </div>
+    <div class="gbody">
+      <h1 class="gq">Notez ce code</h1>
+      <p class="lede left">C’est votre <b>seul</b> moyen de récupérer le compte si vous oubliez
+        votre mot de passe. Aucune adresse e-mail n’a été demandée, il n’y a donc pas de lien de
+        secours. Il ne sera plus jamais affiché.</p>
+      <div class="card" style="text-align:center">
+        <div style="font-family:var(--mono);font-size:15px;letter-spacing:.12em;line-height:1.9;word-break:break-all">${esc(code)}</div>
+      </div>
+      <div class="actions"><button class="btn btn-2" id="gc_copy">Copier le code</button></div>
+    </div>
+    <div class="gfoot">
+      <div class="actions"><button class="btn btn-1" id="gc_ok">J’ai noté ce code</button></div>
+    </div>`, 'flow');
+  $('#gc_copy').onclick = () => {
+    try{ navigator.clipboard.writeText(code); toast('Code copié'); }
+    catch(e){ toast('Copie refusée, notez-le à la main'); }
+  };
+  $('#gc_ok').onclick = gateSuite;
+}
+
+/* --- 4. questionnaire, puis récapitulatif --- */
+/* Après une authentification réussie : le questionnaire s'il manque, le
+   récapitulatif sinon. Un seul endroit décide, sinon chaque chemin d'entrée
+   invente le sien. */
+function gateSuite(){
+  closeSheet();
+  if(!profOk()) return gateQuiz();
+  gateOuvrir();
+}
+
+function gateQuiz(){
+  gateArm();
+  profQuiz(profTrou());
+}
+
+/* Dernier écran : ce que l'app a retenu, en clair. Il ne sert pas à décorer —
+   c'est la seule occasion de voir d'un coup ce qu'on vient de répondre, et de
+   corriger avant que ça devienne le référentiel de tous les calculs. */
+function gateRecap(){
+  const r = [];
+  if(S.prof.regime) r.push(['Régime', REG_LAB[S.prof.regime]]);
+  if(S.prof.objKg != null) r.push(['Cible annuelle', n0(S.prof.objKg) + ' kg CO₂e']);
+  if(S.prof.objVege != null) r.push(['Rythme végétal', S.prof.objVege + ' repas / semaine']);
+  const bc = besoinCal();
+  if(bc != null) r.push(['Besoin calorique', n0(bc) + ' kcal / jour']);
+  if(S.prof.objProt != null) r.push(['Cible protéines', n0(S.prof.objProt) + ' g / jour']);
+  if(S.prof.kit) r.push(['Kits repas', {hellofresh:'HelloFresh', jow:'Jow',
+    deux:'HelloFresh et Jow', non:'Aucun'}[S.prof.kit]]);
+
+  gateShow(`
+    <div class="gtop">
+      <button class="gback" id="gr_back" aria-label="Revenir aux questions">‹</button>
+      <div class="gprog"><i style="width:100%"></i></div>
+      <span class="gstep">✓</span>
+    </div>
+    <div class="gbody">
+      <h1 class="gq">Tout est prêt${SESS && (SESS.pseudo || SESS.username) ? ', ' + esc(SESS.pseudo || SESS.username) : ''}</h1>
+      <p class="lede left">Voici ce que l’app retient. Tout se modifie plus tard depuis la
+        pastille de profil, en haut à gauche.</p>
+      ${r.length ? `<div class="grecap">${r.map(([k, v]) =>
+        `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>`
+        : `<p class="small mute">Vous avez passé les questions : l’app fonctionnera, mais la
+             cible annuelle et le suivi nutritionnel resteront éteints faute de repères.</p>`}
+      <div class="src">Premier geste conseillé : saisir le repas que vous venez de prendre.
+        Trois jours de saisie suffisent à faire apparaître une moyenne.</div>
+    </div>
+    <div class="gfoot">
+      <div class="actions"><button class="btn btn-1" id="gr_go">Ouvrir l’app</button></div>
+    </div>`, 'flow');
+  $('#gr_back').onclick = () => profQuiz(profSteps().length - 1);
+  $('#gr_go').onclick = gateOuvrir;
+}
+
+/* Sortie du parcours. C'est le seul endroit qui lève le verrou. */
+function gateOuvrir(){
+  closeSheet(); gateHide();
+  go(S.tab);
+  offerImport();
+}
+
+/* Porte d'entrée, appelée au lancement, après une déconnexion et à chaque
+   retour au premier plan : une session peut mourir pendant que l'app dort. */
+function gateCheck(){
+  if(!SESS) return gateIntro();
+  if(!profOk()) return gateQuiz();
+  gateHide();
 }
 
 /* ==================== questionnaire de profil ====================
@@ -6492,14 +6894,13 @@ const QIC = {
 };
 
 const PROFQ = [
-  /* Le compte d'abord. Il n'apporte rien au calcul, mais il décide de ce qu'il
-     advient des réponses : sans lui elles vivent dans ce navigateur et nulle
-     part ailleurs. Le demander après huit questions, c'est demander de refaire
-     le chemin à qui change de téléphone. Sexe et âge sont sur le même écran :
-     ils servent aux références énergétiques de l'ANSES et il n'y a pas de quoi
-     faire deux pages. */
-  {k:'compte', compte:true, q:'Votre compte',
-   note:'Aucune adresse e-mail n’est demandée. Le pseudo sera définitif ; le mot de passe fait 8 caractères au moins. Vous pouvez aussi continuer sans compte : tout restera sur cet appareil.'},
+  /* Le compte ne fait plus partie du questionnaire : il est demandé avant, sur
+     l'écran d'accueil bloquant, et il n'y a donc plus de « continuer sans
+     compte » à négocier au milieu des questions. Reste ici ce que le compte ne
+     dit pas : sexe et tranche d'âge, qui servent aux références énergétiques de
+     l'ANSES et n'ont pas de quoi faire deux pages à eux seuls. */
+  {k:'ident', ident:true, q:'Deux repères pour commencer',
+   note:'Sexe et âge servent aux références énergétiques de l’ANSES, établies séparément. Ils restent sur l’appareil et ne sont partagés avec personne.'},
 
   {k:'regime', q:'Quel régime ?', big:true, ic:true,
    note:'Il oriente toutes les questions qui suivent. C’est la seule qui en commande d’autres.',
@@ -6528,6 +6929,20 @@ const PROFQ = [
 
   {k:'objVege', q:'Combien de repas végé par semaine ?', range:{min:0, max:14, step:1},
    only:st => st.objSet === 'oui'},
+
+  /* Kits repas. La question n'est pas d'agrément : elle branche directement les
+     cases à cocher des marques, et donc le catalogue de plats que la saisie
+     propose. Répondre HelloFresh ici, c'est déverrouiller les recettes de la
+     marque, exactement comme le ferait la case du profil — laquelle reste
+     accessible pour changer d'avis. Posée après le rythme végétal parce qu'un
+     abonnement à un kit change ce qu'on saisira, pas ce qu'on vise. */
+  {k:'kit', q:'HelloFresh ou Jow ?',
+   note:'Leurs recettes sont déjà calculées dans cette app. Le dire ici les ajoute au catalogue de saisie ; sinon elles restent cachées, pour ne pas noyer la recherche sous des noms que vous ne reconnaîtriez pas.',
+   opts:[
+    ['hellofresh','HelloFresh','Paniers livrés, cuisinés chez vous'],
+    ['jow','Jow','Courses et recettes planifiées'],
+    ['deux','Les deux','Ajoute les deux catalogues'],
+    ['non','Ni l’un ni l’autre','Aucun catalogue de marque']]},
 
   /* --- volet nutritionnel --- */
   {k:'calKnow', q:'Connaissez-vous vos besoins caloriques journaliers ?', opts:[
@@ -6615,10 +7030,22 @@ async function tastePull(){
   if(r.ok && r.body && r.body.length) S.tasteShared = !!r.body[0].shared;
 }
 
+/* La réponse « kits repas » n'est pas rangée dans un coin : elle coche les
+   marques, c'est-à-dire qu'elle change le catalogue de plats disponible à la
+   saisie. Écrire la réponse sans l'appliquer aurait fait une question pour
+   rien, et deux endroits qui se contredisent — la réponse d'un côté, les cases
+   du profil de l'autre. */
+function applyKit(v){
+  const on = {hellofresh: v === 'hellofresh' || v === 'deux',
+              jow:        v === 'jow'        || v === 'deux'};
+  S.marques = Object.assign({}, S.marques, on);
+}
+
 function profSave(k, v){
   S.prof[k] = v;
   S.prof.at = new Date().toISOString();
   if(k === 'situe') S.prof.situeAt = S.prof.at;
+  if(k === 'kit') applyKit(v);
   save();
   if(TASTE_KEYS.includes(k)) tastePush();
 }
@@ -6634,28 +7061,16 @@ const protGkg2 = () => S.prof.objProtGkg != null ? S.prof.objProtGkg : protGkg()
 
 const AGE_OPTS = [['a18','18 – 39'],['a40','40 – 59'],['a60','60 – 74'],['a75','75 +']];
 
-/* Première question : le compte, et les deux données qui servent aux références
-   énergétiques. Le mot de passe n'est jamais relu depuis le DOM ailleurs qu'ici
-   et ne transite que vers la fonction signup. */
-function compteCorps(){
-  if(SESS) return `
+/* Première étape : les deux données qui servent aux références énergétiques.
+   Le compte a déjà été créé sur l'écran d'accueil, il est simplement rappelé
+   ici pour que l'on sache à quoi les réponses vont être attachées. */
+function identCorps(){
+  return `
     <div class="card" style="margin-top:2px">
       <div class="unit">Connecté</div>
-      <div class="bt" style="margin-top:3px">${esc(SESS.pseudo || 'votre compte')}</div>
+      <div class="bt" style="margin-top:3px">${esc((SESS && (SESS.pseudo || SESS.username)) || 'votre compte')}</div>
       <p class="small mute" style="margin:6px 0 0">Vos réponses suivront ce compte sur tous
         vos appareils.</p>
-    </div>
-    ${sexeAgeCorps()}`;
-  return `
-    <div class="qfield">
-      <label for="q_ps">Pseudo</label>
-      <input class="search" id="q_ps" placeholder="Trois caractères au moins"
-             autocomplete="username" autocapitalize="none" style="margin:0">
-    </div>
-    <div class="qfield">
-      <label for="q_mp">Mot de passe</label>
-      <input class="search" id="q_mp" type="password" placeholder="Huit caractères au moins"
-             autocomplete="new-password" style="margin:0">
     </div>
     ${sexeAgeCorps()}`;
 }
@@ -6680,52 +7095,68 @@ function sexeAgeCorps(){
       l’ANSES, établies séparément. Ils restent sur l’appareil et ne sont partagés avec personne.</div>`;
 }
 
-function bindCompte(i){
-  const sh = $('#sheet');
+/* Le questionnaire vit à deux endroits : plein écran pendant le parcours
+   d'entrée, en feuille quand on revient le modifier depuis le profil. Une seule
+   racine à interroger, sinon les gestionnaires de clic se posent sur un
+   conteneur vide selon d'où l'on vient. */
+const QROOT = () => (GATE.on ? $('#gate') : $('#sheet'));
+
+function bindIdent(i){
+  const sh = QROOT();
   sh.querySelectorAll('[data-sexe]').forEach(b => b.onclick = () => {
     profSave('sexe', b.dataset.sexe); profQuiz(i); });
   sh.querySelectorAll('[data-age]').forEach(b => b.onclick = () => {
     profSave('age', b.dataset.age); profQuiz(i); });
+}
 
-  const g = $('#q_signup');
-  if(!g) return;
-  if(SESS){ g.textContent = 'Continuer ›'; g.onclick = () => profQuiz(i + 1); return; }
-  g.onclick = async () => {
-    const p = ($('#q_ps').value || '').trim(), m = $('#q_mp').value || '';
-    if(p.length < 3) return toast('Pseudo : trois caractères au moins');
-    if(m.length < 8) return toast('Mot de passe : huit caractères au moins');
-    g.disabled = true; g.textContent = 'Création…';
-    const r = await SB.fn('signup', {pseudo:p, password:m});
-    if(!r.ok){
-      g.disabled = false; g.textContent = 'Créer mon compte';
-      const e = (r.body || {}).error;
-      return toast(e === 'pseudo_pris' ? 'Ce pseudo est déjà pris'
-        : e === 'mot_de_passe_court' ? 'Mot de passe : 8 caractères minimum'
-        : e === 'pseudo_invalide' ? 'Pseudo trop court ou invalide'
-        : r.status === 0 ? 'Hors ligne : continuez sans compte, vous pourrez en créer un plus tard'
-        : 'Création impossible');
-    }
-    /* Sexe et âge ont été saisis avant que le compte existe : ils vivent dans
-       le stockage anonyme. load() bascule sur le stockage du compte, qui est
-       vide — il faut donc les reporter après, sans quoi ils disparaissent au
-       moment même où l'utilisateur vient de les donner. */
-    const sexe = S.prof.sexe, age = S.prof.age;
-    const code = r.body.recovery_code;
-    const si = await SB.signIn(p, m);
-    if(!si.ok){ return toast('Compte créé, mais connexion impossible'); }
-    load();
-    if(sexe) S.prof.sexe = sexe;
-    if(age)  S.prof.age  = age;
-    save();
-    showRecoveryCode(code, 'Compte créé', () => profQuiz(i + 1));
-  };
+/* Deux habillages pour le même contenu. En parcours d'entrée : plein écran,
+   barre d'avancement, action collée en bas. Depuis le profil : la feuille
+   d'origine, avec ses pastilles et son décompte — on n'y refait pas un parcours,
+   on vient corriger une réponse. */
+function qRender(o){
+  if(!GATE.on){
+    openSheet(`
+      <div class="unit">Profil</div>
+      <h3 class="qh">${o.titre}</h3>
+      ${o.note ? `<p class="qlede">${o.note}</p>` : ''}
+      ${o.corps}
+      <div class="actions" style="margin-top:14px">${o.actions}</div>
+      <button class="backlink" id="q_back" style="margin-top:6px">${
+        o.i === 0 ? '‹ Retour au profil' : '‹ Question précédente'}</button>
+      <div class="qdots">${o.bar}</div>
+      <div class="qcount">${o.restant
+        ? `question ${o.i + 1} sur ${o.n} · ${o.restant} restante${o.restant > 1 ? 's' : ''}`
+        : `dernière question`}</div>`);
+    return;
+  }
+  /* Le compte occupe les deux premiers crans de la barre : sans eux, on
+     repartirait de zéro juste après l'avoir créé, ce qui donne l'impression de
+     n'avoir pas avancé. */
+  const pct = Math.round((o.i + 3) / (o.n + 3) * 100);
+  gateShow(`
+    <div class="gtop">
+      ${o.i === 0 ? '<span class="gback ghost"></span>'
+                  : '<button class="gback" id="q_back" aria-label="Question précédente">‹</button>'}
+      <div class="gprog"><i style="width:${pct}%"></i></div>
+      <span class="gstep">${o.i + 1}<i>/${o.n}</i></span>
+    </div>
+    <div class="gbody">
+      <h1 class="gq">${o.titre}</h1>
+      ${o.note ? `<p class="lede left">${o.note}</p>` : ''}
+      ${o.corps}
+    </div>
+    <div class="gfoot"><div class="actions">${o.actions}</div></div>`, 'flow');
 }
 
 function profQuiz(i){
   const steps = profSteps();
-  if(i < 0) return profileSheet();
+  /* Pendant l'accueil, il n'y a pas de « retour au profil » : il n'y a pas
+     encore de profil à revenir voir, et l'app est fermée derrière. On reste
+     donc sur la première question. */
+  if(i < 0) return GATE.on ? profQuiz(0) : profileSheet();
   if(i >= steps.length){
     S.prof.done = true; S.prof.onb = true; save();
+    if(GATE.on) return gateRecap();
     return profileSheet();
   }
   const q = steps[i], cur = S.prof[q.k];
@@ -6734,8 +7165,8 @@ function profQuiz(i){
     `<i class="${j < i ? 'on' : j === i ? 'now' : ''}"></i>`).join('');
 
   let corps = '';
-  if(q.compte){
-    corps = compteCorps();
+  if(q.ident){
+    corps = identCorps();
   } else if(q.opts){
     /* Réponse suggérée par le régime déjà déclaré. Elle est signalée, jamais
        cochée : présélectionner reviendrait à enregistrer une réponse que
@@ -6789,32 +7220,32 @@ function profQuiz(i){
            grammes par jour, le temps de cet écran. Il n’est ni enregistré, ni synchronisé.</div>`;
   }
 
-  /* Le bouton d'action porte le libellé de ce qu'il fait vraiment : sur l'écran
-     de compte il crée le compte, ailleurs il enregistre et avance. */
-  const actions = q.compte
-    ? `<button class="btn btn-1" id="q_signup">Créer mon compte</button>
-       <button class="btn btn-2" id="q_skip">Continuer sans compte</button>`
-    : `${q.opts ? '' : `<button class="btn btn-1" id="q_next"${
-        q.prot && !protPoids ? '' : ''}>${i === steps.length - 1 ? 'Terminer' : 'Suivant ›'}</button>`}
-       <button class="btn btn-2" id="q_skip">${cur != null && cur !== '' ? 'Garder, suivant' : 'Passer'}</button>`;
+  /* Deux questions ne se passent pas : l'identité, parce que sans sexe ni âge
+     aucune référence énergétique ne tient, et le régime, parce qu'il commande
+     la moitié des questions qui suivent. Les autres restent facultatives — les
+     imposer produirait des réponses données pour se débarrasser de l'écran,
+     c'est-à-dire de fausses données. */
+  const oblig = q.ident || q.k === 'regime';
+  const passer = oblig ? ''
+    : `<button class="btn btn-2" id="q_skip">${cur != null && cur !== '' ? 'Garder, suivant' : 'Passer'}</button>`;
+  const actions = q.ident
+    ? `<button class="btn btn-1" id="q_next">Commencer ›</button>`
+    : `${q.opts ? '' : `<button class="btn btn-1" id="q_next">${
+        i === steps.length - 1 ? 'Terminer' : 'Suivant ›'}</button>`}${passer}`;
 
-  openSheet(`
-    <div class="unit">${SESS ? 'Profil' : 'Bienvenue'}</div>
-    <h3 style="margin:2px 0 ${q.note ? '6' : '10'}px">${q.q}</h3>
-    ${q.note ? `<p class="small mute" style="margin-bottom:10px">${q.note}</p>` : ''}
-    ${corps}
-    <div class="actions" style="margin-top:14px">${actions}</div>
-    <button class="backlink" id="q_back" style="margin-top:6px">${
-      i === 0 ? '‹ Retour au profil' : '‹ Question précédente'}</button>
-    <div class="qdots">${bar}</div>
-    <div class="qcount">${restant
-      ? `question ${i + 1} sur ${steps.length} · ${restant} restante${restant > 1 ? 's' : ''}`
-      : `dernière question`}</div>`);
+  qRender({i, n:steps.length, restant, bar, corps, actions, titre:q.q, note:q.note});
 
-  if(q.compte) bindCompte(i);
+  if(q.ident){
+    bindIdent(i);
+    const nx = $('#q_next');
+    if(nx) nx.onclick = () => {
+      if(!S.prof.sexe || !S.prof.age) return toast('Indiquez le sexe et la tranche d’âge');
+      profQuiz(i + 1);
+    };
+  }
 
   /* choix : sélectionne et avance, un seul geste par question */
-  $('#sheet').querySelectorAll('.qopt').forEach(b => b.onclick = () => {
+  QROOT().querySelectorAll('.qopt').forEach(b => b.onclick = () => {
     profSave(q.k, b.dataset.v);
     profQuiz(i + 1);
   });
@@ -6909,8 +7340,8 @@ function profQuiz(i){
     $('#q_next').onclick = () => { profSave(q.k, +rg.value); profQuiz(i + 1); };
   }
 
-  $('#q_skip').onclick = () => profQuiz(i + 1);
-  $('#q_back').onclick = () => profQuiz(i - 1);
+  const sk = $('#q_skip'); if(sk) sk.onclick = () => profQuiz(i + 1);
+  const bk = $('#q_back'); if(bk) bk.onclick = () => profQuiz(i - 1);
 }
 
 /* Part du profil réellement remplie. L'écran de compte compte pour ses deux
@@ -6920,7 +7351,7 @@ function profQuiz(i){
    « pas d'objectifs » n'a pas à rester bloqué à 70 % pour des questions que
    sa propre réponse a fait disparaître. */
 function profPct(){
-  const st = profSteps().filter(q => !q.compte);
+  const st = profSteps().filter(q => !q.ident);
   const champs = ['sexe', 'age', ...st.map(q => q.k)];
   const n = champs.filter(k => { const v = S.prof[k]; return v != null && v !== ''; }).length;
   return champs.length ? Math.round(n / champs.length * 100) : 100;
@@ -6931,7 +7362,7 @@ function profPct(){
 function profTrou(){
   if(!S.prof.sexe || !S.prof.age) return 0;
   const steps = profSteps();
-  const j = steps.findIndex(q => !q.compte && (S.prof[q.k] == null || S.prof[q.k] === ''));
+  const j = steps.findIndex(q => !q.ident && (S.prof[q.k] == null || S.prof[q.k] === ''));
   return j < 0 ? 0 : j;
 }
 
@@ -6988,6 +7419,8 @@ function profRows(){
     budget:'Dans le budget'}[S.prof.situe] + ' · ' + n0(PROF_ANCRE[S.prof.situe]) + ' kg']);
   if(S.prof.objKg != null) r.push(['Cible', n0(S.prof.objKg) + ' kg / an']);
   if(S.prof.objVege != null) r.push(['Végétal', S.prof.objVege + ' repas / sem.']);
+  if(S.prof.kit) r.push(['Kits repas', {hellofresh:'HelloFresh', jow:'Jow',
+    deux:'HelloFresh et Jow', non:'Aucun'}[S.prof.kit]]);
   const bc = besoinCal();
   if(bc != null) r.push(['Besoin', n0(bc) + ' kcal / j'
     + (S.prof.calKnow === 'non' ? ' (estimé)' : '')]);
@@ -10175,6 +10608,12 @@ function saisSheet(){
 
 /* ============================ navigation ============================ */
 function go(tab){
+  /* Dernier rempart. Le verrou CSS retire déjà la coque du rendu, mais une
+     vingtaine d'endroits appellent go() — une synchro qui revient, une
+     notification, un toast de reprise — et chacun repeindrait un onglet
+     derrière le parcours, avec des graphiques mesurés sur une largeur nulle.
+     On refuse ici, une fois pour toutes. */
+  if(typeof GATE !== 'undefined' && GATE.on) return;
   if(S.tab === 'saisie' && tab !== 'saisie' && S.editId){ S.editId = null; S.draft = []; }
   /* D'où l'on vient, pour le lien de retour du profil. Le profil n'a pas de
      bouton dans la barre : sans ce souvenir, on y resterait coincé. */
@@ -10818,29 +11257,35 @@ const repris = reprise();
    déposer un nouvel arrivant devant un fil social vide n'annonce ni ce qu'elle
    sert à faire, ni ce qu'il peut en attendre. */
 if(!repris) S.tab = tabRead() || 'saisie';
+/* La décision est prise ici, avant le premier go(). C'est tout l'objet du
+   correctif : la version précédente peignait l'app puis posait le verrou sur un
+   minuteur, si bien qu'on voyait passer l'onglet Saisie — et qu'une erreur
+   entre les deux laissait l'app grande ouverte sans compte. */
+gateCheck();
 go(S.tab);
-/* Premier lancement : les cinq fiches, une seule fois. On laisse la première
-   peinture se faire avant d'ouvrir, sinon la fenêtre s'anime sur un écran vide. */
+/* Porte d'entrée. Trois états et un seul ordre possible : pas de compte, on
+   demande le compte ; compte sans profil, on demande le profil ; les deux, on
+   ouvre. Rien n'est différé ni négociable — c'est le principe de cette version,
+   où l'app ne s'utilise plus sans compte.
 
-/* Toute première ouverture, sans compte et sans rien de saisi : le
-   questionnaire s'ouvre de lui-même. Il commence par la création du compte,
-   qui est le bon moment pour la poser — avant qu'un historique existe, donc
-   sans reprise à négocier, et avant que l'app ait servi à quoi que ce soit,
-   donc sans interrompre personne.
+   Le petit délai laisse la première peinture se faire : la feuille du
+   questionnaire s'anime sinon sur un écran encore vide.
 
-   `onb` marque le passage, indépendamment des réponses : quelqu'un qui ferme
-   la fenêtre sans répondre a fait un choix, et le lui redemander à chaque
-   lancement serait le harceler. Il reste le bandeau du Tracker, qui n'apparaît
-   qu'une fois des repas saisis, et le bouton du profil.
+   Les fiches de présentation cèdent le passage tant que l'accueil est ouvert :
+   deux fenêtres coup sur coup, c'en est une de trop. Elles reviendront au
+   lancement suivant, une fois l'utilisateur chez lui. */
+/* Les fiches de présentation cèdent le passage tant que le parcours d'entrée
+   est ouvert : deux fenêtres coup sur coup, c'en est une de trop. Elles
+   reviendront au lancement suivant, une fois l'utilisateur chez lui. */
+if(GATE.on){ S.prof.onb = true; save(); }
+else if(!S.pmVu) setTimeout(pmOpen, 420);
 
-   Les fiches de présentation cèdent le passage : deux fenêtres qui s'ouvrent
-   coup sur coup au tout premier lancement, c'en est une de trop. */
-const premiereFois = !SESS && !S.prof.onb && !S.hist.length
-                     && !Object.keys(S.prof).length && !repris;
-if(premiereFois){
-  S.prof.onb = true; save();
-  setTimeout(() => profQuiz(0), 500);
-} else if(!S.pmVu) setTimeout(pmOpen, 420);
+/* Retour au premier plan. Une PWA iOS n'est pas rechargée quand on y revient :
+   sans ce contrôle, une session expirée pendant la nuit laisserait l'app
+   ouverte au matin sur des données qui ne se synchronisent plus. */
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && !GATE.on && !SESS) gateCheck();
+});
 /* Zone d'import : porte d'auteur. Aucun élément d'interface n'y mène, on n'y
    entre que par le fragment. On l'efface de l'URL aussitôt pour qu'un partage de
    lien ne la transmette pas. */
