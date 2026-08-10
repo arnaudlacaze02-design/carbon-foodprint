@@ -1417,6 +1417,24 @@ button.tip:active{transform:scale(.995)}
 .zclose{margin-top:20px; padding:11px 26px; border-radius:999px; background:rgba(255,255,255,.14);
   color:#fff; font-family:var(--display); font-weight:700; font-size:14px; line-height:1.2}
 
+/* Les marches du podium. Une grille et non trois colonnes égales : l'or est au
+   milieu et plus grand, comme sur une estrade — c'est ce qui fait lire le
+   classement avant même les chiffres. */
+.podium{display:flex; align-items:flex-end; justify-content:center; gap:10px; margin:4px 0 2px}
+.pod{flex:1 1 0; min-width:0; text-align:center; padding:10px 4px 9px; border-radius:12px;
+  background:var(--card); border:1px solid var(--line)}
+.pod:first-child{order:2; flex-grow:1.25}
+.pod:nth-child(2){order:1}
+.pod:nth-child(3){order:3}
+.pod img{width:100%; max-width:64px; height:auto; display:block; margin:0 auto 6px}
+.pod:first-child img{max-width:78px}
+.pod b{display:block; font-family:var(--display); font-weight:700; font-size:13.5px;
+  line-height:1.25; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pod span{display:block; font-family:var(--mono); font-size:10px; color:var(--mute); margin-top:2px}
+.pod.moi{border-color:var(--forest-2); background:var(--kpi-good)}
+.podlink{text-align:left; color:var(--ink); text-decoration:underline;
+  text-underline-offset:2px; text-decoration-color:var(--line)}
+
 /* Médaille d'un défi terminé : sur la ligne du récapitulatif, et en grand dans
    la fiche du défi. C'est le seul endroit où une image de badge sort du cercle
    de medal() — un podium se regarde entier. */
@@ -3898,6 +3916,66 @@ function chalDetail(kind, s){
   return Math.round(s.value * s.meals) + ' sur ' + s.meals + ' repas principaux';
 }
 
+/* ---------------- le podium d'un défi terminé ----------------
+   Une médaille sans nom autour ne récompense pas grand-chose : ce qu'on veut
+   voir en fin de défi, c'est qui est devant, et de combien. Cette fenêtre montre
+   donc les trois marches avec leurs pseudos, puis le classement complet — y
+   compris les non-classés, dont l'absence de score est une information à elle
+   seule.
+
+   Le podium à trois marches n'apparaît qu'au-delà de trois participants classés.
+   En dessous, une seule médaille : à deux, distribuer un or, un argent et un
+   bronze reviendrait à ne récompenser personne. */
+function podiumSheet(id){
+  const ch = (S.chal || []).find(x => String(x.id) === String(id));
+  if(!ch) return openSheet(`<div class="unit">Défi</div>
+    <h3 style="margin:2px 0 8px">Défi introuvable</h3>
+    <p class="small mute">Il a peut-être été supprimé par celui qui l’avait lancé, ou la liste
+      n’est pas encore revenue du serveur. Les médailles déjà gagnées, elles, restent acquises.</p>`);
+
+  const rows = chalRows(ch), classes = rows.filter(r => r.ok), hors = rows.filter(r => !r.ok);
+  const large = classes.length > 3;
+  const moi = r => r.member === SESS.uid;
+  const MARCHES = [['m-or.webp', 'Or'], ['m-argent.webp', 'Argent'], ['m-bronze.webp', 'Bronze']];
+  const marches = (large ? classes.slice(0, 3) : classes.slice(0, 1));
+  const val = r => chalFmt(ch.kind, r);
+
+  openSheet(`
+    <div class="unit">Défi terminé · ${dLabel(ch.ends)}</div>
+    <h3 style="margin:2px 0 4px">${esc(CHAL[ch.kind].l)}</h3>
+    <p class="small mute" style="margin:0 0 12px">${classes.length
+      ? `${esc(classes[0].nom)} l’emporte${moi(classes[0]) ? ' — c’est vous' : ''}.`
+      : 'Personne n’a saisi assez de repas : le défi se termine sans classement.'}</p>
+
+    ${marches.length ? `<div class="podium">
+      ${marches.map((r, k) => `<div class="pod${moi(r) ? ' moi' : ''}">
+        <img src="${badgeSrc(MARCHES[k][0])}" alt="${MARCHES[k][1]}">
+        <b>${esc(r.nom)}</b><span>${val(r)}</span>
+      </div>`).join('')}
+    </div>` : ''}
+
+    ${classes.length > marches.length || hors.length ? `<div class="hr"></div>
+      <div class="unit" style="margin-bottom:6px">Classement</div>
+      <div class="list">
+        ${classes.map((r, i) => `<div class="chal">
+          <div class="st ${i < 3 && large ? 'on' : ''}">${i + 1}</div>
+          <div class="nm">${esc(r.nom)}${moi(r) ? ' · vous' : ''}</div>
+          <div class="pt">${val(r)}</div>
+        </div>`).join('')}
+        ${hors.map(r => `<div class="chal">
+          <div class="st off">—</div>
+          <div class="nm">${esc(r.nom)}${moi(r) ? ' · vous' : ''}</div>
+          <div class="rule">Pas assez de repas saisis sur la période pour être classé.</div>
+        </div>`).join('')}
+      </div>` : ''}
+
+    <div class="src" style="margin-top:12px">Du ${dLabel(ch.starts)} au ${dLabel(ch.ends)}.
+      ${large
+        ? 'Trois médailles décernées, le défi comptant plus de trois participants classés.'
+        : 'Une seule médaille : en dessous de quatre participants classés, il n’y a pas de podium.'}
+      Chaque score est calculé par l’app de son auteur à partir de ses propres saisies.</div>`);
+}
+
 /* ---------------- podium des défis ----------------
    Un défi terminé décerne une médaille d'or à son premier. Au-delà de trois
    participants classés, il décerne aussi l'argent et le bronze — en dessous, il
@@ -3925,6 +4003,32 @@ function podiumScan(){
     else if(classes.length > 3 && rang === 1) tot.argent++;
     else if(classes.length > 3 && rang === 2) tot.bronze++;
   });
+  /* Annonce du résultat, une seule fois par défi. `vuFin` vit dans S.notif,
+     qui est persisté : sans lui, chaque tour de veille — toutes les 90 secondes
+     — rejouerait la notification système du même défi. La ligne du centre de
+     notifications, elle, est déjà idempotente côté serveur grâce à sa clé. */
+  S.notif.vuFin = S.notif.vuFin || {};
+  S.chal.forEach(ch => {
+    if(ch.ends >= t || S.notif.vuFin[ch.id]) return;
+    const classes = chalRows(ch).filter(r => r.ok);
+    if(!classes.length) return;                    /* rien à annoncer */
+    S.notif.vuFin[ch.id] = new Date().toISOString(); save();
+    const g = classes[0], gagne = g.member === SESS.uid;
+    const titre = gagne ? 'Défi remporté' : 'Défi terminé';
+    /* Pas d'échappement ici : ce texte part en clair dans une notification
+       système et dans une colonne de base. Le centre de notifications l'échappe
+       au moment de l'afficher — le faire deux fois montrerait des &#39; à
+       l'écran. */
+    const corps = (gagne ? 'Vous l’emportez' : g.nom + ' l’emporte')
+      + ' · ' + CHAL[ch.kind].l
+      + (classes.length > 3 ? ' · podium complet' : '');
+    /* Deux canaux pour un seul évènement : la ligne du centre, qui reste et se
+       rouvre, et la notification système, qui passe et s'oublie. La première
+       porte le lien vers le podium. */
+    notesAdd('defis', titre, corps, 'jeux', 'podium:' + ch.id, 'fin:' + ch.id);
+    notifMontre(titre, corps, 'defis', 'podium:' + ch.id);
+  });
+
   const av = S.podium || {or:0, argent:0, bronze:0};
   const ap = {or:Math.max(av.or||0, tot.or), argent:Math.max(av.argent||0, tot.argent),
               bronze:Math.max(av.bronze||0, tot.bronze)};
@@ -4357,9 +4461,10 @@ function feedDefis(ctx){
         <div class="stagelist">
         ${finis.map(ch => { const rows = chalRows(ch), gagnant = rows.find(x => x.ok);
           const med = podiumDe(ch);
-          return `<span class="unit">${dLabel(ch.ends)}</span><span class="small">${esc(CHAL[ch.kind].l)}
+          return `<span class="unit">${dLabel(ch.ends)}</span><button class="small podlink"
+              data-podium="${esc(String(ch.id))}">${esc(CHAL[ch.kind].l)}
             · ${gagnant ? (gagnant.member === SESS.uid ? 'vous l’emportez' : esc(gagnant.nom) + ' l’emporte')
-                        : 'sans classement'}</span><span class="podmed">${med
+                        : 'sans classement'} ›</button><span class="podmed">${med
               ? `<img src="${badgeSrc(med.img)}" alt="${esc(med.n)}" title="${esc(med.n)}">` : ''}</span>`; }).join('')}
         </div>
       </div>` : ''}
@@ -4539,6 +4644,7 @@ function renderFeed(){
   if(cn && !cn.disabled) cn.onclick = chalCreate;
   view.querySelectorAll('[data-cyes]').forEach(b => b.onclick = () => chalAnswer(invites[+b.dataset.cyes], 'in'));
   view.querySelectorAll('[data-cno]').forEach(b => b.onclick = () => chalAnswer(invites[+b.dataset.cno], 'out'));
+  view.querySelectorAll('[data-podium]').forEach(b => b.onclick = () => podiumSheet(b.dataset.podium));
   view.querySelectorAll('[data-chal]').forEach(el => el.onclick = () => {
     const ch = chals.find(x => x.id === el.dataset.chal);
     const rows = chalRows(ch), def = CHAL[ch.kind];
@@ -11687,6 +11793,11 @@ function notesSheet(){
       const tab = b.dataset.tab, vue = b.dataset.vue;
       notesLu();
       closeSheet();
+      /* Une notification de fin de défi ne mène pas à un onglet mais à un
+         résultat : `vue` porte alors « podium:<id> ». Le reste du système ne
+         connaît que des onglets et des sous-vues, et n'a pas à changer pour
+         autant — c'est une destination de plus, pas un mécanisme de plus. */
+      if(/^podium:/.test(vue || '')){ go('jeux'); return podiumSheet(vue.slice(7)); }
       if(tab === 'feed') S.fv = vue || 'actu';
       go(tab || 'saisie');
     });
@@ -11909,6 +12020,9 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', e => {
     if(!e.data) return;
     if(e.data.cfp === 'ouvrir' && typeof go === 'function'){
+      if(/^podium:/.test(e.data.vue || '')){
+        go('jeux'); podiumSheet(String(e.data.vue).slice(7)); return;
+      }
       if(e.data.tab === 'feed') S.fv = e.data.vue || 'actu';
       go(e.data.tab);
     }
