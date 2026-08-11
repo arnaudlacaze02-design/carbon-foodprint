@@ -2205,7 +2205,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-93';
+const BUILD = 'cfp-94';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -4810,7 +4810,7 @@ function postCard(x){
       : `<div style="font-size:66px;line-height:1">${esc(b.emoji || '🏅')}</div>`}</div>
     <div class="cap">
       <h4>${t ? '' : esc(b.emoji || '🏅') + ' '}${esc(b.label || b.key || 'Badge')}</h4>
-      <p>${esc(t ? t.d : 'Trophée décroché.')}</p>
+      <p>${esc(t ? t.d : (b.txt || 'Trophée décroché.'))}</p>
     </div>
     ${pactBar(x)}
   </div>`;
@@ -8598,6 +8598,9 @@ function renderProfil(){
         <button class="btn btn-2" id="pmAide" style="flex:0 0 auto;padding:9px 14px">Ouvrir</button>
       </div>
     </div>
+
+    <h2 class="sec">Mes récaps</h2>
+    ${RECAP.carteProfil('hebdo')}${RECAP.carteProfil('mensuel')}
 
     <h2 class="sec">Mon profil</h2>
     <div class="card">${sansFilet(profBlock())}</div>
@@ -12677,8 +12680,692 @@ if(SESS) syncNow(true).then(ok => { if(ok && S.tab === 'tracker') renderTracker(
    pendant le rendu initial donnerait l'impression d'une alerte, pas d'une
    question. Une seconde et demie suffit à faire la différence. */
 setTimeout(notifDemande, 1500);
+
+/* Récap hebdo le lundi, mensuel le 1er, à partir de 5 h. Après notifDemande
+   pour ne pas empiler deux surfaces, et par window.RECAP parce que le bloc du
+   récap est parsé après ce script. */
+setTimeout(() => { if(window.RECAP) RECAP.verifier(); }, 2800);
 </script>
 <div id="pm" aria-hidden="true"></div>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     RÉCAP hebdo / mensuel, façon Wrapped.
+
+     Trois branchements dans le reste du fichier, tous marqués « RECAP » :
+       · renderProfil()  → section « Mes récaps »
+       · fin du boot     → RECAP.verifier()
+       · message du SW   → vue 'recap:hebdo' | 'recap:mensuel'
+
+     Tout est lu par les fonctions déjà en place : kgOf, isVeg, hasRed,
+     saisOf, scoring, troValue, BUDGET_J, DB.facts. Aucune donnée dupliquée.
+     ═══════════════════════════════════════════════════════════════════ -->
+
+<style>
+.rcp{position:fixed;inset:0;z-index:9800;display:none;flex-direction:column;
+  background:#14261F;color:#F6F1E4;overflow:hidden;-webkit-tap-highlight-color:transparent;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.rcp.on{display:flex}
+.rcp *{box-sizing:border-box}
+.rcp-cadre{position:absolute;inset:0;display:none;flex-direction:column;
+  padding:calc(env(safe-area-inset-top,0px) + 56px) 20px calc(env(safe-area-inset-bottom,0px) + 24px)}
+.rcp-cadre.vu{display:flex}
+.rcp-jauges{position:absolute;top:calc(env(safe-area-inset-top,0px) + 13px);left:13px;right:13px;
+  display:flex;gap:4px;z-index:6}
+.rcp-jauges i{flex:1;height:2.5px;border-radius:2px;background:rgba(246,241,228,.26);overflow:hidden}
+.rcp-jauges i b{display:block;height:100%;width:0;background:#F6F1E4;border-radius:2px}
+.rcp-jauges i.faite b{width:100%}
+.rcp-jauges i.active b{animation:rcpAv var(--rcp-duree,6800ms) linear forwards}
+@keyframes rcpAv{from{width:0}to{width:100%}}
+.rcp.pause .rcp-jauges i.active b{animation-play-state:paused}
+.rcp-x{position:absolute;top:calc(env(safe-area-inset-top,0px) + 26px);right:12px;z-index:7;
+  width:38px;height:38px;border:0;border-radius:50%;background:rgba(246,241,228,.13);
+  color:inherit;font:600 19px/1 system-ui;cursor:pointer}
+.rcp-zone{position:absolute;inset:0;z-index:5;display:flex}
+.rcp-zone span{flex:1}.rcp-zone span:last-child{flex:2.2}
+
+.rcp-oeil{font:700 11px/1.3 system-ui,-apple-system,sans-serif;letter-spacing:.14em;
+  text-transform:uppercase;color:rgba(246,241,228,.6);margin:0}
+.rcp-tit{font:800 clamp(24px,7vw,34px)/1.07 system-ui,-apple-system,sans-serif;
+  letter-spacing:-.025em;margin:0}
+.rcp-txt{font:400 15px/1.5 system-ui,-apple-system,sans-serif;color:rgba(246,241,228,.8);margin:8px 0 0}
+.rcp-corps{margin:auto 0;padding:10px 0;min-width:0}
+.rcp-pied{font:500 12.5px/1.45 system-ui,-apple-system,sans-serif;color:rgba(246,241,228,.55);
+  margin:auto 0 0}
+.rcp-num{display:block;font:800 clamp(52px,17vw,86px)/.94 system-ui,-apple-system,sans-serif;
+  letter-spacing:-.045em;white-space:nowrap}
+.rcp-num small{font-size:.21em;letter-spacing:0;color:rgba(246,241,228,.72);font-weight:700;
+  margin-left:.2em}
+.rcp-verdict{font:700 clamp(16px,4.6vw,20px)/1.3 system-ui,-apple-system,sans-serif;
+  letter-spacing:-.015em;margin:18px 0 0}
+.rcp-verdict em{font-style:normal;color:var(--rcp-acc,#F2C14E)}
+.rcp-lev{opacity:0;transform:translateY(10px);animation:rcpLev .48s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes rcpLev{to{opacity:1;transform:none}}
+
+/* réglette — les trois repères sont TOUS sous la piste, sur deux rangs */
+.rcp-rgl{position:relative;margin:26px 0 0}
+.rcp-rgl .piste{height:13px;border-radius:7px;background:rgba(246,241,228,.14);overflow:hidden}
+.rcp-rgl .piste b{display:block;height:100%;width:0;border-radius:7px;
+  background:var(--rcp-acc,#F2C14E);transition:width 1.05s cubic-bezier(.2,.8,.25,1)}
+.rcp-rgl .piste.trop b{background:#E2705A}
+.rcp-rgl i{position:absolute;top:0;width:2px;background:rgba(246,241,228,.55);
+  transform:translateX(-1px)}
+.rcp-rgl i.r0{height:26px}
+.rcp-rgl i.r1{height:56px}
+.rcp-rgl s{position:absolute;text-decoration:none;white-space:nowrap;
+  font:700 9.5px/1.3 system-ui;letter-spacing:.07em;text-transform:uppercase;
+  color:rgba(246,241,228,.62)}
+.rcp-rgl s u{display:block;text-decoration:none;font-weight:800;font-size:11.5px;
+  letter-spacing:0;color:rgba(246,241,228,.95);margin-top:1px}
+.rcp-rgl s.r0{top:29px}
+.rcp-rgl s.r1{top:59px}
+.rcp-rgl s.ctr{transform:translateX(-50%);text-align:center}
+.rcp-rgl s.fin{transform:translateX(-100%);text-align:right}
+
+.rcp-pts{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 0}
+.rcp-pts i{width:24px;height:24px;border-radius:50%;border:2px solid rgba(246,241,228,.32)}
+.rcp-pts i.pleine{background:var(--rcp-acc,#F2C14E);border-color:transparent}
+.rcp-pts i.bonus{background:#F6F1E4;border-color:transparent}
+
+.rcp-carnet{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin:22px 0 0}
+.rcp-carnet .jr{display:flex;flex-direction:column;gap:3px;min-width:0}
+.rcp-carnet .jr i{height:11px;border-radius:3px;background:rgba(246,241,228,.15)}
+.rcp-carnet .jr i.ok{background:var(--rcp-acc,#F2C14E)}
+.rcp-carnet .jr u{display:block;text-decoration:none;font:700 9px/1 system-ui;
+  color:rgba(246,241,228,.45);text-align:center;margin-top:2px}
+.rcp-lgd{font:600 10.5px/1 system-ui;color:rgba(246,241,228,.55);letter-spacing:.06em;
+  text-transform:uppercase;margin:12px 0 0}
+
+.rcp-chips{display:flex;flex-wrap:wrap;gap:6px;margin:20px 0 0}
+.rcp-chips span{font:600 12px/1 system-ui;padding:8px 11px;border-radius:999px;
+  background:rgba(246,241,228,.13)}
+.rcp-chips span.hs{background:transparent;border:1px solid rgba(246,241,228,.28);
+  color:rgba(246,241,228,.72)}
+
+.rcp-grille{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:22px 0 0}
+.rcp-grille div{padding:15px 13px;border-radius:15px;background:rgba(246,241,228,.1)}
+.rcp-grille b{display:block;font:800 32px/1 system-ui;letter-spacing:-.03em}
+.rcp-grille u{display:block;text-decoration:none;font:600 11.5px/1.3 system-ui;
+  color:rgba(246,241,228,.7);margin-top:5px}
+
+.rcp-bilan{list-style:none;margin:18px 0 0;padding:0}
+.rcp-bilan li{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding:10px 0;border-bottom:1px solid rgba(246,241,228,.13);font:500 14px/1.3 system-ui}
+.rcp-bilan li b{font:800 17px/1 system-ui;letter-spacing:-.02em}
+.rcp-act{display:flex;gap:9px;margin:20px 0 0}
+.rcp-act button{flex:1;padding:15px 10px;border:0;border-radius:13px;cursor:pointer;
+  font:700 14.5px/1 system-ui;letter-spacing:-.01em}
+.rcp-act .p{background:#F6F1E4;color:#14261F}
+.rcp-act .s{background:rgba(246,241,228,.14);color:#F6F1E4}
+
+.rcp-carte{display:block;width:100%;text-align:left;border:0;cursor:pointer;position:relative;
+  padding:15px 16px;border-radius:16px;background:#2E1F3D;color:#F6F1E4;margin:0 0 9px}
+.rcp-carte b{display:block;font:800 15.5px/1.2 system-ui;letter-spacing:-.02em}
+.rcp-carte u{display:block;text-decoration:none;font:500 12.5px/1.45 system-ui;
+  color:rgba(246,241,228,.72);margin-top:4px;padding-right:44px}
+.rcp-carte s{position:absolute;top:16px;right:16px;text-decoration:none;
+  font:700 10px/1 system-ui;letter-spacing:.11em;text-transform:uppercase;
+  color:rgba(246,241,228,.55)}
+.rcp-carte[disabled]{opacity:.5;cursor:default}
+
+@media (prefers-reduced-motion:reduce){
+  .rcp-lev{animation:none;opacity:1;transform:none}
+  .rcp-rgl .piste b{transition:none}
+  .rcp-jauges i.active b{animation:none;width:100%}
+}
+</style>
+
+<div class="rcp" id="rcp" role="dialog" aria-modal="true" aria-label="Récapitulatif">
+  <div class="rcp-jauges" id="rcpJauges"></div>
+  <button class="rcp-x" id="rcpX" aria-label="Fermer">✕</button>
+  <div class="rcp-zone" id="rcpZone"><span data-rcp="prev"></span><span data-rcp="next"></span></div>
+</div>
+
+<script>
+var RECAP = (function(){
+'use strict';
+
+/* ── Références. Tout vient de DB.facts, rien n'est saisi deux fois.
+      budget 2050 : 700 kg/an, soit 1,92 kg/jour (BUDGET_J).
+      moyenne française : foodAbs, 2 000 kg/an, soit 5,48 kg/jour. */
+var MOY_FR_J = DB.facts.foodAbs / 365;
+var HEURE    = 5;    /* le pop-up ne s'ouvre pas avant 5 h locales */
+var MINI     = 4;    /* sous ce nombre de repas, pas de pop-up */
+var DUREE    = 6800;
+
+var JRS = ['L','M','M','J','V','S','D'];
+var MOIS = ['janvier','février','mars','avril','mai','juin',
+            'juillet','août','septembre','octobre','novembre','décembre'];
+
+/* Ancrage à midi, comme monday() : à 12 h locales la date UTC et la date
+   locale coïncident toujours en France, ce qui évite le décalage d'un jour
+   que iso() introduit sur une date construite à minuit. */
+var midi = (y,m,d) => new Date(y, m, d, 12, 0, 0);
+
+/* ══ 1. Périodes ══════════════════════════════════════════════════════
+   Toujours révolue : semaine lundi→dimanche passée, ou mois passé. Donc
+   aucun prorata à faire, contrairement aux cadrans du tracker — ici le
+   dénominateur est plein. */
+function bornes(type, ref){
+  var n = ref ? new Date(ref) : new Date();
+  if(type === 'mensuel'){
+    var d1 = midi(n.getFullYear(), n.getMonth() - 1, 1);
+    var d2 = midi(n.getFullYear(), n.getMonth(), 0);
+    return {type:type, deb:d1, fin:d2,
+            cle:'m' + d1.getFullYear() + '-' + ('0' + (d1.getMonth()+1)).slice(-2)};
+  }
+  var dec = (n.getDay() + 6) % 7;                                  /* 0 = lundi */
+  var f = midi(n.getFullYear(), n.getMonth(), n.getDate() - dec - 1);
+  var d = midi(f.getFullYear(), f.getMonth(), f.getDate() - 6);
+  return {type:'hebdo', deb:d, fin:f, cle:'h' + iso(d)};
+}
+
+function libelle(p){
+  if(p.type === 'mensuel') return MOIS[p.deb.getMonth()] + ' ' + p.deb.getFullYear();
+  var meme = p.deb.getMonth() === p.fin.getMonth();
+  return 'semaine du ' + p.deb.getDate() + (meme ? '' : ' ' + MOIS[p.deb.getMonth()])
+       + ' au ' + p.fin.getDate() + ' ' + MOIS[p.fin.getMonth()];
+}
+
+/* ══ 2. Calculs ══════════════════════════════════════════════════════ */
+function calcul(p){
+  var d1 = iso(p.deb), d2 = iso(p.fin);
+  var jours = Math.round((p.fin - p.deb) / 864e5) + 1;
+  var h = S.hist.filter(e => e.d >= d1 && e.d <= d2);
+  var r = {p:p, jours:jours, nRepas:h.length};
+
+  /* carbone */
+  r.kg       = h.reduce((a,e) => a + kgOf(e.l), 0);
+  r.budget   = BUDGET_J * jours;
+  r.objectif = S.prof.objKg != null ? S.prof.objKg / 365 * jours : 0;
+  r.moyFR    = MOY_FR_J * jours;
+
+  /* repas végé — même règle que vegMealCount() : déjeuner et dîner seuls,
+     le petit-déjeuner est déjà végétarien neuf fois sur dix */
+  r.vege    = h.filter(e => (e.m === 'dej' || e.m === 'din') && isVeg(e)).length;
+  r.objVege = S.prof.objVege != null ? Math.round(S.prof.objVege * jours / 7) : 0;
+
+  /* sans viande rouge, au sens de RED */
+  r.sansVR = h.filter(e => !hasRed(e)).length;
+
+  /* assiduité. Le petit-déjeuner n'entre au dénominateur que s'il est
+     réellement suivi : habitude déclarée, ou trois saisies sur la période.
+     Sinon un utilisateur qui ne déjeune pas le matin plafonnerait à 67 %. */
+  var nPdj = h.filter(e => e.m === 'pdj').length;
+  var att = (pdjHab() || nPdj >= 3) ? ['pdj','dej','din'] : ['dej','din'];
+  var vus = {};
+  h.forEach(e => { if(att.indexOf(e.m) >= 0) vus[e.d + '|' + e.m] = 1; });
+  r.attendus  = att;
+  r.creneaux  = jours * att.length;
+  r.remplis   = Object.keys(vus).length;
+  r.assiduite = Math.round(r.remplis * 100 / r.creneaux);
+  r.grille = [];
+  for(var i = 0; i < jours; i++){
+    var jd = midi(p.deb.getFullYear(), p.deb.getMonth(), p.deb.getDate() + i);
+    r.grille.push({jr:JRS[(jd.getDay()+6)%7], n:jd.getDate(),
+      c: att.map(m => !!vus[iso(jd) + '|' + m])});
+  }
+
+  /* journées dans le budget — même règle que budgetDayCount() : déjeuner ET
+     dîner saisis, journée révolue (elles le sont toutes ici) */
+  var pj = {};
+  h.forEach(e => {
+    var x = pj[e.d] = pj[e.d] || {kg:0, main:new Set()};
+    x.kg += kgOf(e.l);
+    if(e.m !== 'encas') x.main.add(e.m);
+  });
+  r.joursBudget = Object.keys(pj)
+    .filter(d => dayComplete(pj[d]) && pj[d].kg <= BUDGET_J).length;
+
+  /* saisonnalité — saisOf() décide, le rayon Fruits & légumes seul a un verdict */
+  var dans = 0, dehors = 0, vedettes = [], hors = [];
+  h.forEach(e => {
+    var mois = new Date(e.d + 'T12:00:00').getMonth();
+    e.l.forEach(li => {
+      var v = saisOf(li[0], mois);
+      if(v === null) return;
+      var f = F.get(li[0]), nom = (f && f.n) || li[0];
+      if(v){ dans++; if(vedettes.indexOf(nom) < 0) vedettes.push(nom); }
+      else  { dehors++; if(hors.indexOf(nom) < 0) hors.push(nom); }
+    });
+  });
+  r.saisonN  = dans + dehors;
+  r.saison   = r.saisonN ? Math.round(dans * 100 / r.saisonN) : null;
+  r.vedettes = vedettes.slice(0, 5);
+  r.hors     = hors.slice(0, 3);
+
+  /* différentiel depuis le récap précédent du même type. Aucun schéma à
+     changer : on enregistre les compteurs à chaque récap et on affiche l'écart.
+     Les recettes partagées, elles, ne vivent qu'en base : elles arrivent après
+     coup par recettesPeriode(). */
+  var sc = scoring();
+  var s1 = {badges: TROPHIES.filter(t => troValue(t, sc) >= t.need).length,
+            defis: (S.podium && S.podium.or) || 0};
+  var e0 = etat(), s0 = e0.snap && e0.snap[p.type];
+  r.snapCourant = s1;
+  r.delta = {
+    badges: s0 ? Math.max(0, s1.badges - s0.badges) : s1.badges,
+    defis:  s0 ? Math.max(0, s1.defis  - s0.defis)  : s1.defis
+  };
+  return r;
+}
+
+/* Recettes partagées sur la période. Un seul appel, et il peut échouer :
+   la tuile se remplit à l'arrivée ou disparaît. */
+async function recettesPeriode(p){
+  if(!SESS || !SB.ready()) return null;
+  var f = new Date(p.fin.getFullYear(), p.fin.getMonth(), p.fin.getDate() + 1, 12);
+  var q = 'posts?select=id&author=eq.' + SESS.uid + '&kind=eq.recipe'
+        + '&created_at=gte.' + iso(p.deb) + '&created_at=lt.' + iso(f);
+  try{
+    var r = await SB.rest(q);
+    return r.ok && Array.isArray(r.body) ? r.body.length : null;
+  }catch(_){ return null; }
+}
+
+/* ══ 3. Phrases ══════════════════════════════════════════════════════
+   Cinq crans, du plus haut au plus bas. Le dernier est un constat : pas de
+   faux entrain quand le compte n'est pas bon. */
+function verdictCarbone(r){
+  var sousFR = r.kg <= r.moyFR ? n0((1 - r.kg / r.moyFR) * 100) : null;
+  if(r.kg <= r.budget)
+    return 'Sous le budget 2050. <em>Tu manges déjà comme il faudra manger.</em>';
+  if(!r.objectif)
+    return (sousFR ? '<em>' + sousFR + ' % sous la moyenne française.</em> ' : 'Au-dessus de la moyenne française. ')
+         + 'Fixe une cible annuelle dans ton profil, la suite aura un sens.';
+  if(r.kg <= r.objectif)
+    return '<em>Objectif tenu.</em> Bien joué, la période est dans les clous.';
+  if((r.kg - r.objectif) / r.objectif <= 0.10)
+    return 'Pas passé loin — <em>' + n1(r.kg - r.objectif) + ' kg</em> au-dessus de ton objectif. C’est un repas d’écart.';
+  if(sousFR)
+    return 'Objectif manqué, mais <em>' + sousFR + ' % sous la moyenne française</em>. Keep pushing.';
+  return 'Au-dessus de la moyenne française cette fois. <em>Un dîner végé par semaine</em> suffit souvent à renverser ça.';
+}
+function verdictVege(r){
+  if(!r.objVege) return 'Fixe un rythme végétal dans ton profil pour te situer.';
+  if(r.vege >= r.objVege * 1.5) return 'Objectif pulvérisé — ' + (r.vege - r.objVege) + ' de plus que prévu.';
+  if(r.vege >= r.objVege)       return 'Objectif atteint. C’est la ligne la plus rentable du bilan.';
+  if(r.vege >= r.objVege - 1)   return 'À un repas près. Le prochain dîner suffit.';
+  return r.vege ? 'Encore ' + (r.objVege - r.vege) + ' pour y être.'
+                : 'Aucun sur la période. Commence par un déjeuner.';
+}
+function verdictAssiduite(r){
+  var m = r.creneaux - r.remplis;
+  if(r.assiduite >= 95) return 'Carnet complet, ou presque. Les chiffres au-dessus sont solides.';
+  if(r.assiduite >= 70) return m + ' repas manquant' + (m > 1 ? 's' : '') + ' — le bilan reste fiable.';
+  if(r.assiduite >= 40) return 'Un peu plus de la moitié des repas : le total carbone est donc sous-estimé.';
+  return 'Trop de trous pour que le bilan carbone veuille dire quelque chose.';
+}
+function verdictSaison(r){
+  if(r.saison == null) return 'Pas assez de fruits et légumes identifiés pour calculer.';
+  if(r.saison >= 85) return 'Presque tout de saison. C’est de la serre et du transport en moins.';
+  if(r.saison >= 60) return 'Majoritairement de saison.' +
+    (r.hors.length ? ' Ce qui tire vers le bas : ' + r.hors.join(', ') + '.' : '');
+  return 'La moitié de tes fruits et légumes venaient de loin ou de serre.';
+}
+
+/* ══ 4. Cartes ═══════════════════════════════════════════════════════ */
+var TEINTES = {
+  intro:['#2E1F3D','#F2C14E'], acc:['#1B3A5C','#F2C14E'], carbone:['#14261F','#F2C14E'],
+  rouge:['#4A1F2B','#E8A88C'], vege:['#1D5B3F','#BFE06A'], assidu:['#26241F','#F2C14E'],
+  saison:['#7E3A1C','#F2C14E'], fin:['#2E1F3D','#F2C14E']
+};
+
+/* La réglette. Les trois repères descendent tous SOUS la piste et se
+   répartissent sur deux rangs dès qu'ils se marchent dessus — le grand
+   nombre au-dessus n'est jamais touché. */
+function reglette(r){
+  var ech = Math.max(r.kg, r.moyFR, r.objectif, r.budget) * 1.05 || 1;
+  var pct = x => Math.max(0, Math.min(100, x / ech * 100));
+  var reperes = [{v:r.budget, l:'budget 2050'}, {v:r.moyFR, l:'moyenne FR'}];
+  if(r.objectif) reperes.push({v:r.objectif, l:'ton objectif'});
+  reperes.forEach(m => m.g = pct(m.v));
+  reperes.sort((a,b) => a.g - b.g);
+
+  /* Un rang par étiquette. Deux étiquettes à moins de 26 points d'écart se
+     chevaucheraient : la seconde descend. Mesuré sur la largeur d'un iPhone. */
+  var dernier = {};
+  reperes.forEach(m => {
+    m.r = (dernier[0] != null && m.g - dernier[0] < 26) ? 1 : 0;
+    if(m.r === 1 && dernier[1] != null && m.g - dernier[1] < 26) m.r = 0;
+    dernier[m.r] = m.g;
+  });
+  var bas = reperes.some(m => m.r === 1) ? 92 : 62;
+
+  return '<div class="rcp-rgl" style="padding-bottom:' + bas + 'px">' +
+    '<div class="piste' + (r.kg > r.moyFR ? ' trop' : '') + '">' +
+      '<b data-w="' + pct(r.kg) + '"></b></div>' +
+    reperes.map(m => {
+      var pos = m.g > 86 ? 'fin' : (m.g < 13 ? '' : 'ctr');
+      return '<i class="r' + m.r + '" style="left:' + m.g + '%"></i>' +
+             '<s class="r' + m.r + ' ' + pos + '" style="left:' + m.g + '%">' +
+               m.l + '<u>' + n1(m.v) + ' kg</u></s>';
+    }).join('') + '</div>';
+}
+
+function cartes(r){
+  var c = [], mens = r.p.type === 'mensuel';
+
+  c.push({k:'intro', h:
+    '<p class="rcp-oeil">' + libelle(r.p) + '</p>' +
+    '<div class="rcp-corps">' +
+      '<h2 class="rcp-tit rcp-lev">' + (mens ? 'Ton mois, en six chiffres.' : 'Ta semaine, en quatre chiffres.') + '</h2>' +
+      '<p class="rcp-txt rcp-lev" style="animation-delay:.22s">' +
+        r.nRepas + ' repas saisis sur ' + r.jours + ' jours.</p>' +
+    '</div>' +
+    '<p class="rcp-pied">Tape pour avancer, maintiens pour mettre en pause.</p>'});
+
+  if(mens){
+    var g = '<div class="rcp-lev"><b>' + r.joursBudget + '</b><u>journée' +
+            (r.joursBudget > 1 ? 's' : '') + ' dans le budget 2050</u></div>';
+    g += '<div class="rcp-lev" style="animation-delay:.14s"><b>' + r.delta.badges +
+         '</b><u>nouveau' + (r.delta.badges > 1 ? 'x' : '') + ' badge' + (r.delta.badges > 1 ? 's' : '') + '</u></div>';
+    g += '<div class="rcp-lev" style="animation-delay:.28s"><b>' + r.delta.defis +
+         '</b><u>défi' + (r.delta.defis > 1 ? 's' : '') + ' remporté' + (r.delta.defis > 1 ? 's' : '') + '</u></div>';
+    g += '<div class="rcp-lev" id="rcpRec" style="animation-delay:.42s;display:none">' +
+         '<b>0</b><u>recettes partagées</u></div>';
+    c.push({k:'acc', h:
+      '<p class="rcp-oeil">Le tableau de chasse</p>' +
+      '<div class="rcp-corps"><h2 class="rcp-tit">Ce que tu as décroché</h2>' +
+        '<div class="rcp-grille">' + g + '</div></div>' +
+      '<p class="rcp-pied">Écarts depuis ton dernier récap mensuel.</p>'});
+  }
+
+  c.push({k:'carbone', h:
+    '<p class="rcp-oeil">Empreinte de la période</p>' +
+    '<div class="rcp-corps">' +
+      '<span class="rcp-num rcp-lev" data-to="' + r.kg.toFixed(1) + '">0<small>kg CO₂e</small></span>' +
+      reglette(r) +
+      '<p class="rcp-verdict rcp-lev" style="animation-delay:.5s">' + verdictCarbone(r) + '</p>' +
+    '</div>'});
+
+  if(mens) c.push({k:'rouge', h:
+    '<p class="rcp-oeil">Viande rouge</p>' +
+    '<div class="rcp-corps">' +
+      '<span class="rcp-num rcp-lev" data-to="' + r.sansVR + '">0</span>' +
+      '<h2 class="rcp-tit rcp-lev" style="animation-delay:.22s;margin-top:10px">repas sans viande rouge</h2>' +
+      '<p class="rcp-verdict rcp-lev" style="animation-delay:.42s">' +
+        (r.nRepas ? '<em>' + Math.round(r.sansVR * 100 / r.nRepas) + ' %</em> du mois. ' : '') +
+        (r.sansVR === r.nRepas ? 'Pas une fois. Le mois entier.'
+                               : 'C’est le levier le plus lourd de l’assiette.') +
+      '</p>' +
+    '</div>'});
+
+  var tot = Math.max(r.objVege, r.vege, 1), pts = '';
+  for(var i = 0; i < tot; i++)
+    pts += '<i class="' + (i < Math.min(r.vege, r.objVege) ? 'pleine' : (i < r.vege ? 'bonus' : '')) + '"></i>';
+  c.push({k:'vege', h:
+    '<p class="rcp-oeil">Repas végétariens</p>' +
+    '<div class="rcp-corps">' +
+      '<span class="rcp-num rcp-lev" data-to="' + r.vege + '">0' +
+        (r.objVege ? '<small>/ ' + r.objVege + ' visés</small>' : '') + '</span>' +
+      '<div class="rcp-pts rcp-lev" style="animation-delay:.28s">' + pts + '</div>' +
+      '<p class="rcp-verdict rcp-lev" style="animation-delay:.46s">' + verdictVege(r) + '</p>' +
+    '</div>'});
+
+  var car = r.grille.map(g =>
+    '<div class="jr">' + g.c.map(ok => '<i class="' + (ok ? 'ok' : '') + '"></i>').join('') +
+    '<u>' + (r.p.type === 'mensuel' ? g.n : g.jr) + '</u></div>').join('');
+  c.push({k:'assidu', h:
+    '<p class="rcp-oeil">Assiduité</p>' +
+    '<div class="rcp-corps">' +
+      '<span class="rcp-num rcp-lev" data-to="' + r.assiduite + '">0<small>%</small></span>' +
+      '<div class="rcp-carnet rcp-lev" style="animation-delay:.28s">' + car + '</div>' +
+      '<p class="rcp-lgd">' + r.attendus.map(m =>
+          ({pdj:'Petit-déj', dej:'Déjeuner', din:'Dîner'})[m]).join(' · ') + '</p>' +
+      '<p class="rcp-verdict rcp-lev" style="animation-delay:.46s">' + verdictAssiduite(r) + '</p>' +
+    '</div>'});
+
+  c.push({k:'saison', h:
+    '<p class="rcp-oeil">Saisonnalité</p>' +
+    '<div class="rcp-corps">' +
+      (r.saison == null ? '<h2 class="rcp-tit">Rien à mesurer</h2>'
+        : '<span class="rcp-num rcp-lev" data-to="' + r.saison + '">0<small>% de saison</small></span>') +
+      (r.vedettes.length || r.hors.length
+        ? '<div class="rcp-chips rcp-lev" style="animation-delay:.28s">' +
+            r.vedettes.map(x => '<span>' + esc(x) + '</span>').join('') +
+            r.hors.map(x => '<span class="hs">' + esc(x) + '</span>').join('') + '</div>' : '') +
+      '<p class="rcp-verdict rcp-lev" style="animation-delay:.46s">' + verdictSaison(r) + '</p>' +
+    '</div>'});
+
+  c.push({k:'fin', h:
+    '<p class="rcp-oeil">' + libelle(r.p) + '</p>' +
+    '<div class="rcp-corps">' +
+      '<h2 class="rcp-tit">Le résumé</h2>' +
+      '<ul class="rcp-bilan">' +
+        '<li>Empreinte<b>' + n1(r.kg) + ' kg</b></li>' +
+        '<li>Repas végé<b>' + r.vege + (r.objVege ? ' / ' + r.objVege : '') + '</b></li>' +
+        '<li>Assiduité<b>' + r.assiduite + ' %</b></li>' +
+        (r.saison != null ? '<li>De saison<b>' + r.saison + ' %</b></li>' : '') +
+        (mens ? '<li>Journées dans le budget<b>' + r.joursBudget + '</b></li>' : '') +
+      '</ul>' +
+      '<div class="rcp-act">' +
+        '<button class="p" data-rcp="publier">Partager au fil</button>' +
+        '<button class="s" data-rcp="fermer">Terminer</button>' +
+      '</div>' +
+    '</div>'});
+  return c;
+}
+
+/* Une seule ligne : la carte du fil rend `txt` dans un paragraphe, les retours
+   chariot y seraient invisibles. */
+function resumeLigne(r){
+  var l = [n1(r.kg) + ' kg CO₂e' + (r.objectif ? ' pour ' + n1(r.objectif) + ' visés' : ''),
+           r.vege + ' repas végé' + (r.objVege ? ' / ' + r.objVege : ''),
+           r.assiduite + ' % de repas remplis'];
+  if(r.saison != null) l.push(r.saison + ' % de saison');
+  if(r.p.type === 'mensuel')
+    l.push(r.joursBudget + ' journée' + (r.joursBudget > 1 ? 's' : '') + ' dans le budget 2050');
+  return l.join(' · ');
+}
+
+function texteDePartage(r){
+  var l = ['Mon récap · ' + libelle(r.p),
+           '🌍 ' + n1(r.kg) + ' kg CO₂e' + (r.objectif ? ' (objectif ' + n1(r.objectif) + ')' : ''),
+           '🥬 ' + r.vege + ' repas végé' + (r.objVege ? ' / ' + r.objVege : ''),
+           '📓 ' + r.assiduite + ' % de repas remplis'];
+  if(r.saison != null) l.push('🗓 ' + r.saison + ' % de saison');
+  if(r.p.type === 'mensuel')
+    l.push('🏅 ' + r.joursBudget + ' journée' + (r.joursBudget > 1 ? 's' : '') + ' dans le budget 2050');
+  return l.join('\n');
+}
+
+/* ══ 5. Lecteur ══════════════════════════════════════════════════════ */
+var n = -1, liste = [], resu = null, tmr = null;
+var boite = () => document.getElementById('rcp');
+
+function ouvrir(type, ref){
+  resu  = calcul(bornes(type, ref));
+  liste = cartes(resu);
+  var b = boite(), j = document.getElementById('rcpJauges');
+  j.innerHTML = liste.map(() => '<i><b></b></i>').join('');
+  [...b.querySelectorAll('.rcp-cadre')].forEach(x => x.remove());
+  liste.forEach(c => {
+    var d = document.createElement('div');
+    d.className = 'rcp-cadre'; d.innerHTML = c.h; b.appendChild(d);
+  });
+  b.style.setProperty('--rcp-duree', DUREE + 'ms');
+  b.classList.add('on');
+  document.documentElement.style.overflow = 'hidden';
+  n = -1; afficher(0);
+  marquerVu(resu);
+  if(type === 'mensuel') recettesPeriode(resu.p).then(v => {
+    var t = document.getElementById('rcpRec');
+    if(t && v != null && v > 0){
+      t.style.display = '';
+      t.querySelector('b').textContent = v;
+      t.querySelector('u').textContent = 'recette' + (v > 1 ? 's' : '') + ' partagée' + (v > 1 ? 's' : '');
+    }
+  });
+  return resu;
+}
+
+function afficher(i){
+  var b = boite(), cadres = b.querySelectorAll('.rcp-cadre');
+  if(i < 0) return;
+  if(i >= cadres.length) return fermer();
+  n = i;
+  var t = TEINTES[liste[i].k] || TEINTES.intro;
+  b.style.background = t[0];
+  b.style.setProperty('--rcp-acc', t[1]);
+  cadres.forEach((c,k) => c.classList.toggle('vu', k === i));
+  document.getElementById('rcpJauges').querySelectorAll('i').forEach((g,k) => {
+    g.className = k < i ? 'faite' : (k === i ? 'active' : '');
+    var bb = g.querySelector('b'); bb.style.animation = 'none'; void bb.offsetWidth; bb.style.animation = '';
+  });
+  var c = cadres[i];
+  c.querySelectorAll('[data-to]').forEach(compter);
+  c.querySelectorAll('[data-w]').forEach(x => {
+    x.style.width = '0'; setTimeout(() => { x.style.width = x.dataset.w + '%'; }, 200);
+  });
+  clearTimeout(tmr);
+  if(liste[i].k !== 'fin') tmr = setTimeout(suivant, DUREE);
+}
+
+function compter(sp){
+  var brut = sp.dataset.to, to = parseFloat(brut), dec = brut.indexOf('.') > 0;
+  var pt = sp.querySelector('small'), suf = pt ? pt.outerHTML : '';
+  var fmt = v => dec ? n1(v) : n0(v);
+  if(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches){
+    sp.innerHTML = fmt(to) + suf; return;
+  }
+  var t0 = 0;
+  function pas(t){
+    if(!t0) t0 = t;
+    var k = Math.min(1, (t - t0) / 850);
+    sp.innerHTML = fmt(to * (1 - Math.pow(1 - k, 3))) + suf;
+    if(k < 1) requestAnimationFrame(pas);
+  }
+  sp.innerHTML = fmt(0) + suf;
+  requestAnimationFrame(pas);
+}
+
+var suivant   = () => afficher(n + 1);
+var precedent = () => afficher(Math.max(0, n - 1));
+
+function fermer(){
+  clearTimeout(tmr);
+  boite().classList.remove('on');
+  document.documentElement.style.overflow = '';
+}
+
+/* ══ 6. Mémoire et déclenchement ═════════════════════════════════════ */
+var cle   = () => 'cfp.recap.' + ((SESS && SESS.uid) || 'anon');
+function etat(){ try{ return JSON.parse(localStorage.getItem(cle())) || {}; }catch(_){ return {}; } }
+function ecrire(o){ try{ localStorage.setItem(cle(), JSON.stringify(o)); }catch(_){} }
+
+function marquerVu(r){
+  var e = etat();
+  e.vu = e.vu || {}; e.vu[r.p.cle] = Date.now();
+  e.snap = e.snap || {}; e.snap[r.p.type] = r.snapCourant;
+  ecrire(e);
+}
+
+/* Le 1er du mois qui tombe un lundi ne déclenche QUE le mensuel : deux
+   stories à la file à l'ouverture, c'est une story fermée. L'hebdo reste
+   dans le profil, et la même règle est écrite dans le SQL de la notification. */
+function aVoir(){
+  var d = new Date();
+  if(d.getHours() < HEURE) return null;
+  var vu = etat().vu || {};
+  if(d.getDate() === 1 && !vu[bornes('mensuel').cle]) return 'mensuel';
+  if(d.getDay() === 1 && !vu[bornes('hebdo').cle])    return 'hebdo';
+  return null;
+}
+
+function verifier(){
+  var t = aVoir(); if(!t) return false;
+  if(boite().classList.contains('on')) return false;
+  /* ne jamais recouvrir une feuille ou une fenêtre déjà ouverte */
+  var sh = document.getElementById('sheet');
+  var gt = document.getElementById('gate'), pm = document.getElementById('pm');
+  if((sh && sh.classList.contains('on')) || (gt && gt.classList.contains('on'))
+     || (pm && pm.classList.contains('on'))){
+    setTimeout(verifier, 5000); return false;
+  }
+  var r = calcul(bornes(t));
+  if(r.nRepas < MINI){          /* trop peu de données : vu en silence */
+    var e = etat();
+    e.vu = e.vu || {}; e.vu[r.p.cle] = Date.now();
+    e.snap = e.snap || {}; e.snap[t] = r.snapCourant; ecrire(e);
+    return false;
+  }
+  ouvrir(t);
+  return true;
+}
+
+/* Carte pour la page Profil */
+function carteProfil(type){
+  var r = calcul(bornes(type)), maigre = r.nRepas < MINI;
+  return '<button class="rcp-carte" data-rcp-ouvrir="' + type + '"' + (maigre ? ' disabled' : '') + '>' +
+    '<s>' + (maigre ? '—' : 'voir') + '</s>' +
+    '<b>' + (type === 'mensuel' ? 'Mon mois' : 'Ma semaine') + '</b>' +
+    '<u>' + libelle(r.p) + ' · ' +
+      (maigre ? 'pas assez de repas saisis'
+              : n1(r.kg) + ' kg CO₂e · ' + r.vege + ' végé · ' + r.assiduite + ' %') +
+    '</u></button>';
+}
+
+/* ══ 7. Branchements ═════════════════════════════════════════════════ */
+document.addEventListener('click', ev => {
+  var o = ev.target.closest('[data-rcp-ouvrir]');
+  if(o && !o.disabled){ ev.preventDefault(); return ouvrir(o.dataset.rcpOuvrir); }
+  if(!boite().classList.contains('on')) return;
+  var t = ev.target.closest('[data-rcp]'); if(!t) return;
+  var a = t.dataset.rcp;
+  if(a === 'next')   suivant();
+  if(a === 'prev')   precedent();
+  if(a === 'fermer') fermer();
+  if(a === 'publier'){
+    /* Publié en kind « badge » : c'est le seul type que la contrainte de la
+       table accepte déjà, et la carte du fil sait le rendre. Le résumé passe
+       par `txt`, champ libre du body jsonb — d'où la seule ligne modifiée dans
+       postCard(). Aucun SQL à repasser. */
+    var r0 = resu, txt = resumeLigne(r0);
+    fermer();
+    if(SESS && SB.ready())
+      postNew('badge', {emoji:'📊', label:'Récap · ' + libelle(r0.p), txt:txt})
+        .then(x => {
+          toast(x && x.ok ? 'Récap partagé au fil' : (x && x.msg) || 'Partage impossible');
+          if(x && x.ok && typeof frPosts === 'function') frPosts();
+        });
+    else if(navigator.share) navigator.share({text:'Mon récap · ' + libelle(r0.p) + '\n' + txt});
+    else toast('Connecte-toi pour partager');
+  }
+});
+document.addEventListener('keydown', ev => {
+  if(!boite().classList.contains('on')) return;
+  if(ev.key === 'Escape') fermer();
+  if(ev.key === 'ArrowRight' || ev.key === ' ') suivant();
+  if(ev.key === 'ArrowLeft')  precedent();
+});
+/* doigt maintenu = pause ; glissé = navigation */
+(function(){
+  var x0 = 0, t0 = 0, z = document.getElementById('rcpZone');
+  z.addEventListener('pointerdown', e => {
+    x0 = e.clientX; t0 = Date.now(); boite().classList.add('pause'); clearTimeout(tmr);
+  });
+  z.addEventListener('pointerup', e => {
+    boite().classList.remove('pause');
+    var dx = e.clientX - x0;
+    if(Math.abs(dx) > 46){ dx < 0 ? suivant() : precedent(); return; }
+    if(Date.now() - t0 > 350) tmr = setTimeout(suivant, 1800);
+  });
+})();
+document.getElementById('rcpX').onclick = fermer;
+document.addEventListener('visibilitychange', () => {
+  if(!document.hidden) verifier();
+});
+
+return {ouvrir, fermer, verifier, carteProfil,
+        calcul: t => calcul(bornes(t)),
+        resumeLigne,
+        phrases: r => ({carbone:verdictCarbone(r), vege:verdictVege(r),
+                        assiduite:verdictAssiduite(r), saison:verdictSaison(r),
+                        partage:texteDePartage(r)}),
+        constantes: {BUDGET_J, MOY_FR_J, HEURE, MINI}};
+})();
+</script>
+<!-- ═══ fin du bloc RÉCAP ═══ -->
+
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
@@ -12688,6 +13375,9 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('message', e => {
     if(!e.data) return;
     if(e.data.cfp === 'ouvrir' && typeof go === 'function'){
+      if(/^recap:/.test(e.data.vue || '') && window.RECAP){
+        RECAP.ouvrir(String(e.data.vue).slice(6) === 'mensuel' ? 'mensuel' : 'hebdo'); return;
+      }
       if(/^podium:/.test(e.data.vue || '')){
         go('jeux'); podiumSheet(String(e.data.vue).slice(7)); return;
       }
