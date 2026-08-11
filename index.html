@@ -4431,7 +4431,7 @@ function podiumScan(){
     /* Deux canaux pour un seul évènement : la ligne du centre, qui reste et se
        rouvre, et la notification système, qui passe et s'oublie. La première
        porte le lien vers le podium. */
-    notesAdd('defis', titre, corps, 'jeux', 'podium:' + ch.id, 'fin:' + ch.id);
+    notesAdd('defi_resultat', titre, corps, 'jeux', 'podium:' + ch.id, 'fin:' + ch.id);
     notifMontre(titre, corps, 'defis', 'podium:' + ch.id);
   });
 
@@ -12401,8 +12401,15 @@ function marquesBlock(){
    Sans compte, rien à afficher : la table est indexée sur l'identité. C'est
    dit dans la feuille plutôt que laissé à deviner. */
 
-const NOTE_EM = {soir:'🍽️', like:'❤️', amis:'👋', amis_ok:'🤝',
-                 partage:'🏅', recette:'🍲', defis:'🏁', badge:'🎖️'};
+/* Les huit types écrits par les triggers, plus defi_resultat que l'app écrit
+   elle-même. Les clés sont celles de la contrainte CHECK de la table : une
+   valeur absente ici retombe sur 🔔 dans notesSheet(), une valeur absente
+   là-bas est refusée par la base. */
+const NOTE_EM = {
+  ami_demande:'👋', ami_accepte:'🤝', feed_partage:'🏅',
+  post_like:'❤️',  post_comment:'💬', badge_debloque:'🎖️',
+  defi_invitation:'🏁', defi_resultat:'🥇', rappel_soir:'🍽️',
+};
 
 /* Depuis quand. Les heures pour aujourd'hui, le jour au-delà : une liste où
    tout est « il y a 3 jours » ne se relit pas. */
@@ -12455,8 +12462,17 @@ async function notesLoad(silencieux){
 /* Écrire une notification pour soi-même. Sert aux badges, seul évènement que
    le serveur ne voit pas. `cle` rend l'écriture idempotente : un badge obtenu
    ne se ré-annonce pas au repas suivant, même si l'app est relancée. */
+/* Le seul type que le client a encore le droit d'écrire. Tout le reste vient
+   des triggers, et c'est délibéré : l'ancienne policy autorisait n'importe
+   quelle ligne pourvu que user_id = auth.uid(), donc un client bricolé pouvait
+   s'écrire trente badges. Le garde-fou est ici en plus de la policy, pour que
+   l'erreur soit lisible dans la console au lieu d'un 403 muet. */
 async function notesAdd(typ, titre, corps, tab, vue, cle){
   if(!SESS || !SB.ready()) return;
+  if(typ !== 'defi_resultat'){
+    console.warn('notesAdd · type refusé côté base, un trigger s’en charge ·', typ);
+    return;
+  }
   const r = await SB.rest('notifications?on_conflict=user_id,typ,cle', {method:'POST',
     headers:{Prefer:'resolution=ignore-duplicates,return=minimal'},
     body: JSON.stringify({user_id:SESS.uid, typ, titre, corps: corps || '',
@@ -12553,8 +12569,42 @@ function troWatch(){
   const corps = neufs.length > 1
     ? neufs.slice(0, 3).join(' · ')
     : `${t.e} ${t.n}`;
+  /* Deux canaux, deux rôles. `notifMontre` s'affiche tout de suite, app
+     ouverte : c'est le retour immédiat du geste qui vient de débloquer le
+     badge. L'écriture en base part en parallèle et produira le push — utile
+     seulement si l'app est fermée, donc ici sans effet visible. */
   notifMontre(titre, corps, 'badge', 'actu');
-  notesAdd('badge', titre, corps, 'jeux', 'actu', neufs.join('+'));
+  badgesDeclare(neufs);
+}
+
+/* Déclaration des badges obtenus. L'app ne rédige plus la notification : le
+   trigger `notif_badge` la fabrique à partir du code et du label.
+
+   Idempotence côté serveur, et non côté app. La clé primaire (user_id, code)
+   fait que sur conflit AUCUNE ligne n'est écrite, donc aucun trigger ne part.
+   Le calcul des vingt-sept trophées peut être rejoué à chaque repas, la
+   notification ne sortira qu'une fois. `S.notif.vuTro` n'est plus qu'un
+   raccourci pour éviter la requête, plus un garde-fou.
+
+   Un badge repris n'est pas prévu : la table n'a ni policy UPDATE ni policy
+   DELETE, ce qui interdit aussi de refabriquer la notification en boucle. */
+async function badgesDeclare(codes){
+  if(!SESS || !SB.ready() || !codes || !codes.length) return;
+  const lignes = codes.map(s => {
+    const t = TROPHIES.find(x => x.s === s);
+    return {user_id: SESS.uid, code: s,
+            meta: t ? {label: `${t.e} ${t.n}`, nom: t.n} : {}};
+  });
+  const r = await SB.rest('user_badges?on_conflict=user_id,code', {method:'POST',
+    headers:{Prefer:'resolution=ignore-duplicates,return=minimal'},
+    body: JSON.stringify(lignes)});
+  if(!r.ok){
+    console.warn('badgesDeclare ·', r.status, JSON.stringify(r.body || {}));
+    return;
+  }
+  /* La ligne du centre est écrite par le trigger, donc après l'insert : on
+     relit. Sans ce rechargement la cloche resterait à son ancien compte
+     jusqu'au prochain tour de veille. */
   notesLoad(true);
 }
 
