@@ -959,6 +959,14 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 [data-co="5"]{--co-bg:#A4C2B6; --co-on:#12241D}
 [data-co="6"]{--co-bg:#B2966F; --co-on:#241A08}
 [data-co="7"]{--co-bg:#F79FD0; --co-on:#3A0F27}
+/* Deux teintes ajoutées après coup. Elles suivent la même règle que les sept
+   premières — encre choisie teinte par teinte —, mais pas la même provenance :
+   elles ne sont pas sur la planche d'origine, qui n'avait ni bleu ni magenta.
+   Toutes deux sont sombres, donc à encre claire, et le filet du corps de carte
+   reste celui par défaut : rien à ajouter à la règle qui l'assombrit pour les
+   fonds clairs. */
+[data-co="8"]{--co-bg:#6050DC; --co-on:#F0EEFF}
+[data-co="9"]{--co-bg:#D2006E; --co-on:#FFF0F6}
 
 /* Pinceau de personnalisation, à droite du titre de section. Il remplace un
    bouton pleine largeur nommé « Personnaliser « Italienne » » : ce bouton
@@ -2472,7 +2480,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-96';
+const BUILD = 'cfp-97';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -4107,8 +4115,13 @@ function recipeSheet(){
       collecte(); q.cat = cat; q.catEd = ed || null; peint();
       /* Le curseur ne va au champ de nom qu'à l'ouverture du panneau, pas à
          chaque choix d'icône ou de teinte : sinon le clavier se relèverait sous
-         la planche de pictogrammes à chaque touche, et la cacherait. */
-      if(ed && !ed.ic && !ed.co){ const n = $('#cat_n'); if(n){ n.focus(); n.select(); } }
+         la planche de pictogrammes à chaque touche, et la cacherait.
+         L'ouverture se reconnaît à l'absence de `nm` : toute retouche
+         d'apparence passe par catBind, qui y dépose le contenu du champ. Le
+         test portait avant sur l'absence de pictogramme ET de teinte, ce qui
+         reprenait le curseur — et sélectionnait le nom déjà tapé, à un
+         caractère près de l'effacer — dès qu'on choisissait « sans fond ». */
+      if(ed && ed.nm === undefined){ const n = $('#cat_n'); if(n){ n.focus(); n.select(); } }
     }, () => q.catEd);
 
     const qi = $('#rq_q'), sg = $('#rq_sg');
@@ -6099,7 +6112,7 @@ const mrCouleur = r => {
   let h = 0;
   const s = String(r.id);
   for(let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 100003;
-  return TEINTES[h % TEINTES.length];
+  return TEINTES_AUTO[h % TEINTES_AUTO.length];
 };
 
 function cuiRecettes(){
@@ -10362,7 +10375,14 @@ const ICO_LISTE = ['bol','assiette','pizza','burger','sushi','taco',
                    'nouilles','fourche','marmite','wok','poisson','poulet',
                    'feuille','legume','fromage','pain','gateau','cafe',
                    'verre','epi','piment','flamme','coeur','etoile'];
-const TEINTES = ['1','2','3','4','5','6','7'];
+const TEINTES = ['1','2','3','4','5','6','7','8','9'];
+
+/* Le tirage automatique de mrCouleur ne pioche que dans les sept premières,
+   celles de la planche d'origine. Le modulo porte sur la longueur de la liste :
+   l'étendre à neuf aurait redistribué la couleur de toutes les recettes non
+   rangées, alors qu'on les reconnaît justement à leur couleur. Le Majorelle et
+   le magenta restent donc au choix manuel, où ils ne déplacent rien. */
+const TEINTES_AUTO = TEINTES.slice(0, 7);
 
 /* Une catégorie est une chaîne, et une seule : soit une clé de CUIS, soit le
    libellé libre saisi par l'utilisateur. Deux champs — clé plus nom perso —
@@ -10420,26 +10440,58 @@ const teinteRow = co => `
    `{ic, co}` — le pictogramme et la teinte en cours de choix. Un objet et non
    deux booléens, pour que l'appelant n'ait qu'une chose à porter et que le
    panneau ouvert sans rien choisi (`{}`) se distingue du panneau fermé. */
+/* Les catégories perso déjà en usage. Deux sources, réunies : les noms portés
+   par le carnet, et les clés de S.catStyle. La seconde n'est pas redondante —
+   une catégorie tout juste créée dans un formulaire encore ouvert n'est sur
+   aucune recette enregistrée, et n'existerait nulle part sans elle. Les clés de
+   CUIS sont écartées : les huit livrées ont déjà leur tuile. */
+const catPersos = (plus) => {
+  const s = new Set();
+  (S.mesRec || []).forEach(r => { if(r.cat && !P_CAT[r.cat]) s.add(r.cat); });
+  Object.keys(S.catStyle || {}).forEach(c => { if(!P_CAT[c]) s.add(c); });
+  /* Le nom en cours d'édition, qui n'est encore ni sur une recette ni dans
+     catStyle tant qu'on ne lui a donné ni pictogramme ni teinte. Sans lui, la
+     tuile qu'on vient de valider disparaîtrait au repeint suivant. */
+  if(plus && !P_CAT[plus]) s.add(plus);
+  return [...s].sort((a, b) => a.localeCompare(b, 'fr'));
+};
+
+/* Un plus, pour la tuile de création. Il ne rejoint pas ICO_LISTE : ce n'est pas
+   un pictogramme qu'on peut poser sur une catégorie, c'est un geste. */
+const P_PLUS = '<path d="M12 5v14M5 12h14"/>';
+
 function catGrille(sel, ed){
-  const perso = sel && !P_CAT[sel];
   const tuile = k => `<button type="button" class="ctile" data-cat="${k}"
       ${catCo(k) ? `data-co="${catCo(k)}"` : ''} aria-pressed="${sel === k}">
       <svg viewBox="0 0 24 24" aria-hidden="true">${catIcone(k)}</svg>
       <span>${esc(catLabel(k))}</span>
     </button>`;
+  /* Les catégories inventées par l'utilisateur sont des tuiles comme les autres,
+     à la suite des huit livrées. Auparavant la grille n'en montrait qu'une, la
+     sélectionnée : les autres n'étaient atteignables par aucun geste, ce qui
+     obligeait à retaper un nom déjà existant pour ranger une recette dedans.
+     Une tuile perso porte l'apparence qu'on lui a donnée, exactement comme dans
+     Mes recettes, ce qui la rend reconnaissable d'un coup d'œil. */
+  const persos = catPersos(sel && !P_CAT[sel] ? sel : null);
+  /* Le nom affiché dans le champ vient de l'état d'édition, jamais de la
+     sélection. C'est ce qui le fait survivre au repeint : chaque clic sur un
+     pictogramme ou une teinte repeint la feuille, et lire la sélection rendait
+     le champ vide tant que rien n'était validé — le nom saisi était perdu au
+     premier pictogramme choisi. */
+  const nom = ed ? (ed.nm != null ? ed.nm : (sel && !P_CAT[sel] ? sel : '')) : '';
   return `
     <div class="catgrid">
       ${REC_CATS.map(tuile).join('')}
-      ${perso ? tuile(sel) : `
-        <button type="button" class="ctile" data-catperso aria-pressed="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true">${ICONES.etoile}</svg>
-          <span>La mienne…</span>
-        </button>`}
+      ${persos.map(tuile).join('')}
+      <button type="button" class="ctile" data-catperso aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">${P_PLUS}</svg>
+        <span>Nouvelle</span>
+      </button>
     </div>
     ${ed ? `
       <div class="srchw mb">
         <input class="search" id="cat_n" maxlength="24" autocomplete="off"
-               value="${esc(perso ? sel : '')}"
+               value="${esc(nom)}"
                placeholder="Le nom que vous voulez — ex. Banger du moment">
       </div>
       <div class="unit" style="margin:2px 0 4px">Pictogramme</div>
@@ -10462,15 +10514,25 @@ function catGrille(sel, ed){
    nom perso. L'appelant ne fournit que `appliquer(categorie, edition)` : à lui
    de relire ses champs avant de repeindre, ce que lui seul sait faire. */
 function catBind(root, courant, appliquer, edCourant){
-  const ed = () => (edCourant ? edCourant() : null) || {};
+  /* L'état d'édition, augmenté du nom actuellement dans le champ. Toutes les
+     retouches d'apparence passent par ici, ce qui garantit qu'aucune ne peut
+     repeindre la feuille en perdant ce qui vient d'être tapé — c'était le
+     défaut : le champ était relu au seul moment de valider. */
+  const ed = () => {
+    const e = Object.assign({}, (edCourant ? edCourant() : null) || {});
+    const el = root.querySelector('#cat_n');
+    if(el) e.nm = el.value;
+    return e;
+  };
   root.querySelectorAll('[data-cat]').forEach(b => b.onclick = () =>
     /* Retoucher la tuile déjà choisie la désélectionne : c'est le geste attendu
        quand on s'est trompé, et il évite d'aller chercher « Retirer » plus bas. */
     appliquer(b.dataset.cat === courant() ? null : b.dataset.cat, null));
   const p = root.querySelector('[data-catperso]');
-  /* Ouverture sur l'apparence déjà enregistrée s'il y en a une : on retouche,
-     on ne repart pas de zéro. */
-  if(p) p.onclick = () => appliquer(courant(), Object.assign({}, catStyleOf(courant())));
+  /* La tuile « Nouvelle » ouvre le panneau vierge, et non sur la catégorie
+     courante : les catégories déjà créées ont maintenant leur propre tuile, et
+     c'est « Personnaliser » qui sert à retoucher celle qui est sélectionnée. */
+  if(p) p.onclick = () => appliquer(null, {});
   const edt = root.querySelector('[data-catedit]');
   if(edt) edt.onclick = () => appliquer(courant(), Object.assign({}, catStyleOf(courant())));
   const non = root.querySelector('[data-catnon]');
