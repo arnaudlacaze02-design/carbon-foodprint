@@ -405,14 +405,26 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .axeb{position:relative; overflow:hidden}
 .axeb .hero{position:relative; margin:-16px -16px 0; padding:17px 16px 15px; overflow:hidden}
 .axeb .hero .bg{position:absolute; inset:0; display:flex; z-index:0; background:var(--track)}
-.axeb .hero .bg i{height:100%; opacity:.34}
+.axeb .hero .bg i{height:100%; opacity:.34; cursor:pointer}
 .axeb .hero .tk{position:absolute; top:0; bottom:0; width:2px; background:var(--ink);
+  /* Deux pixels de large, mais deux pixels qui interceptaient le clic au milieu
+     du graphique — là où le repère est justement le plus intéressant à viser. */
+  pointer-events:none;
   opacity:.45; z-index:1}
 .axeb .hero .tk::after{content:attr(data-label); position:absolute; bottom:4px; right:5px;
   font-family:var(--mono); font-size:9px; letter-spacing:.04em; color:var(--ink);
   opacity:.8; white-space:nowrap}
 .axeb .hero .tk.tkr::after{right:auto; left:5px}
-.axeb .hero .fg{position:relative; z-index:2}
+.axeb .hero .fg{position:relative; z-index:2;
+  /* Le bandeau était inerte au toucher. Les segments portaient bien `data-gm` et
+     le branchement les visait déjà, mais ce calque — titre et grand chiffre — est
+     posé par-dessus avec un z-index supérieur : tout geste sur le graphique
+     atterrissait sur le texte, et seule la légende répondait.
+     `pointer-events:none` laisse passer le geste jusqu'au segment qui se trouve
+     sous le doigt. Ce calque n'a rien de cliquable, donc rien n'est perdu.
+     La légende reste la cible accessible : un `<i>` ne prend pas le focus, et
+     c'est elle qui porte les vrais boutons. */
+  pointer-events:none}
 .axeb .ttl{font-family:var(--display); font-weight:800; font-size:26px; line-height:1.05;
   letter-spacing:-.015em; color:var(--ink)}
 .axeb .figs{font-family:var(--display); font-weight:800; font-size:52px; line-height:1;
@@ -6141,15 +6153,24 @@ function cuiRecettes(){
     .sort((a, b) => (b.r.ts || 0) - (a.r.ts || 0));
 
   return `
+  ${(() => {
+    /* La catégorie sélectionnée prérègle la création : c'est le sens de « ajouter
+       une recette dans cette catégorie ». On l'annonce dans le pavé plutôt que de
+       laisser la surprise au formulaire — même si la tuile y est cochée et
+       modifiable, une destination silencieuse serait un piège. */
+    const dest = (S.mrCat && S.mrCat !== '' && S.mrCat !== '~') ? S.mrCat : null;
+    return `
   <div class="card reco" style="margin-top:0">
     <div class="rhead">
       <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
       <span class="rt">
-        <span class="rn">Ajouter une recette</span>
+        <span class="rn">Ajouter une recette${dest ? ` dans « ${esc(catLabel(dest))} »` : ''}</span>
         <span class="rd">Colle le lien d’un site de cuisine, ou saisis les ingrédients à la main.
-          L’empreinte par personne est calculée à la volée. ${L.length
-            ? `${L.length} recette${L.length > 1 ? 's' : ''} dans ton carnet, sur cet appareil.`
-            : 'Ton carnet est vide.'}</span>
+          L’empreinte par personne est calculée à la volée. ${dest
+            ? 'La catégorie est déjà cochée dans le formulaire ; tu peux la changer.'
+            : L.length
+              ? `${L.length} recette${L.length > 1 ? 's' : ''} dans ton carnet, sur cet appareil.`
+              : 'Ton carnet est vide.'}</span>
       </span>
     </div>
     <div class="actions" style="margin-top:12px">
@@ -6158,12 +6179,15 @@ function cuiRecettes(){
     </div>
     ${SESS ? '' : `<div class="note">La saisie manuelle fonctionne sans compte : la recette reste
       sur cet appareil. Lire un lien et partager en demandent un.</div>`}
-  </div>
+  </div>`;
+  })()}
 
   ${L.length ? `
-    <h2 class="sec">Mes recettes${S.mrCat && S.mrCat !== '~' && S.mrCat !== ''
+    <h2 class="sec">Mes recettes${choisi
       ? `<button class="pinceau" id="mr_style" type="button"
-          aria-label="Personnaliser la catégorie ${esc(catLabel(S.mrCat))}">
+          aria-label="Gérer ${S.mrCat === '' ? 'le carnet'
+            : S.mrCat === '~' ? 'les recettes sans catégorie'
+            : 'la catégorie ' + esc(catLabel(S.mrCat))}">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M13.4 4.6l6 6-7.6 7.6a3 3 0 0 1-1.5.8l-4.6 1 1-4.6a3 3 0 0 1 .8-1.5z"/>
             <path d="M12 6l6 6M5.2 19.4l-.6 1.8 1.8-.6"/>
@@ -6273,23 +6297,36 @@ function biblioRecettes(){
   </div>`;
 }
 
+/* Ouvrir le formulaire de création. `cat` prérègle la catégorie : c'est ce qui
+   permet d'ajouter une recette « dans » une catégorie sans avoir à la choisir
+   ensuite dans la grille. Elle reste visible et modifiable dans le formulaire —
+   la tuile y est simplement déjà cochée —, donc rien ne se décide en douce.
+
+   recipeSheet crée S.rq au premier appel avec son propre gabarit. On le laisse
+   faire puis on impose l'onglet et la catégorie, plutôt que de recopier ici une
+   forme d'objet qui se désynchroniserait au premier champ ajouté.
+   Un brouillon de modification traîne peut-être : on l'écarte avant d'ouvrir une
+   création, sinon « Ajouter » rouvrirait la recette qu'on éditait. */
+function recetteNouvelle(mode, cat){
+  if(mode === 'url' && !SESS)
+    return toast('La lecture d’un lien demande un compte · la saisie manuelle, non');
+  if(S.rq && S.rq.editId) S.rq = null;
+  recipeSheet();
+  if(!S.rq) return;
+  /* Une catégorie réelle seulement : ni « Tout » ni « Sans catégorie » ne sont
+     des valeurs rangeables dans une recette. */
+  const c = (cat && cat !== '' && cat !== '~') ? cat : null;
+  const bouge = S.rq.mode !== mode || (c && S.rq.cat !== c);
+  if(c) S.rq.cat = c;
+  S.rq.mode = mode;
+  if(bouge) recipeSheet();
+}
+
 function bindRecettes(){
-  /* recipeSheet crée S.rq au premier appel avec son propre gabarit. On le
-     laisse faire puis on impose l'onglet voulu, plutôt que de recopier ici une
-     forme d'objet qui se désynchroniserait au premier champ ajouté.
-     Un brouillon de modification traîne peut-être : on l'écarte avant d'ouvrir
-     une création, sinon « Ajouter » rouvrirait la recette qu'on éditait. */
-  const ouvrir = mode => {
-    if(mode === 'url' && !SESS)
-      return toast('La lecture d’un lien demande un compte · la saisie manuelle, non');
-    if(S.rq && S.rq.editId) S.rq = null;
-    recipeSheet();
-    if(S.rq && S.rq.mode !== mode){ S.rq.mode = mode; recipeSheet(); }
-  };
-  const u = $('#cr_url'); if(u) u.onclick = () => ouvrir('url');
-  const m = $('#cr_man'); if(m) m.onclick = () => ouvrir('man');
+  const u = $('#cr_url'); if(u) u.onclick = () => recetteNouvelle('url', S.mrCat);
+  const m = $('#cr_man'); if(m) m.onclick = () => recetteNouvelle('man', S.mrCat);
   view.querySelectorAll('[data-mrc]').forEach(b =>
-    b.onclick = () => { S.mrCat = b.dataset.mrc; renderCuisine(); });
+    b.onclick = () => { S.mrCat = b.dataset.mrc; S.mrOpen = null; renderCuisine(); });
   /* « Réduire » quand la grille était dépliée d'office pour montrer une tuile
      active repliée doit aussi lever le filtre : sinon on masquerait la catégorie
      en cours et la liste en dessous n'aurait plus d'explication à l'écran. */
@@ -6300,7 +6337,7 @@ function bindRecettes(){
     renderCuisine();
   };
   const bs = $('#mr_style');
-  if(bs) bs.onclick = () => catStyleSheet(S.mrCat);
+  if(bs) bs.onclick = () => catGererSheet(S.mrCat);
 
   /* La pile. Toucher une carte l'ouvre, la retoucher la referme : c'est le même
      geste dans les deux sens, et il n'y a donc pas de croix à viser. */
@@ -6326,55 +6363,188 @@ function bindRecettes(){
     b.onclick = () => mesRecSheet(b.dataset.wopen));
 }
 
-/* Retoucher l'apparence d'une catégorie déjà utilisée, depuis l'onglet. Même
-   planche et même nuancier que le formulaire de recette — icoGrille() et
-   teinteRow() — parce qu'un second sélecteur aurait vite eu une icône de plus
-   ou une teinte de moins que l'autre. Le nom ne se change pas ici : renommer
-   déplacerait les recettes, ce qui n'est pas retoucher une couleur. */
-function catStyleSheet(cat){
-  if(!cat || cat === '~' || cat === '') return;
+/* ==================== gérer une catégorie ====================
+   Une seule feuille pour tout ce qui concerne la tuile sélectionnée : son nom,
+   son pictogramme, sa couleur, l'ajout d'une recette dedans, sa suppression.
+   Elle remplace une feuille qui ne savait que retoucher l'apparence, et qui ne
+   s'ouvrait pas du tout sur « Tout » ni sur « Sans catégorie » — d'où
+   l'impression, justifiée, qu'on ne pouvait rien y faire.
+
+   Le pinceau s'affiche donc sur les trois, et c'est la feuille qui s'adapte. Ce
+   qui n'a pas de sens n'est pas grisé mais absent, avec une ligne qui dit
+   pourquoi : « Tout » n'est pas une catégorie, et « Sans catégorie » est un
+   manque, pas une étiquette. On ne peut ni les renommer ni les colorer, mais on
+   peut agir sur leurs recettes, et c'est ce que la feuille propose.
+
+   Planche et nuancier viennent d'icoGrille() et teinteRow(), les mêmes qu'au
+   formulaire de recette : un second sélecteur aurait vite eu une icône de plus
+   ou une teinte de moins que l'autre. */
+function catGererSheet(cat){
+  if(cat == null) return;
+  const tout = cat === '';
+  const sans = cat === '~';
+  const reelle = !tout && !sans;
   let ed = Object.assign({}, catStyleOf(cat));
+  /* Écran de rangement en masse, pour « Sans catégorie ». `null` quand il est
+     fermé, sinon la catégorie visée et l'état du panneau perso. */
+  let vers = null, versEd = null;
+
+  const compte = () => (S.mesRec || []).filter(r =>
+    tout ? true : sans ? !r.cat : r.cat === cat).length;
+
+  /* Renommer, c'est réécrire l'étiquette portée par chaque recette : la
+     catégorie n'existe nulle part ailleurs qu'à travers elles. On déplace donc
+     aussi son apparence, sinon la couleur resterait attachée à un nom que plus
+     personne ne porte. */
+  const renommer = nom => {
+    const v = (nom || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+    if(v.length < 2) return toast('Deux lettres au minimum');
+    if(v === cat) return true;
+    /* Fusionner avec une catégorie existante est un geste légitime — on range
+       deux tas ensemble — mais il ne doit pas se produire par surprise. */
+    const existe = (S.mesRec || []).some(r => r.cat === v);
+    const st = catStyleOf(cat);
+    (S.mesRec || []).forEach(r => { if(r.cat === cat) r.cat = v; });
+    S.catStyle = S.catStyle || {};
+    delete S.catStyle[cat];
+    /* La cible garde son apparence si elle en avait une : c'est elle qui
+       absorbe, pas l'inverse. */
+    if(st && !S.catStyle[v]) S.catStyle[v] = st;
+    S.mrCat = v;
+    save();
+    toast(existe ? `Fusionnée avec « ${v} »` : `Renommée « ${v} »`);
+    return true;
+  };
 
   const peint = () => {
+    const n = compte();
+    const nom = reelle ? catLabel(cat) : tout ? 'Tout le carnet' : 'Sans catégorie';
+
+    if(vers !== null){
+      /* Rangement en masse. On réutilise catGrille/catBind : c'est le même choix
+         de catégorie qu'au formulaire, création d'une catégorie perso comprise,
+         et le redévelopper ici aurait donné deux grilles à tenir d'accord. */
+      openSheet(`
+        <div class="unit">Ranger ${n} recette${n > 1 ? 's' : ''}</div>
+        <h3 style="margin:2px 0 10px">Dans quelle catégorie ?</h3>
+        ${catGrille(vers || null, versEd)}
+        <div class="actions" style="margin-top:10px">
+          <button class="btn btn-2" id="cg_ret">Retour</button>
+          <button class="btn btn-1" id="cg_range" ${vers ? '' : 'disabled'}>${vers
+            ? `Ranger dans « ${esc(catLabel(vers))} »` : 'Choisissez une catégorie'}</button>
+        </div>`);
+      catBind($('#sheet'), () => vers, (c, e) => { vers = c || ''; versEd = e || null; peint(); },
+        () => versEd);
+      $('#cg_ret').onclick = () => { vers = null; versEd = null; peint(); };
+      const br = $('#cg_range');
+      if(br && vers) br.onclick = () => {
+        (S.mesRec || []).forEach(r => { if(!r.cat) r.cat = vers; });
+        save(); closeSheet();
+        toast(`${n} recette${n > 1 ? 's' : ''} rangée${n > 1 ? 's' : ''} dans « ${catLabel(vers)} »`);
+        S.mrCat = vers; S.mrOpen = null;
+        if(S.tab === 'biblio') renderCuisine();
+      };
+      return;
+    }
+
     openSheet(`
-      <div class="unit">Apparence de la catégorie</div>
-      <h3 style="margin:2px 0 10px">${esc(catLabel(cat))}</h3>
+      <div class="unit">${reelle ? 'Gérer la catégorie' : 'Gérer'}</div>
+      <h3 style="margin:2px 0 4px">${esc(nom)}</h3>
+      <div class="small mute">${n} recette${n > 1 ? 's' : ''}</div>
 
-      <div class="catgrid" style="grid-template-columns:repeat(3,1fr); max-width:220px">
-        <button type="button" class="ctile" ${ed.co ? `data-co="${ed.co}"` : ''}
-          aria-pressed="false" style="pointer-events:none">
-          <svg viewBox="0 0 24 24" aria-hidden="true">${
-            ICONES[ed.ic] || P_CAT[cat] || ICONES.etoile}</svg>
-          <span>${esc(catLabel(cat))}</span><b>aperçu</b>
-        </button>
-      </div>
+      ${reelle ? `
+        <div class="catgrid" style="grid-template-columns:repeat(3,1fr); max-width:220px;
+             margin-top:12px">
+          <div class="ctile" ${ed.co ? `data-co="${ed.co}"` : ''}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">${
+              ICONES[ed.ic] || P_CAT[cat] || ICONES.etoile}</svg>
+            <span>${esc(catLabel(cat))}</span><b>aperçu</b>
+          </div>
+        </div>
 
-      <div class="unit" style="margin:10px 0 4px">Pictogramme</div>
-      ${icoGrille(ed.ic || null)}
-      <div class="unit" style="margin:2px 0 4px">Couleur du fond</div>
-      ${teinteRow(ed.co || null)}
+        <div class="unit" style="margin:10px 0 4px">Nom</div>
+        <div class="srchw mb">
+          <input class="search" id="cg_n" maxlength="24" autocomplete="off"
+                 value="${esc(catLabel(cat))}">
+        </div>
+        <div class="unit" style="margin:2px 0 4px">Pictogramme</div>
+        ${icoGrille(ed.ic || null)}
+        <div class="unit" style="margin:2px 0 4px">Couleur du fond</div>
+        ${teinteRow(ed.co || null)}
 
+        <div class="actions">
+          <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
+          <button class="btn btn-1" id="cg_ok">Enregistrer</button>
+        </div>`
+      : `<div class="src" style="margin:12px 0 0">${tout
+          ? '« Tout » n’est pas une catégorie mais l’ensemble du carnet : il n’y a ni nom ni couleur à lui donner.'
+          : '« Sans catégorie » n’est pas une étiquette mais son absence : elle n’a donc ni nom, ni pictogramme, ni couleur. Rangez ces recettes dans une catégorie et elle disparaîtra d’elle-même.'}</div>`}
+
+      <div class="hr"></div>
       <div class="actions">
-        <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
-        <button class="btn btn-1" id="cs_ok">Enregistrer</button>
+        <button class="btn btn-2" id="cg_add">Ajouter une recette${reelle ? ' ici' : ''}</button>
+        ${sans && n ? `<button class="btn btn-2" id="cg_vers">Ranger dans une catégorie</button>` : ''}
       </div>
-      <div class="src" style="margin-top:10px">L’apparence reste sur cet appareil et vaut pour
-        toutes les recettes de cette catégorie. Elle ne part pas avec une recette partagée :
-        vos amis ont leurs propres couleurs.</div>`);
+      ${reelle && n ? `<div class="actions" style="margin-top:8px">
+        <button class="btn btn-2" id="cg_rm" style="color:var(--brick)">Supprimer la catégorie</button>
+      </div>` : ''}
+      <div class="src" style="margin-top:10px">${reelle
+        ? `Le nom, le pictogramme et la couleur valent pour les ${n} recette${n > 1 ? 's' : ''}
+           de cette catégorie. L’apparence reste sur cet appareil : elle ne part pas avec une
+           recette partagée, vos amis ont leurs propres couleurs.`
+        : 'Une recette ajoutée ici part sans catégorie ; vous pourrez lui en donner une dans le formulaire.'}</div>`);
 
     const sh = $('#sheet');
     sh.querySelectorAll('[data-ico]').forEach(b => b.onclick = () => {
+      /* Le nom tapé est relu avant de repeindre, sinon choisir une icône après
+         avoir modifié le nom effacerait la modification. */
+      const el = $('#cg_n'); if(el) ed._nom = el.value;
       ed.ic = ed.ic === b.dataset.ico ? null : b.dataset.ico; peint();
     });
     sh.querySelectorAll('[data-teinte]').forEach(b => b.onclick = () => {
+      const el = $('#cg_n'); if(el) ed._nom = el.value;
       ed.co = b.dataset.teinte || null; peint();
     });
-    $('#cs_ok').onclick = () => {
+    /* Le nom relu survit à une repeinture : on le replace après coup. */
+    if(ed._nom != null){ const el = $('#cg_n'); if(el) el.value = ed._nom; }
+
+    const ba = $('#cg_add');
+    if(ba) ba.onclick = () => { closeSheet(); recetteNouvelle('man', cat); };
+
+    const bv = $('#cg_vers');
+    if(bv) bv.onclick = () => { vers = ''; versEd = null; peint(); };
+
+    const bo = $('#cg_ok');
+    if(bo) bo.onclick = () => {
+      const el = $('#cg_n');
+      /* L'apparence est écrite sous le nom d'arrivée, pas celui de départ :
+         renommer et recolorer d'un même geste doit laisser les deux ensemble. */
+      const avant = cat;
+      if(!renommer(el ? el.value : cat)) return;
+      const cle = S.mrCat || avant;
       S.catStyle = S.catStyle || {};
-      if(ed.ic || ed.co) S.catStyle[cat] = {...(ed.ic ? {ic:ed.ic} : {}), ...(ed.co ? {co:ed.co} : {})};
-      else delete S.catStyle[cat];
+      if(ed.ic || ed.co) S.catStyle[cle] = {...(ed.ic ? {ic:ed.ic} : {}), ...(ed.co ? {co:ed.co} : {})};
+      else delete S.catStyle[cle];
       save(); closeSheet();
-      toast(ed.ic || ed.co ? 'Apparence enregistrée' : 'Apparence remise par défaut');
+      if(S.tab === 'biblio') renderCuisine();
+    };
+
+    const br = $('#cg_rm');
+    if(br) br.onclick = () => {
+      /* Deux touches. Les recettes ne sont pas supprimées, seule l'étiquette
+         tombe — le contraire serait une perte irréparable pour un geste qui
+         ressemble à du rangement. Le libellé le dit. */
+      if(br.dataset.sur !== '1'){
+        br.dataset.sur = '1';
+        br.textContent = `Confirmer · ${n} recette${n > 1 ? 's' : ''} passera${n > 1 ? 'ont' : ''} sans catégorie`;
+        return;
+      }
+      (S.mesRec || []).forEach(r => { if(r.cat === cat) r.cat = null; });
+      S.catStyle = S.catStyle || {};
+      delete S.catStyle[cat];
+      S.mrCat = '~'; S.mrOpen = null;
+      save(); closeSheet();
+      toast(`Catégorie « ${catLabel(cat)} » supprimée · recettes conservées`);
       if(S.tab === 'biblio') renderCuisine();
     };
   };
