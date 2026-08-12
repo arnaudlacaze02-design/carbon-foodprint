@@ -877,6 +877,50 @@ p{margin:0 0 9px}
 .rstep p{margin:0; font-size:14px; line-height:1.5}
 a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; word-break:break-word}
 
+/* ── Teintes de fond des tuiles ────────────────────────────────────────
+   Huit fonds, déclarés en classes et non en style inline, parce qu'un fond
+   pastel écrit en dur devient illisible en thème sombre : chaque teinte a donc
+   sa valeur claire et sa valeur sombre, et la tuile ne connaît qu'un numéro.
+   Le texte et le pictogramme gardent --ink-soft, qui suit déjà le thème : c'est
+   ce qui rend les huit fonds lisibles des deux côtés sans huit couleurs de
+   texte à accorder. */
+[data-co="1"]{--co-bg:#E2EFDA}
+[data-co="2"]{--co-bg:#DCE9E6}
+[data-co="3"]{--co-bg:#F4EBC8}
+[data-co="4"]{--co-bg:#F6E3CC}
+[data-co="5"]{--co-bg:#F5DCDA}
+[data-co="6"]{--co-bg:#EADCEC}
+[data-co="7"]{--co-bg:#DDE3EA}
+[data-co="8"]{--co-bg:#EDE7DC}
+:root[data-theme="dark"] [data-co="1"]{--co-bg:#223324}
+:root[data-theme="dark"] [data-co="2"]{--co-bg:#1E302E}
+:root[data-theme="dark"] [data-co="3"]{--co-bg:#35301A}
+:root[data-theme="dark"] [data-co="4"]{--co-bg:#3A2E1F}
+:root[data-theme="dark"] [data-co="5"]{--co-bg:#3A2422}
+:root[data-theme="dark"] [data-co="6"]{--co-bg:#2F2436}
+:root[data-theme="dark"] [data-co="7"]{--co-bg:#212832}
+:root[data-theme="dark"] [data-co="8"]{--co-bg:#2E2A24}
+
+/* Sélecteur de pictogramme. Six colonnes de petites cases : on parcourt la
+   planche d'un coup d'œil sans défiler, et la cible reste au-dessus du seuil
+   tactile. */
+.icogrid{display:grid; grid-template-columns:repeat(6,1fr); gap:6px; margin:2px 0 10px}
+.icogrid button{aspect-ratio:1/1; padding:0; border:1px solid var(--line);
+  border-radius:9px; background:var(--card); display:flex;
+  align-items:center; justify-content:center}
+.icogrid svg{width:20px; height:20px; fill:none; stroke:var(--ink-soft);
+  stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
+.icogrid button:active{background:var(--active)}
+.icogrid button[aria-pressed="true"]{border-color:var(--forest-2);
+  box-shadow:inset 0 0 0 1px var(--forest-2)}
+.icogrid button[aria-pressed="true"] svg{stroke:var(--accent)}
+/* Nuancier. Pas de coche : c'est la couleur qu'on regarde, l'anneau suffit. */
+.teintes{display:flex; gap:7px; flex-wrap:wrap; margin:2px 0 10px}
+.teintes button{width:36px; height:36px; padding:0; border-radius:10px;
+  border:1px solid var(--line); background:var(--co-bg)}
+.teintes button[aria-pressed="true"]{border-color:var(--forest-2);
+  box-shadow:inset 0 0 0 2px var(--forest-2)}
+
 /* Grille de catégories. Des carrés et non une liste : à cette taille le
    pictogramme se lit d'un coup d'œil là où neuf lignes de texte demandent de
    lire, et le pouce vise une cible de 90 px au lieu d'un rang de 40. Trois
@@ -885,23 +929,30 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
    soit la largeur de l'écran, ce qui est tout l'intérêt du format. */
 .catgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:2px 0 4px}
 .ctile{aspect-ratio:1/1; display:flex; flex-direction:column; align-items:center;
-  justify-content:center; gap:7px; padding:8px 6px; border:1px solid var(--line);
-  border-radius:13px; background:var(--card); text-align:center}
-.ctile svg{width:26px; height:26px; fill:none; stroke:var(--ink-soft);
+  justify-content:center; gap:6px; padding:8px 7px; border:1px solid var(--line);
+  border-radius:13px; background:var(--card); text-align:center; overflow:hidden}
+.ctile svg{width:24px; height:24px; flex:0 0 auto; fill:none; stroke:var(--ink-soft);
   stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
-.ctile span{font-size:11.5px; line-height:1.25; color:var(--ink-soft); font-weight:600}
-/* Compte de recettes, sous le nom. En mono et plus petit : c'est une donnée, pas
-   un second nom, et la tuile doit rester lisible d'un coup d'œil. */
+/* Le nom occupe la place qui reste et va jusqu'à trois lignes : « Méditerranéenne »
+   ou « Banger du moment » ne tiennent pas sur une ligne à cette largeur, et les
+   couper à l'ellipse ferait deux tuiles indistinguables. `anywhere` casse aussi
+   un mot unique très long, seul cas où l'ellipse reste inévitable. */
+.ctile span{font-size:13px; line-height:1.2; color:var(--ink-soft); font-weight:600;
+  overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3;
+  -webkit-box-orient:vertical; overflow:hidden}
 .ctile b{font-family:var(--mono); font-size:9.5px; font-weight:400; color:var(--mute);
-  letter-spacing:.03em; margin-top:-3px}
-.ctile:active{background:var(--active)}
-/* Sélection : la bordure seule ne suffit pas sur un fond clair, le fond teinté
-   fait le travail et la coche lève toute ambiguïté quand deux tuiles voisines
-   se ressemblent. */
-.ctile[aria-pressed="true"]{border-color:var(--forest-2); background:var(--kpi-good);
-  box-shadow:inset 0 0 0 1px var(--forest-2)}
-.ctile[aria-pressed="true"] svg{stroke:var(--forest)}
-.ctile[aria-pressed="true"] span{color:var(--forest)}
+  letter-spacing:.03em; margin-top:-2px; flex:0 0 auto}
+.ctile:active{filter:brightness(.97)}
+/* Une tuile teintée garde son fond quand elle est choisie : la marquer en
+   changeant le fond effacerait la couleur que l'utilisateur a posée. C'est donc
+   l'anneau qui porte la sélection, et le fond neutre ne se teinte que faute de
+   couleur choisie. */
+.ctile[data-co]{background:var(--co-bg); border-color:transparent}
+.ctile[aria-pressed="true"]:not([data-co]){background:var(--kpi-good)}
+.ctile[aria-pressed="true"]{border-color:var(--forest-2);
+  box-shadow:inset 0 0 0 2px var(--forest-2)}
+.ctile[aria-pressed="true"] svg{stroke:var(--accent)}
+.ctile[aria-pressed="true"] span{color:var(--accent)}
 /* Puce de rappel, dans les listes et les en-têtes de fiche. */
 .cchip{display:inline-flex; align-items:center; gap:5px; padding:3px 8px 3px 6px;
   border-radius:999px; background:var(--seg-bg); font-family:var(--mono);
@@ -2151,7 +2202,7 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          fv:'actu', notif:NOTIF0(), nutri:true, marques:{}, notes:undefined,
          plike:{}, pcom:{}, rq:null, rtab:'ing',
          cv:'frigo', frigo:[], fgq:'', fgCarb:'', fgSais:false, fgCui:'',
-         mesRec:[], mrCat:'', mrTab:'ing', mrAll:false,
+         mesRec:[], mrCat:null, mrTab:'ing', mrAll:false, catStyle:{},
          partner:null, parts:[], podium:{or:0, argent:0, bronze:0},
          platLarge:false, modeFrom:null,
          stdP:null, stdF:null, stdL:null, stdSize:'normal',
@@ -2162,7 +2213,8 @@ function save(){
         tomb:S.tomb, stdInit:S.stdInit, starred:S.starred, lastSync:S.lastSync,
         prof:S.prof, people:S.people, notif:S.notif, nutri:S.nutri,
         marques:S.marques, pmVu:S.pmVu, frigo:S.frigo, parts:S.parts,
-        podium:S.podium, skip:S.skip, noask:S.noask, mesRec:S.mesRec})); }catch(e){}
+        podium:S.podium, skip:S.skip, noask:S.noask, mesRec:S.mesRec,
+        catStyle:S.catStyle})); }catch(e){}
   /* Les signaux d'attente se recalculent à partir de S : les repeindre ici,
      c'est garantir qu'ils ne mentent jamais après une écriture, sans avoir à
      penser à les appeler depuis chacun des vingt endroits qui écrivent.
@@ -2182,7 +2234,7 @@ function load(){
      de cuisine, pas une donnée de compte. Le partage explicite reste le seul
      chemin vers le serveur — et il produit une publication, pas une copie
      silencieuse. */
-  S.mesRec=[];
+  S.mesRec=[]; S.catStyle={};
   try{
     const raw = localStorage.getItem(dataKey());
     if(raw){ const o = JSON.parse(raw);
@@ -2213,6 +2265,18 @@ function load(){
             autres: Array.isArray(r.autres) ? r.autres : [],
             prep: Array.isArray(r.prep) ? r.prep : []}))
         : [];
+      /* Apparences des catégories. Relecture stricte : on ne garde qu'un
+         pictogramme de la planche et une teinte de la palette, sinon une
+         sauvegarde d'une version future — ou bricolée — injecterait une clé
+         inconnue dans un attribut CSS. */
+      S.catStyle = {};
+      Object.entries(o.catStyle || {}).forEach(([k, v]) => {
+        if(!k || !v || typeof v !== 'object') return;
+        const st = {};
+        if(ICONES[v.ic]) st.ic = v.ic;
+        if(TEINTES.includes(String(v.co))) st.co = String(v.co);
+        if(st.ic || st.co) S.catStyle[String(k).slice(0, 24)] = st;
+      });
       S.podium = Object.assign({or:0, argent:0, bronze:0}, o.podium || {});
       stamp(); return true; }
   }catch(e){}
@@ -3645,7 +3709,7 @@ function recipeSheet(){
   /* Un brouillon écrit par une version d'avant la portée n'a pas de `dst` :
      `undefined` doit valoir « tous », pas une liste vide. */
   S.rq = S.rq || {title:'', pers:2, ing:[], autres:'', prep:'', url:'', q:'',
-                  labp:null, ingp:null, dst:null, cat:null, catEdit:false, editId:null,
+                  labp:null, ingp:null, dst:null, cat:null, catEd:null, editId:null,
                   mode:'man', lien:'', lu:null, err:null, occupe:false};
   const q = S.rq;
   if(q.dst === undefined) q.dst = null;
@@ -3860,7 +3924,7 @@ function recipeSheet(){
 
       <div class="unit" style="margin:10px 0 4px">Catégorie${
         q.cat ? '' : ' · facultative'}</div>
-      ${catGrille(q.cat, q.catEdit)}
+      ${catGrille(q.cat, q.catEd)}
 
       <div class="unit" style="margin:8px 0 4px">Ingrédients</div>
       <div class="pick srchw${q.q ? ' on' : ''}">
@@ -3919,12 +3983,13 @@ function recipeSheet(){
 
     brancheOnglets();
 
-    catBind($('#sheet'), () => q.cat, (cat, edit) => {
-      collecte(); q.cat = cat; q.catEdit = !!edit; peint();
-      /* Le champ de nom perso vient d'apparaître : lui donner le curseur évite
-         un second geste pour une fenêtre dont c'est le seul contenu. */
-      if(edit){ const n = $('#cat_n'); if(n){ n.focus(); n.select(); } }
-    });
+    catBind($('#sheet'), () => q.cat, (cat, ed) => {
+      collecte(); q.cat = cat; q.catEd = ed || null; peint();
+      /* Le curseur ne va au champ de nom qu'à l'ouverture du panneau, pas à
+         chaque choix d'icône ou de teinte : sinon le clavier se relèverait sous
+         la planche de pictogrammes à chaque touche, et la cacherait. */
+      if(ed && !ed.ic && !ed.co){ const n = $('#cat_n'); if(n){ n.focus(); n.select(); } }
+    }, () => q.catEd);
 
     const qi = $('#rq_q'), sg = $('#rq_sg');
     const peintSugg = () => {
@@ -5891,7 +5956,7 @@ function cuiRecettes(){
        l'ordre soit stable à égalité. */
     .sort((a, b) => compte(b) - compte(a) || catLabel(a).localeCompare(catLabel(b), 'fr'));
   const liste = L.some(r => !r.cat) ? [...cats, '~'] : cats;
-  if(S.mrCat && !liste.includes(S.mrCat)) S.mrCat = '';
+  if(S.mrCat && S.mrCat !== '' && !liste.includes(S.mrCat)) S.mrCat = null;
 
   /* Au-delà de deux catégories la grille se replie : trois tuiles tiennent sur
      une ligne — « Tout » plus les deux premières —, et le carnet reste visible
@@ -5908,40 +5973,61 @@ function cuiRecettes(){
   /* Le compte est passé, non deviné depuis la clé : la tuile « Tout » n'a pas de
      catégorie à compter et un repli implicite aurait fini par afficher le total
      du carnet sur une catégorie réellement vide. */
-  const tuile = (k, nom, picto, n) => `
-    <button type="button" class="ctile" data-mrc="${esc(k)}" aria-pressed="${S.mrCat === k}">
+  const tuile = (k, nom, picto, n, co) => `
+    <button type="button" class="ctile" data-mrc="${esc(k)}"
+      ${co ? `data-co="${co}"` : ''} aria-pressed="${S.mrCat === k}">
       <svg viewBox="0 0 24 24" aria-hidden="true">${picto}</svg>
       <span>${esc(nom)}</span><b>${n}</b>
     </button>`;
 
-  const rows = L
-    .filter(r => !S.mrCat || (S.mrCat === '~' ? !r.cat : r.cat === S.mrCat))
+  /* Rien de sélectionné à l'ouverture, et donc aucune recette affichée : le
+     carnet s'ouvre sur ses catégories, pas sur une liste de tout. C'est la
+     grille qui est l'écran d'accueil — un mur de titres n'aide pas à choisir,
+     alors que six carrés se lisent d'un coup d'œil. */
+  const choisi = S.mrCat != null;
+  const rows = !choisi ? [] : L
+    .filter(r => S.mrCat === '' || (S.mrCat === '~' ? !r.cat : r.cat === S.mrCat))
     .map(r => ({r, kg: kgOf(r.ing), pers: Math.max(1, r.ingp || r.pers)}))
     .sort((a, b) => (b.r.ts || 0) - (a.r.ts || 0));
 
   return `
-  <h2 class="sec">Mes recettes</h2>
-  <div class="card" style="margin:0 0 14px">
-    <p class="small" style="margin:0">Votre carnet, sur cet appareil seulement.
-      ${L.length ? `${L.length} recette${L.length > 1 ? 's' : ''} enregistrée${L.length > 1 ? 's' : ''}.`
-        : 'Rien n’y est encore.'}
-      Rien n’est envoyé au serveur : une recette ne part chez vos amis que si vous
-      touchez « Partager », depuis sa fiche.</p>
+  <div class="card reco" style="margin-top:0">
+    <div class="rhead">
+      <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+      <span class="rt">
+        <span class="rn">Ajouter une recette</span>
+        <span class="rd">Colle le lien d’un site de cuisine, ou saisis les ingrédients à la main.
+          L’empreinte par personne est calculée à la volée. ${L.length
+            ? `${L.length} recette${L.length > 1 ? 's' : ''} dans ton carnet, sur cet appareil.`
+            : 'Ton carnet est vide.'}</span>
+      </span>
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-1" id="cr_man">Saisie manuelle</button>
+      <button class="btn btn-2" id="cr_url">Depuis un lien</button>
+    </div>
+    ${SESS ? '' : `<div class="note">La saisie manuelle fonctionne sans compte : la recette reste
+      sur cet appareil. Lire un lien et partager en demandent un.</div>`}
   </div>
 
   ${L.length ? `
-    ${liste.length ? `
-      <div class="catgrid">
-        ${tuile('', 'Tout', P_TOUT, L.length)}
-        ${vis.map(k => k === '~'
-          ? tuile('~', 'Sans catégorie', P_SANS, compte('~'))
-          : tuile(k, catLabel(k), catPicto(k), compte(k))).join('')}
-      </div>
-      ${trop ? `<button class="btn btn-2" id="mr_all" style="margin:2px 0 4px"
-        data-open="${ouvert ? 0 : 1}" data-raz="${force && !S.mrAll ? 1 : 0}">${ouvert
-        ? 'Réduire' : `+ Tout afficher · ${liste.length} catégories`}</button>` : ''}`
-    : ''}
-    <div class="list" style="margin-top:8px">
+    <h2 class="sec">Mes recettes</h2>
+    <div class="catgrid">
+      ${tuile('', 'Tout', P_TOUT, L.length, null)}
+      ${vis.map(k => k === '~'
+        ? tuile('~', 'Sans catégorie', P_SANS, compte('~'), null)
+        : tuile(k, catLabel(k), catIcone(k), compte(k), catCo(k))).join('')}
+    </div>
+    ${trop ? `<button class="btn btn-2" id="mr_all" style="margin:2px 0 4px"
+      data-open="${ouvert ? 0 : 1}" data-raz="${force && !S.mrAll ? 1 : 0}">${ouvert
+      ? 'Réduire' : `+ Tout afficher · ${liste.length} catégories`}</button>` : ''}
+    ${S.mrCat && S.mrCat !== '~' ? `<div class="actions" style="margin:2px 0 4px">
+      <button class="btn btn-2" id="mr_style">Personnaliser « ${esc(catLabel(S.mrCat))} »</button>
+    </div>` : ''}
+    ${!choisi
+      ? `<div class="src" style="margin:8px 2px 0">Touchez une catégorie pour voir ses recettes,
+          ou « Tout » pour le carnet entier.</div>`
+      : `<div class="list" style="margin-top:8px">
       ${rows.length ? rows.map(({r, kg, pers}) => `
         <button class="frow" data-mr="${esc(r.id)}">
           <div class="nm">${esc(r.t)}</div>
@@ -5952,27 +6038,10 @@ function cuiRecettes(){
             r.src ? ' · ' + esc(r.src) : ''}</div>
         </button>`).join('')
       : `<div class="empty">Aucune recette dans cette catégorie.</div>`}
-    </div>`
-  : `<div class="empty" style="margin-bottom:14px">Ajoutez une première recette : collez le lien
-      d’un site de cuisine, ou saisissez les ingrédients à la main. L’empreinte par personne se
-      calcule à la volée, et vous pourrez la ranger dans une catégorie.</div>`}
-
-  <div class="card reco">
-    <div class="rhead">
-      <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
-      <span class="rt">
-        <span class="rn">Ajouter une recette</span>
-        <span class="rd">Colle le lien d’un site de cuisine, ou saisis les ingrédients à la main.
-          L’empreinte par personne est calculée à la volée.</span>
-      </span>
-    </div>
-    <div class="actions" style="margin-top:12px">
-      <button class="btn btn-1" id="cr_man">Saisie manuelle</button>
-      <button class="btn btn-2" id="cr_url">Depuis un lien</button>
-    </div>
-    ${SESS ? '' : `<div class="note">La saisie manuelle fonctionne sans compte : la recette reste
-      sur cet appareil. Lire un lien et partager en demandent un.</div>`}
-  </div>
+    </div>`}`
+  : `<div class="empty">Ajoutez une première recette : collez le lien d’un site de cuisine, ou
+      saisissez les ingrédients à la main. Vous pourrez la ranger dans une catégorie, choisir son
+      pictogramme et la couleur de son carré.</div>`}
 
   <div class="card reco">
     <div class="rhead">
@@ -6049,11 +6118,68 @@ function bindRecettes(){
   const ba = $('#mr_all');
   if(ba) ba.onclick = () => {
     S.mrAll = ba.dataset.open === '1';
-    if(ba.dataset.raz === '1') S.mrCat = '';
+    if(ba.dataset.raz === '1') S.mrCat = null;
     renderCuisine();
   };
+  const bs = $('#mr_style');
+  if(bs) bs.onclick = () => catStyleSheet(S.mrCat);
   view.querySelectorAll('[data-mr]').forEach(b =>
     b.onclick = () => mesRecSheet(b.dataset.mr));
+}
+
+/* Retoucher l'apparence d'une catégorie déjà utilisée, depuis l'onglet. Même
+   planche et même nuancier que le formulaire de recette — icoGrille() et
+   teinteRow() — parce qu'un second sélecteur aurait vite eu une icône de plus
+   ou une teinte de moins que l'autre. Le nom ne se change pas ici : renommer
+   déplacerait les recettes, ce qui n'est pas retoucher une couleur. */
+function catStyleSheet(cat){
+  if(!cat || cat === '~' || cat === '') return;
+  let ed = Object.assign({}, catStyleOf(cat));
+
+  const peint = () => {
+    openSheet(`
+      <div class="unit">Apparence de la catégorie</div>
+      <h3 style="margin:2px 0 10px">${esc(catLabel(cat))}</h3>
+
+      <div class="catgrid" style="grid-template-columns:repeat(3,1fr); max-width:220px">
+        <button type="button" class="ctile" ${ed.co ? `data-co="${ed.co}"` : ''}
+          aria-pressed="false" style="pointer-events:none">
+          <svg viewBox="0 0 24 24" aria-hidden="true">${
+            ICONES[ed.ic] || P_CAT[cat] || ICONES.etoile}</svg>
+          <span>${esc(catLabel(cat))}</span><b>aperçu</b>
+        </button>
+      </div>
+
+      <div class="unit" style="margin:10px 0 4px">Pictogramme</div>
+      ${icoGrille(ed.ic || null)}
+      <div class="unit" style="margin:2px 0 4px">Couleur du fond</div>
+      ${teinteRow(ed.co || null)}
+
+      <div class="actions">
+        <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
+        <button class="btn btn-1" id="cs_ok">Enregistrer</button>
+      </div>
+      <div class="src" style="margin-top:10px">L’apparence reste sur cet appareil et vaut pour
+        toutes les recettes de cette catégorie. Elle ne part pas avec une recette partagée :
+        vos amis ont leurs propres couleurs.</div>`);
+
+    const sh = $('#sheet');
+    sh.querySelectorAll('[data-ico]').forEach(b => b.onclick = () => {
+      ed.ic = ed.ic === b.dataset.ico ? null : b.dataset.ico; peint();
+    });
+    sh.querySelectorAll('[data-teinte]').forEach(b => b.onclick = () => {
+      ed.co = b.dataset.teinte || null; peint();
+    });
+    $('#cs_ok').onclick = () => {
+      S.catStyle = S.catStyle || {};
+      if(ed.ic || ed.co) S.catStyle[cat] = {...(ed.ic ? {ic:ed.ic} : {}), ...(ed.co ? {co:ed.co} : {})};
+      else delete S.catStyle[cat];
+      save(); closeSheet();
+      toast(ed.ic || ed.co ? 'Apparence enregistrée' : 'Apparence remise par défaut');
+      if(S.tab === 'biblio') renderCuisine();
+    };
+  };
+  peint();
 }
 
 /* ==================== fiche d'une recette du carnet ====================
@@ -6193,7 +6319,7 @@ function mesRecEdit(id){
     ing: r.ing.map((l, i) => lab[i] ? [l[0], l[1], lab[i]] : [l[0], l[1]]),
     autres: (r.autres || []).join('\n'), prep: (r.prep || []).join('\n'),
     url: r.url || '', q:'', labp: r.labp || null, ingp: r.ingp || r.pers, dst: null,
-    cat: r.cat || null, catEdit: false, editId: r.id,
+    cat: r.cat || null, catEd: null, editId: r.id,
     mode:'man', lien:'', lu:null, err:null, occupe:false};
   recipeSheet();
 }
@@ -9818,74 +9944,194 @@ const P_CAT = {
 const REC_CATS = ['francaise','italienne','asiatique','orientale',
                   'mediterraneenne','indienne','mexicaine','americaine'];
 
+/* ── Planche de pictogrammes ───────────────────────────────────────────
+   Dessinés ici, en tracés SVG, et non chargés depuis Flaticon ou un autre
+   fournisseur. Trois raisons, dans l'ordre où elles comptent.
+
+   D'abord l'app doit fonctionner hors ligne : tout ce qu'elle affiche est dans
+   index.html, mis en cache par le service worker. Une icône appelée sur un
+   domaine tiers disparaîtrait dans le métro, à l'endroit précis où l'on saisit
+   son déjeuner.
+
+   Ensuite la licence : les fichiers gratuits de ces banques imposent une
+   attribution visible, et une PWA installée sur un téléphone n'a pas d'endroit
+   honnête pour la porter. Un tracé écrit ici n'a pas ce problème.
+
+   Enfin le poids et la cohérence : vingt PNG pèsent plus que ces vingt lignes,
+   et un tracé partage l'épaisseur, les jointures et la couleur de tout le reste
+   de l'app — ce qu'un jeu importé ne fait jamais tout à fait. */
+const ICONES = {
+  bol:      '<path d="M3.2 10.5h17.6a8.8 8.8 0 0 1-17.6 0z"/><path d="M5.5 20.2h13"/>',
+  assiette: '<circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="4.6"/>',
+  pizza:    '<path d="M12 3.4 20.2 19a24 24 0 0 1-16.4 0z"/><circle cx="10.4" cy="13" r="1"/><circle cx="14" cy="15.4" r="1"/>',
+  burger:   '<path d="M4 9.5C4 6.9 7.6 5 12 5s8 1.9 8 4.5z"/><path d="M4 13h16"/><path d="M4.6 16.5h14.8c0 1.9-1.6 3.2-3.6 3.2H8.2c-2 0-3.6-1.3-3.6-3.2z"/>',
+  sushi:    '<rect x="4" y="8.6" width="16" height="7" rx="3.5"/><circle cx="12" cy="12.1" r="2"/>',
+  taco:     '<path d="M3 19c0-6.6 4-12 9-12s9 5.4 9 12z"/><path d="M3 19h18"/><path d="M9 13.5c1-1 2-1 3 0s2 1 3 0"/>',
+  nouilles: '<path d="M4 6.5 20 4M4.6 10 20 7.5"/><path d="M5 14h14c0 3.9-3.1 6.6-7 6.6S5 17.9 5 14z"/>',
+  fourche:  '<path d="M4 3v7a3 3 0 0 0 6 0V3M7 10v11"/><path d="M17 3c-1.6 1.2-2.4 3-2.4 5.2 0 1.7.8 2.8 2.4 2.8s2.4-1.1 2.4-2.8C19.4 6 18.6 4.2 17 3zM17 11v10"/>',
+  marmite:  '<path d="M5 9h14v7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z"/><path d="M3 9h18M8.5 5.6 9.6 9M15.5 5.6 14.4 9"/>',
+  wok:      '<path d="M3 11h14a7 7 0 0 1-14 0z"/><path d="M17 11h4l-2.6 3.4"/><path d="M6 8c.6-1.2 1.6-1.2 2.2 0M10.4 7c.6-1.2 1.6-1.2 2.2 0"/>',
+  poisson:  '<path d="M3.4 12c3-4 6.6-6 10-6s6.2 2 7.2 6c-1 4-3.8 6-7.2 6s-7-2-10-6z"/><circle cx="16.6" cy="10.6" r=".9"/><path d="M3.4 12 6 9.2M3.4 12 6 14.8"/>',
+  poulet:   '<path d="M14.6 4.2a4.6 4.6 0 0 1 3 7.8l-4.4 4.4-3.6-3.6 4.4-4.4a4.6 4.6 0 0 1 .6-4.2z"/><path d="M9.6 12.8 5.4 17a2.6 2.6 0 1 0 3.6 3.6l4.2-4.2z"/>',
+  feuille:  '<path d="M20 4C11 4 5 8.4 5 15.4V20"/><path d="M20 4c0 8.4-5.4 12.6-12 12.6"/>',
+  legume:   '<path d="M12 8c3.2 0 5.6 2.6 5.6 6.2S15.2 20.4 12 20.4 6.4 17.8 6.4 14.2 8.8 8 12 8z"/><path d="M12 8V4.6M12 4.6c1.8 0 2.8-1 2.8-2.4-1.4 0-2.8.9-2.8 2.4z"/>',
+  fromage:  '<path d="M3.6 12.4 13.4 6l7 3.4v6.2l-16.8 1.4z"/><circle cx="8.6" cy="14" r=".9"/><circle cx="14.4" cy="13.4" r=".9"/>',
+  pain:     '<path d="M4.4 10.6c0-3 3.4-4.6 7.6-4.6s7.6 1.6 7.6 4.6v6.8a2 2 0 0 1-2 2H6.4a2 2 0 0 1-2-2z"/><path d="M9 10.4v9M15 10.4v9"/>',
+  gateau:   '<path d="M4.6 12.4h14.8v5.4a2 2 0 0 1-2 2H6.6a2 2 0 0 1-2-2z"/><path d="M4.6 15.4c1.6 0 1.6-1.6 3.2-1.6s1.6 1.6 3.2 1.6 1.6-1.6 3.2-1.6 1.6 1.6 3.2 1.6"/><path d="M12 12.4V9M12 9c1.4 0 2-.8 2-1.9-1.2 0-2 .7-2 1.9z"/>',
+  cafe:     '<path d="M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z"/><path d="M16 9.6h1.8a2.4 2.4 0 0 1 0 4.8H16"/><path d="M4 20.6h13"/>',
+  verre:    '<path d="M5 4.6h14L12 12.6z"/><path d="M12 12.6V20M8.6 20h6.8"/>',
+  epi:      '<path d="M12 20.4V8"/><path d="M12 8c-2.4 0-3.6-1.6-3.6-3.6C10.8 4.4 12 6 12 8zM12 8c2.4 0 3.6-1.6 3.6-3.6C13.2 4.4 12 6 12 8z"/><path d="M12 13c-2.4 0-3.6-1.6-3.6-3.6C10.8 9.4 12 11 12 13zM12 13c2.4 0 3.6-1.6 3.6-3.6C13.2 9.4 12 11 12 13z"/>',
+  piment:   '<path d="M17.6 7.4c1.6 4-1.4 11.6-7.6 12.6-3.6.6-5.6-1.4-5-3.6.8-2.8 4.6-1.6 7.6-4 2.4-2 3-4 5-5z"/><path d="M17.6 7.4c0-2-1-3.4-2.6-3.8"/>',
+  flamme:   '<path d="M12 3.4c4.2 3.4 6 6.4 6 9.6a6 6 0 0 1-12 0c0-1.6.6-3 1.8-4.4.4 1.4 1.2 2.2 2.2 2.2 1.4 0 2.2-1.2 2.2-3.2 0-1.4-.4-2.8-2.2-4.2z"/>',
+  coeur:    '<path d="M12 20C7 16.6 4 13.8 4 10.4A4.4 4.4 0 0 1 12 7.8 4.4 4.4 0 0 1 20 10.4c0 3.4-3 6.2-8 9.6z"/>',
+  etoile:   '<path d="M12 4.2l2.3 4.7 5.2.8-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1-3.8-3.6 5.2-.8z"/>',
+};
+/* Ordre d'affichage de la planche : les formes de plat d'abord, les ingrédients
+   ensuite, les marqueurs d'humeur en dernier — c'est l'ordre dans lequel on
+   cherche quand on nomme une catégorie. */
+const ICO_LISTE = ['bol','assiette','pizza','burger','sushi','taco',
+                   'nouilles','fourche','marmite','wok','poisson','poulet',
+                   'feuille','legume','fromage','pain','gateau','cafe',
+                   'verre','epi','piment','flamme','coeur','etoile'];
+const TEINTES = ['1','2','3','4','5','6','7','8'];
+
 /* Une catégorie est une chaîne, et une seule : soit une clé de CUIS, soit le
    libellé libre saisi par l'utilisateur. Deux champs — clé plus nom perso —
    auraient créé l'état impossible où les deux sont remplis et se contredisent.
    La collision est sans conséquence : quelqu'un qui tape « asiatique » à la main
    obtient exactement la catégorie qu'il visait. */
 const catLabel = c => !c ? null : (CUIS[c] || c);
-const catPicto = c => P_CAT[c]
-  /* Catégorie perso : une étoile, qui dit « la vôtre » sans prétendre illustrer
-     un mot que l'app ne connaît pas. Deviner un pictogramme depuis « banger du
-     moment » ne peut que tomber à côté. */
-  || '<path d="M12 4.2l2.3 4.7 5.2.8-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1-3.8-3.6 5.2-.8z"/>';
+
+/* Apparence d'une catégorie. Le style ne vit pas dans la recette : il est rangé
+   à part, dans S.catStyle, indexé par le nom de la catégorie. Deux raisons.
+   La première est qu'une apparence est une décoration locale — elle n'a rien à
+   faire dans ce qu'on publie chez un ami, qui a ses propres couleurs. La
+   seconde est qu'une catégorie appartient à plusieurs recettes : la ranger dans
+   chacune obligerait à les réécrire toutes pour changer une couleur, et le jour
+   où l'une d'elles est oubliée, deux tuiles du même nom s'afficheraient
+   différemment.
+   Conséquence assumée : renommer une catégorie perd son style. C'est un
+   renommage, pas une modification d'apparence, et deviner l'intention
+   reviendrait à deviner. */
+const catStyleOf = c => (c && (S.catStyle || {})[c]) || null;
+const catCo      = c => (catStyleOf(c) || {}).co || null;
+const catIcone   = c => {
+  const st = catStyleOf(c);
+  if(st && ICONES[st.ic]) return ICONES[st.ic];
+  return P_CAT[c]
+    /* Catégorie perso sans pictogramme choisi : une étoile, qui dit « la vôtre »
+       sans prétendre illustrer un mot que l'app ne connaît pas. Deviner depuis
+       « banger du moment » ne peut que tomber à côté. */
+    || ICONES.etoile;
+};
 const catChip = c => !c ? '' : `<span class="cchip"><svg viewBox="0 0 24 24"
-  aria-hidden="true">${catPicto(c)}</svg>${esc(catLabel(c))}</span>`;
+  aria-hidden="true">${catIcone(c)}</svg>${esc(catLabel(c))}</span>`;
+
+/* Les deux sélecteurs d'apparence, écrits une fois : ils servent au formulaire
+   de recette et à la retouche d'une catégorie existante depuis Mes recettes. */
+const icoGrille = ic => `
+  <div class="icogrid">${ICO_LISTE.map(k => `
+    <button type="button" data-ico="${k}" aria-pressed="${ic === k}" aria-label="${k}">
+      <svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[k]}</svg>
+    </button>`).join('')}</div>`;
+
+const teinteRow = co => `
+  <div class="teintes">${TEINTES.map(k => `
+    <button type="button" data-co="${k}" data-teinte="${k}" aria-pressed="${co === k}"
+      aria-label="Fond ${k}"></button>`).join('')}
+    <button type="button" data-teinte="" aria-pressed="${!co}" aria-label="Sans fond"
+      style="background:var(--card)"></button></div>`;
 
 /* Grille de sélection, commune à la création et à la modification. `sel` est la
    catégorie courante, `null` quand rien n'est choisi — ce qui reste permis : une
    recette sans catégorie se range sous « Sans catégorie » et n'est pas perdue,
-   là où imposer un choix ferait ranger au hasard. */
-function catGrille(sel, edit){
+   là où imposer un choix ferait ranger au hasard.
+
+   `ed` est l'état du panneau de personnalisation : `null` quand il est fermé, ou
+   `{ic, co}` — le pictogramme et la teinte en cours de choix. Un objet et non
+   deux booléens, pour que l'appelant n'ait qu'une chose à porter et que le
+   panneau ouvert sans rien choisi (`{}`) se distingue du panneau fermé. */
+function catGrille(sel, ed){
   const perso = sel && !P_CAT[sel];
+  const tuile = k => `<button type="button" class="ctile" data-cat="${k}"
+      ${catCo(k) ? `data-co="${catCo(k)}"` : ''} aria-pressed="${sel === k}">
+      <svg viewBox="0 0 24 24" aria-hidden="true">${catIcone(k)}</svg>
+      <span>${esc(catLabel(k))}</span>
+    </button>`;
   return `
     <div class="catgrid">
-      ${REC_CATS.map(k => `<button type="button" class="ctile" data-cat="${k}"
-          aria-pressed="${sel === k}">
-          <svg viewBox="0 0 24 24" aria-hidden="true">${P_CAT[k]}</svg>
-          <span>${esc(CUIS[k])}</span>
-        </button>`).join('')}
-      <button type="button" class="ctile" data-catperso aria-pressed="${!!perso}">
-        <svg viewBox="0 0 24 24" aria-hidden="true">${catPicto(perso ? sel : '~')}</svg>
-        <span>${perso ? esc(sel) : 'La mienne…'}</span>
-      </button>
+      ${REC_CATS.map(tuile).join('')}
+      ${perso ? tuile(sel) : `
+        <button type="button" class="ctile" data-catperso aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">${ICONES.etoile}</svg>
+          <span>La mienne…</span>
+        </button>`}
     </div>
-    ${edit ? `
+    ${ed ? `
       <div class="srchw mb">
         <input class="search" id="cat_n" maxlength="24" autocomplete="off"
                value="${esc(perso ? sel : '')}"
                placeholder="Le nom que vous voulez — ex. Banger du moment">
       </div>
-      <div class="actions" style="margin:-4px 0 4px">
+      <div class="unit" style="margin:2px 0 4px">Pictogramme</div>
+      ${icoGrille(ed.ic || null)}
+      <div class="unit" style="margin:2px 0 4px">Couleur du fond</div>
+      ${teinteRow(ed.co || null)}
+      <div class="actions" style="margin:-2px 0 4px">
         <button class="btn btn-2" data-catann>Annuler</button>
         <button class="btn btn-1" data-catok>Valider</button>
       </div>`
-    : sel ? `<button class="btn btn-2" data-catnon style="margin:0 0 4px">Retirer la
-        catégorie</button>` : ''}`;
+    : sel ? `<div class="actions" style="margin:0 0 4px">
+        <button class="btn btn-2" data-catnon>Retirer la catégorie</button>
+        <button class="btn btn-2" data-catedit>Personnaliser</button>
+      </div>` : ''}`;
 }
 
-/* Branchement de la grille. Un seul endroit pour les cinq gestes, parce que la
+/* Branchement de la grille. Un seul endroit pour tous les gestes, parce que la
    grille apparaît à la création comme à la modification et que dupliquer ces
    `onclick` garantissait qu'un jour l'un des deux oublierait la validation du
-   nom perso. L'appelant ne fournit que `appliquer(categorie, enEdition)` : à lui
+   nom perso. L'appelant ne fournit que `appliquer(categorie, edition)` : à lui
    de relire ses champs avant de repeindre, ce que lui seul sait faire. */
-function catBind(root, courant, appliquer){
+function catBind(root, courant, appliquer, edCourant){
+  const ed = () => (edCourant ? edCourant() : null) || {};
   root.querySelectorAll('[data-cat]').forEach(b => b.onclick = () =>
     /* Retoucher la tuile déjà choisie la désélectionne : c'est le geste attendu
        quand on s'est trompé, et il évite d'aller chercher « Retirer » plus bas. */
-    appliquer(b.dataset.cat === courant() ? null : b.dataset.cat, false));
+    appliquer(b.dataset.cat === courant() ? null : b.dataset.cat, null));
   const p = root.querySelector('[data-catperso]');
-  if(p) p.onclick = () => appliquer(courant(), true);
+  /* Ouverture sur l'apparence déjà enregistrée s'il y en a une : on retouche,
+     on ne repart pas de zéro. */
+  if(p) p.onclick = () => appliquer(courant(), Object.assign({}, catStyleOf(courant())));
+  const edt = root.querySelector('[data-catedit]');
+  if(edt) edt.onclick = () => appliquer(courant(), Object.assign({}, catStyleOf(courant())));
   const non = root.querySelector('[data-catnon]');
-  if(non) non.onclick = () => appliquer(null, false);
+  if(non) non.onclick = () => appliquer(null, null);
   const ann = root.querySelector('[data-catann]');
-  if(ann) ann.onclick = () => appliquer(courant(), false);
+  if(ann) ann.onclick = () => appliquer(courant(), null);
+
+  root.querySelectorAll('[data-ico]').forEach(b => b.onclick = () => {
+    const e = ed();
+    appliquer(courant(), Object.assign({}, e,
+      {ic: e.ic === b.dataset.ico ? null : b.dataset.ico}));
+  });
+  root.querySelectorAll('[data-teinte]').forEach(b => b.onclick = () =>
+    appliquer(courant(), Object.assign({}, ed(), {co: b.dataset.teinte || null})));
+
   const ok = root.querySelector('[data-catok]');
   if(ok) ok.onclick = () => {
     const el = root.querySelector('#cat_n');
-    const v = ((el && el.value) || '').trim().replace(/\s+/g, ' ').slice(0, 24);
-    if(v.length < 2) return toast('Deux lettres au minimum');
-    appliquer(v, false);
+    /* Une catégorie livrée garde son nom : le champ ne sert qu'aux persos, et le
+       laisser renommer « Italienne » créerait un doublon silencieux. */
+    const fixe = courant() && P_CAT[courant()];
+    const v = fixe ? courant()
+      : ((el && el.value) || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+    if(!fixe && v.length < 2) return toast('Deux lettres au minimum');
+    const e = ed();
+    S.catStyle = S.catStyle || {};
+    if(e.ic || e.co) S.catStyle[v] = {...(e.ic ? {ic:e.ic} : {}), ...(e.co ? {co:e.co} : {})};
+    else delete S.catStyle[v];
+    save();
+    appliquer(v, null);
   };
 }
 const MOIS_L = ['janvier','février','mars','avril','mai','juin',
