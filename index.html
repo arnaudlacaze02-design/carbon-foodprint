@@ -561,6 +561,34 @@ h2.sec{
 h2.sec::before{content:''; flex:0 0 auto; width:4px; height:.82em; border-radius:2px;
   background:var(--straw)}
 h2.sec:first-child{margin-top:2px}
+/* Panier de la saisie, logé dans le titre de section.
+   Ce qui vient d'être ajouté vit dans un récapitulatif posé sous les résultats
+   de recherche : sur un téléphone, il est sous le pli dès le premier ajout. On
+   ne voyait donc rien se passer en touchant « Ajouter », et le même aliment
+   repartait une seconde fois. Le panier remonte cette information à hauteur du
+   regard, à l'endroit exact où la question « comment le saisir ? » est posée.
+   Il ne remplace pas le récapitulatif — il y mène.
+   `margin-left:auto` et pas de largeur sur le titre : le filet ::before reste
+   le premier élément de la rangée, le texte pousse, le panier se colle à
+   droite. */
+.panier{
+  margin-left:auto; flex:0 0 auto; position:relative; padding:0;
+  width:34px; height:34px; border-radius:10px;
+  border:1px solid var(--line); background:var(--card);
+  display:flex; align-items:center; justify-content:center;
+}
+.panier svg{width:19px; height:19px; fill:none; stroke:var(--ink);
+  stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
+.panier:active{background:var(--active)}
+/* La pastille déborde du cadre : un liseré couleur page l'en détache sans
+   avoir à réserver de la place autour du bouton. */
+.panier .pz{
+  position:absolute; top:-6px; right:-6px;
+  min-width:18px; height:18px; padding:0 5px; box-sizing:border-box;
+  border-radius:9px; background:var(--brick); color:#fff;
+  font-family:var(--mono); font-size:10px; line-height:18px; text-align:center;
+  font-variant-numeric:tabular-nums; box-shadow:0 0 0 2px var(--paper);
+}
 /* Titre porté par une carte (Carbone, Calories, Semaine du…). Même police, calibre
    réduit : il ne doit pas concurrencer le titre de section au-dessus de lui. */
 .bt{font-family:var(--display); font-weight:800; font-size:17px; line-height:1.15;
@@ -6491,7 +6519,11 @@ function partAlims(k){
 const partCompte = k => partPlats(k).length + partAlims(k).length;
 
 function voieLine(isPlat){
-  const l = S.path === 'compose'  ? (S.partner ? 'Composer · ' + esc((partDe(S.partner)||{}).n || '') : 'Composer')
+  /* « Rechercher » et non plus « Composer » : le mot décrivait le geste de
+     l'app, pas celui de l'utilisateur, qui tape un nom dans une barre. Le nom
+     interne de la voie reste `compose` — le changer casserait les brouillons
+     repris d'une version précédente, qui portent cette valeur. */
+  const l = S.path === 'compose'  ? (S.partner ? 'Rechercher · ' + esc((partDe(S.partner)||{}).n || '') : 'Rechercher')
           : S.path === 'part'     ? (S.partner ? esc((partDe(S.partner)||{}).n || 'Partenaires') : 'Restaurants et partenaires')
           : S.path === 'recettes' ? 'Mes recettes'
           : isPlat ? 'Plat standard' : 'Plats types';
@@ -6519,7 +6551,7 @@ function modeLine(soft){
 
    Les choix sont volontairement courts. Une liste de vingt viandes redemande le
    travail qu'on prétendait éviter : qui sait que c'était du veau et pas du bœuf
-   passe par « Composer », où toute la base est accessible. */
+   passe par « Rechercher », où toute la base est accessible. */
 const STD_PROT = ['vianderouge','viandeblanche','poissonmoyen','crevettes'];
 const STD_FEC  = ['riz','pates','pommedeterre','ble','feculentmoyen'];
 const STD_LEG  = ['legumesaison','courgette','brocoli','haricotvert','carotte','epinard','poivron',
@@ -6597,7 +6629,7 @@ function stdPanel(){
       Les grammages restent modifiables après ajout.</div>`;
 }
 
-/* ==================== voie « Composer » ====================
+/* ==================== voie « Rechercher » (clé interne : compose) ====================
    Une seule barre pour tout : les plats types et les aliments bruts. Les
    séparer obligeait à deviner, avant de taper, dans laquelle des deux listes se
    trouvait « lentilles » — et la réponse était : les deux. */
@@ -6777,7 +6809,7 @@ function partenairesPanel(){
             le premier. Il sera rangé ici et proposé d’un doigt les fois suivantes.</p>
         </div>`}
     <div class="actions" style="margin-top:12px">
-      <button class="btn btn-1" id="pt_comp">Composer un plat pris ${
+      <button class="btn btn-1" id="pt_comp">Ajouter un plat pris ${
         p.t === 'Restaurant' ? 'ici' : 'chez ' + esc(p.n)}</button>
     </div>`;
 }
@@ -6840,6 +6872,26 @@ function recettesPanel(mes){
    remplacer le contenu de la vue, le bouton n'a pas encore de position quand le
    gestionnaire de clic se termine. Doux et non brutal, pour que le mouvement se
    lise comme une réponse au geste plutôt que comme un saut. */
+/* Le panier n'apparaît que lorsqu'il y a quelque chose dedans : un panier vide
+   affiché en permanence est un bouton de plus à ignorer, et sa pastille à zéro
+   ne dit rien que l'écran ne dise déjà.
+   Le décompte porte sur le repas entier, services compris, et non sur le seul
+   service en cours : c'est le repas qu'on enregistre, et c'est le total qu'on
+   cherche à retrouver avant de valider. */
+function panierBtn(){
+  const n = S.draft.length;
+  if(!n) return '';
+  return `<button class="panier" id="panier" type="button"
+    aria-label="Voir le panier · ${n} ligne${n > 1 ? 's' : ''} dans ce repas">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.1 8.6h17.8l-1.6 9.6a2.1 2.1 0 0 1-2.1 1.8H6.8a2.1 2.1 0 0 1-2.1-1.8z"/>
+      <path d="M8.4 8.6a3.6 3.6 0 0 1 7.2 0"/>
+      <path d="M9.7 12.4l.5 4.1M14.3 12.4l-.5 4.1"/>
+    </svg>
+    <span class="pz">${n}</span>
+  </button>`;
+}
+
 function versValider(){
   requestAnimationFrame(() => {
     /* Dans un repas à services, c'est « Valider l'entrée » ; dans un
@@ -7100,9 +7152,9 @@ function renderSaisie(){
             : 'Terminer le repas ›')}</button>
     </div>
     ${S.mode ? modeLine(true) : ''}
-    <h2 class="sec">${platChoix ? 'Comment le saisir ?' : step.q}</h2>`
+    <h2 class="sec">${platChoix ? 'Comment le saisir ?' : step.q}${panierBtn()}</h2>`
    : `${S.mode ? modeLine(true) : ''}<h2 class="sec">${editing && hasCourses
-       ? 'Corriger le repas' : 'Comment le saisir ?'}</h2>`}
+       ? 'Corriger le repas' : 'Comment le saisir ?'}${panierBtn()}</h2>`}
 
   ${step && QUICK[step.k] ? `
     <div class="drinkgrid">
@@ -7140,10 +7192,10 @@ function renderSaisie(){
         Le plus rapide, et suffisant pour la plupart des repas de tous les jours.</span>
     </button>` : ''}
     <button class="mcard" data-path="compose">
-      <span class="mct">Composer</span>
+      <span class="mct">Rechercher</span>
       <span class="mcn">${DB.foods.length + DISHES().length}</span>
-      <span class="mcs">Une seule barre pour tout : les aliments bruts avec leurs grammes,
-        et les plats types de la base. Le plus juste quand on sait ce qu’il y avait dedans.</span>
+      <span class="mcs">Recherche des aliments et des plats types que vous pourrez
+        personnaliser : les grammes se corrigent ligne par ligne après l’ajout.</span>
     </button>
     <button class="mcard" data-path="part">
       <span class="mct">Restaurants et partenaires</span>
@@ -7169,7 +7221,7 @@ function renderSaisie(){
 
   ${editing && hasCourses ? editBoxes(srchDansCadre ? composePanel(resultats) : '') : ''}
 
-  ${inStep.length && !(editing && hasCourses) ? `<div class="card" style="margin-top:12px">
+  ${inStep.length && !(editing && hasCourses) ? `<div class="card" id="dcart" style="margin-top:12px">
     ${(step ? inStep.map(l => ({l, i:S.draft.indexOf(l)})) : S.draft.map((l,i) => ({l, i})))
       .map(x => `<div class="draft-line">
         <span class="nm">${esc(F.get(x.l[0]).n)}</span>
@@ -7251,6 +7303,20 @@ function renderSaisie(){
   const dqx = $('#dqx');
   if(dqx) dqx.onclick = () => { S.dishQ = ''; renderSaisie(); const n = $('#dq'); if(n) n.focus(); };
 
+  /* Le panier descend au récapitulatif du service en cours. Ce récapitulatif
+     n'est pas toujours à l'écran — dans un repas à services, il ne se rend que
+     si le service visé contient au moins une ligne, alors que le panier compte
+     le repas entier. Dans ce cas on renvoie au bouton de validation, qui est
+     l'autre endroit d'où l'on voit le total : mieux vaut atterrir un cran plus
+     loin que ne rien faire du tout. */
+  const pnr = $('#panier');
+  if(pnr) pnr.onclick = () => {
+    const c = $('#dcart');
+    if(!c || typeof c.scrollIntoView !== 'function') return versValider();
+    try{ c.scrollIntoView({behavior:'smooth', block:'center'}); }
+    catch(e){ c.scrollIntoView(); }
+  };
+
   /* La ligne de provenance remplace l'ancien sélecteur `[data-mode]` : elle
      renvoie à la page dédiée, qui saura revenir ici grâce à S.modeFrom. */
   const meEd = $('#modeEdit'); if(meEd) meEd.onclick = gotoMode;
@@ -7288,6 +7354,12 @@ function renderSaisie(){
               composeur standard ne le concerne pas et ne doit pas court-circuiter
               le garde-fou de portion. */
            S.platLarge = false;
+           /* La recherche s'efface à l'ajout. Une liste de résultats qui reste
+              en place après un « Ajouter » ne dit pas si le geste a porté, et
+              c'est le doublon assuré : on retouche la même ligne. La barre
+              revient vide, prête pour l'aliment suivant, et la pastille du
+              panier fait la confirmation. */
+           S.dishQ = '';
            renderSaisie(); versValider(); toast(`${d.n} ajouté`); } });
   view.querySelectorAll('[data-star]').forEach(b => b.onclick = () => {
     const n = b.dataset.star, fi = S.favs.findIndex(f => f.n === n);
@@ -7316,6 +7388,7 @@ function renderSaisie(){
     if(!F.has(sl)) return;
     S.draft.push([sl, comPortion(sl), S.comCat, S.mode]);
     S.platLarge = false;
+    S.dishQ = '';   /* même raison que pour les plats, voir data-additem */
     renderSaisie(); toast(`${F.get(sl).n} ajouté`);
   });
   view.querySelectorAll('[data-foodinfo]').forEach(b => b.onclick = () => foodSheet(b.dataset.foodinfo));
@@ -8249,10 +8322,18 @@ function profQuiz(i){
   const oblig = q.ident || q.k === 'regime';
   const passer = oblig ? ''
     : `<button class="btn btn-2" id="q_skip">${cur != null && cur !== '' ? 'Garder, suivant' : 'Passer'}</button>`;
+  /* « Passer » à gauche, le bouton qui avance à droite. Deux raisons, et la
+     seconde compte plus que la première : l'app se tient d'une main, et le
+     pouce d'un droitier couvre le côté droit sans que la main se déplace ; mais
+     surtout, à gauche le bouton d'avancement était voisin immédiat du chevron
+     de retour, en haut à gauche lui aussi. Deux gestes opposés au même endroit,
+     c'est un questionnaire qu'on remonte par erreur.
+     L'ordre est celui du DOM : `.actions` est une rangée flex, il n'y a rien
+     d'autre à régler. */
   const actions = q.ident
     ? `<button class="btn btn-1" id="q_next">Commencer ›</button>`
-    : `${q.opts ? '' : `<button class="btn btn-1" id="q_next">${
-        i === steps.length - 1 ? 'Terminer' : 'Suivant ›'}</button>`}${passer}`;
+    : `${passer}${q.opts ? '' : `<button class="btn btn-1" id="q_next">${
+        i === steps.length - 1 ? 'Terminer' : 'Suivant ›'}</button>`}`;
 
   qRender({i, n:steps.length, restant, bar, corps, actions, titre:q.q, note:q.note});
 
