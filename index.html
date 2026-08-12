@@ -877,6 +877,34 @@ p{margin:0 0 9px}
 .rstep p{margin:0; font-size:14px; line-height:1.5}
 a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; word-break:break-word}
 
+/* Grille de catégories. Des carrés et non une liste : à cette taille le
+   pictogramme se lit d'un coup d'œil là où neuf lignes de texte demandent de
+   lire, et le pouce vise une cible de 90 px au lieu d'un rang de 40. Trois
+   colonnes tiennent sur le plus étroit des téléphones sans que le nom se coupe.
+   `aspect-ratio` plutôt qu'une hauteur fixe : la tuile reste carrée quelle que
+   soit la largeur de l'écran, ce qui est tout l'intérêt du format. */
+.catgrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:2px 0 4px}
+.ctile{aspect-ratio:1/1; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:7px; padding:8px 6px; border:1px solid var(--line);
+  border-radius:13px; background:var(--card); text-align:center}
+.ctile svg{width:26px; height:26px; fill:none; stroke:var(--ink-soft);
+  stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
+.ctile span{font-size:11.5px; line-height:1.25; color:var(--ink-soft); font-weight:600}
+.ctile:active{background:var(--active)}
+/* Sélection : la bordure seule ne suffit pas sur un fond clair, le fond teinté
+   fait le travail et la coche lève toute ambiguïté quand deux tuiles voisines
+   se ressemblent. */
+.ctile[aria-pressed="true"]{border-color:var(--forest-2); background:var(--kpi-good);
+  box-shadow:inset 0 0 0 1px var(--forest-2)}
+.ctile[aria-pressed="true"] svg{stroke:var(--forest)}
+.ctile[aria-pressed="true"] span{color:var(--forest)}
+/* Puce de rappel, dans les listes et les en-têtes de fiche. */
+.cchip{display:inline-flex; align-items:center; gap:5px; padding:3px 8px 3px 6px;
+  border-radius:999px; background:var(--seg-bg); font-family:var(--mono);
+  font-size:9.5px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft)}
+.cchip svg{width:13px; height:13px; fill:none; stroke:currentColor;
+  stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+
 .srchw{position:relative}
 .srchw.mb{margin:2px 0 10px}
 .srchw > .search{margin:0}
@@ -2119,6 +2147,7 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          fv:'actu', notif:NOTIF0(), nutri:true, marques:{}, notes:undefined,
          plike:{}, pcom:{}, rq:null, rtab:'ing',
          cv:'frigo', frigo:[], fgq:'', fgCarb:'', fgSais:false, fgCui:'',
+         mesRec:[], mrCat:'', mrTab:'ing',
          partner:null, parts:[], podium:{or:0, argent:0, bronze:0},
          platLarge:false, modeFrom:null,
          stdP:null, stdF:null, stdL:null, stdSize:'normal',
@@ -2129,7 +2158,7 @@ function save(){
         tomb:S.tomb, stdInit:S.stdInit, starred:S.starred, lastSync:S.lastSync,
         prof:S.prof, people:S.people, notif:S.notif, nutri:S.nutri,
         marques:S.marques, pmVu:S.pmVu, frigo:S.frigo, parts:S.parts,
-        podium:S.podium, skip:S.skip, noask:S.noask})); }catch(e){}
+        podium:S.podium, skip:S.skip, noask:S.noask, mesRec:S.mesRec})); }catch(e){}
   /* Les signaux d'attente se recalculent à partir de S : les repeindre ici,
      c'est garantir qu'ils ne mentent jamais après une écriture, sans avoir à
      penser à les appeler depuis chacun des vingt endroits qui écrivent.
@@ -2145,6 +2174,11 @@ function load(){
      synchronisées, comme le frigo : c'est une déclaration d'intention sur un
      appareil, pas une donnée de compte. */
   S.skip=[]; S.noask=[];
+  /* Mes recettes. Locales et non synchronisées, comme le frigo : c'est un carnet
+     de cuisine, pas une donnée de compte. Le partage explicite reste le seul
+     chemin vers le serveur — et il produit une publication, pas une copie
+     silencieuse. */
+  S.mesRec=[];
   try{
     const raw = localStorage.getItem(dataKey());
     if(raw){ const o = JSON.parse(raw);
@@ -2166,6 +2200,15 @@ function load(){
          reviendrait à stocker une donnée de vie privée sans contrepartie. */
       S.frigo = Array.isArray(o.frigo) ? o.frigo.filter(s => F.has(s)) : [];
       S.parts = Array.isArray(o.parts) ? o.parts.filter(x => x && x.k && x.n) : [];
+      /* Relecture large : une recette dont un ingrédient a disparu de la base
+         garde sa place et perd la ligne, plutôt que d'être jetée entière. Il
+         faut seulement un identifiant et un titre pour être affichable. */
+      S.mesRec = Array.isArray(o.mesRec)
+        ? o.mesRec.filter(r => r && r.id && r.t).map(r => Object.assign({}, r, {
+            ing: Array.isArray(r.ing) ? r.ing.filter(l => Array.isArray(l) && F.has(l[0])) : [],
+            autres: Array.isArray(r.autres) ? r.autres : [],
+            prep: Array.isArray(r.prep) ? r.prep : []}))
+        : [];
       S.podium = Object.assign({or:0, argent:0, bronze:0}, o.podium || {});
       stamp(); return true; }
   }catch(e){}
@@ -3590,11 +3633,15 @@ async function rqLire(url){
    devinette. Ce qui n'existe pas dans la base — épices, herbes, sel — part dans
    « Autres », en texte libre et hors du calcul. */
 function recipeSheet(){
-  if(!SESS) return toast('Il faut un compte pour publier');
+  /* Plus de verrou à l'entrée. Une recette part désormais dans un carnet local :
+     exiger un compte pour l'écrire reviendrait à exiger un compte pour tenir un
+     carnet sur son propre téléphone. Le compte redevient nécessaire là où il
+     l'est réellement — lire une page côté serveur, et partager — et c'est dit à
+     ces deux endroits précis plutôt qu'ici, à l'aveugle. */
   /* Un brouillon écrit par une version d'avant la portée n'a pas de `dst` :
      `undefined` doit valoir « tous », pas une liste vide. */
   S.rq = S.rq || {title:'', pers:2, ing:[], autres:'', prep:'', url:'', q:'',
-                  labp:null, ingp:null, dst:null,
+                  labp:null, ingp:null, dst:null, cat:null, catEdit:false, editId:null,
                   mode:'man', lien:'', lu:null, err:null, occupe:false};
   const q = S.rq;
   if(q.dst === undefined) q.dst = null;
@@ -3636,6 +3683,11 @@ function recipeSheet(){
     $('#sheet').querySelectorAll('[data-rqm]').forEach(b => b.onclick = () => {
       collecte();
       if(q.mode === b.dataset.rqm) return;
+      /* La lecture d'une page se fait côté serveur, avec le jeton de session :
+         c'est le seul des deux modes qui ait besoin d'un compte, et le dire ici
+         vaut mieux que de laisser l'onglet s'ouvrir sur un refus. */
+      if(b.dataset.rqm === 'url' && !SESS)
+        return toast('La lecture d’un lien demande un compte · la saisie manuelle, non');
       q.mode = b.dataset.rqm; q.err = null;
       peint();
     });
@@ -3802,6 +3854,10 @@ function recipeSheet(){
         <button class="btn btn-2" id="rq_ad" style="margin-top:8px">Recalculer les quantités
           pour ${pers} personne${pers > 1 ? 's' : ''}</button></div>` : ''}
 
+      <div class="unit" style="margin:10px 0 4px">Catégorie${
+        q.cat ? '' : ' · facultative'}</div>
+      ${catGrille(q.cat, q.catEdit)}
+
       <div class="unit" style="margin:8px 0 4px">Ingrédients</div>
       <div class="pick srchw${q.q ? ' on' : ''}">
         <input id="rq_q" type="text" inputmode="search" autocomplete="off" autocapitalize="off"
@@ -3839,18 +3895,32 @@ function recipeSheet(){
       <input class="search" id="rq_u" maxlength="300" inputmode="url" autocapitalize="off"
              value="${esc(q.url)}" placeholder="Lien vers la recette (facultatif)">
 
-      ${portee()}
+      ${SESS ? portee() : ''}
 
-      <div class="actions" style="margin-top:6px">
-        <button class="btn btn-1" id="rq_go">Publier</button>
+      <div class="actions" style="margin-top:10px">
         <button class="btn btn-2" id="rq_no">Annuler</button>
+        <button class="btn btn-1" id="rq_go">${q.editId ? 'Enregistrer les modifications'
+          : 'Enregistrer dans mes recettes'}</button>
       </div>
-      <div class="src" style="margin-top:8px">${Array.isArray(q.dst)
-        ? `Visible des seules personnes cochées`
-        : `Visible de vos amis`}, qui pourront l’enregistrer dans leurs
-        plats types. Ce qui figure dans « Autres » ne compte pas dans l’empreinte : elle est donc minorante.</div>`);
+      ${SESS ? `<div class="actions" style="margin-top:8px">
+        <button class="btn btn-2" id="rq_sh" style="flex:1">Enregistrer et partager à mes amis</button>
+      </div>` : ''}
+      <div class="src" style="margin-top:8px">Enregistrer garde la recette sur cet appareil, dans
+        Mes recettes : rien ne part au serveur. ${SESS
+          ? `Partager publie en plus une idée de recette ${Array.isArray(q.dst)
+              ? 'visible des seules personnes cochées'
+              : 'visible de vos amis'}, qui pourront l’enregistrer dans leurs plats types.`
+          : 'Le partage à des amis demande un compte.'}
+        Ce qui figure dans « Autres » ne compte pas dans l’empreinte : elle est donc minorante.</div>`);
 
     brancheOnglets();
+
+    catBind($('#sheet'), () => q.cat, (cat, edit) => {
+      collecte(); q.cat = cat; q.catEdit = !!edit; peint();
+      /* Le champ de nom perso vient d'apparaître : lui donner le curseur évite
+         un second geste pour une fenêtre dont c'est le seul contenu. */
+      if(edit){ const n = $('#cat_n'); if(n){ n.focus(); n.select(); } }
+    });
 
     const qi = $('#rq_q'), sg = $('#rq_sg');
     const peintSugg = () => {
@@ -3913,34 +3983,86 @@ function recipeSheet(){
 
     $('#rq_no').onclick = () => { S.rq = null; closeSheet(); };
 
-    const go = $('#rq_go');
-    go.onclick = async () => {
-      collecte();
-      if((q.title || '').trim().length < 3) return toast('Il faut un titre');
-      if(Array.isArray(q.dst) && !q.dst.length)
-        return toast('Personne de coché : choisissez au moins un ami');
+    /* Le brouillon devient une recette du carnet. Cette conversion est le seul
+       endroit qui connaisse la forme des deux objets, et c'est voulu : le partage
+       plus bas repart de la recette enregistrée, jamais du brouillon. Enregistrer
+       puis partager donne donc exactement ce qui est dans le carnet — sans quoi
+       les deux chemins pourraient diverger d'un champ. */
+    const versRecette = () => {
       const decoupe = v => (v || '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 40);
       let url = (q.url || '').trim();
       if(url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
-
-      go.disabled = true; go.textContent = 'Publication…';
-      /* `lab` n'est publié que s'il porte quelque chose : une recette saisie à
-         la main n'a pas de libellé de source, et un tableau de chaînes vides
-         alourdirait chaque publication pour rien. `labp` voyage avec lui — sans
-         ce rendement, un lecteur qui pousse les portions verrait les libellés
-         mis à l'échelle depuis une base qui n'est pas la leur. */
       const lab = q.ing.map(l => l[2] || '');
-      const r = await postNew('recipe', {
-        title: q.title.trim(), pers: q.pers, ing: q.ing.map(l => [l[0], l[1]]),
+      return {
+        id: q.editId || 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        t: q.title.trim().slice(0, 90), pers: Math.max(1, q.pers),
+        ing: q.ing.map(l => [l[0], l[1]]),
         ...(lab.some(Boolean) ? {lab, ...(q.labp ? {labp:q.labp} : {})} : {}),
-        autres: decoupe(q.autres), prep: decoupe(q.prep), url: url || null},
-        Array.isArray(q.dst) ? q.dst : undefined);
-      if(!r.ok){ go.disabled = false; go.textContent = 'Publier'; return toast(r.msg); }
+        autres: decoupe(q.autres), prep: decoupe(q.prep),
+        url: url || null, cat: q.cat || null,
+        /* Base réelle des grammages, quand elle diffère du nombre de personnes
+           déclaré. Sans elle, une recette dont on a poussé « Recette pour » sans
+           toucher aux quantités enregistrerait le nouveau chiffre et l'écart
+           deviendrait invisible : à la réouverture, le bandeau qui propose le
+           recalcul ne s'afficherait plus et l'empreinte par personne resterait
+           fausse sans que rien ne le dise. */
+        ...(q.ingp && q.ingp !== q.pers ? {ingp:q.ingp} : {}),
+        ts: Date.now(), src: q.lu ? q.lu.site : null};
+    };
 
+    /* Le corps de publication est fabriqué par mrPost(), la même fonction que le
+       bouton « Partager » de la fiche. Deux fabriques auraient fini par publier
+       deux formes différentes selon le chemin emprunté — et l'écart n'aurait été
+       visible que chez l'ami qui reçoit. */
+
+    const valide = () => {
+      collecte();
+      if((q.title || '').trim().length < 3){ toast('Il faut un titre'); return null; }
+      return versRecette();
+    };
+
+    const ranger = r => {
+      const i = S.mesRec.findIndex(x => x.id === r.id);
+      if(i >= 0) S.mesRec[i] = r; else S.mesRec.unshift(r);
+      save();
+      return i >= 0;
+    };
+
+    /* Volontairement pas nommé `go` : l'ancien code appelait ainsi le bouton, ce
+       qui masquait la fonction de navigation du même nom dans toute la portée. */
+    const bEnr = $('#rq_go');
+    bEnr.onclick = () => {
+      const r = valide();
+      if(!r) return;
+      const modif = ranger(r);
       S.rq = null; closeSheet();
-      toast(!r.amis ? 'Recette publiée dans Actu'
-        : r.choisi ? `Recette publiée · pour ${r.amis} ami${r.amis > 1 ? 's' : ''} seulement`
-                   : `Recette publiée · visible de ${r.amis} ami${r.amis > 1 ? 's' : ''}`);
+      toast(modif ? 'Recette modifiée' : `« ${r.t} » ajoutée à mes recettes`);
+      /* On dépose l'utilisateur devant le résultat de son geste : la recette
+         vient d'être rangée quelque part, il faut voir où. */
+      S.cv = 'recettes';
+      if(S.tab === 'biblio') renderCuisine(); else go('biblio');
+    };
+
+    const sh = $('#rq_sh');
+    if(sh) sh.onclick = async () => {
+      const r = valide();
+      if(!r) return;
+      if(Array.isArray(q.dst) && !q.dst.length)
+        return toast('Personne de coché : choisissez au moins un ami');
+      /* Enregistré avant l'appel réseau, et non après : si la publication échoue,
+         la recette est déjà en sécurité dans le carnet et il ne reste qu'à
+         retoucher le partage. L'inverse ferait perdre la saisie sur une coupure. */
+      ranger(r);
+      sh.disabled = true; sh.textContent = 'Publication…';
+      const res = await postNew('recipe', mrPost(r), Array.isArray(q.dst) ? q.dst : undefined);
+      if(!res.ok){
+        sh.disabled = false; sh.textContent = 'Enregistrer et partager à mes amis';
+        return toast('Enregistrée, mais pas partagée · ' + res.msg);
+      }
+      S.rq = null; closeSheet();
+      toast(!res.amis ? 'Recette enregistrée et publiée dans Actu'
+        : res.choisi ? `Enregistrée et partagée · ${res.amis} ami${res.amis > 1 ? 's' : ''}`
+                     : `Enregistrée et partagée · visible de ${res.amis} ami${res.amis > 1 ? 's' : ''}`);
       S.fv = 'actu';
       frPosts();
     };
@@ -3954,7 +4076,14 @@ function recipeSheet(){
 function recSave(id){
   const x = (S.posts || []).find(y => y.id === id);
   if(!x) return;
-  const b = x.body || {};
+  recSaveBody(x.body || {});
+}
+
+/* Le même geste depuis une recette du carnet. La feuille ne connaît que la forme
+   `b` — celle des publications —, ce qui évite d'en écrire une seconde version
+   pour les recettes locales : elles se présentent sous cette forme et repassent
+   par le même code. */
+function recSaveBody(b){
   if(!recStruct(b))
     return toast('Recette en texte libre, antérieure aux ingrédients mesurés : rien à convertir');
 
@@ -5720,18 +5849,78 @@ function frigoDel(slug){
    depuis un lien et la saisie manuelle sont les deux faces d'un même écran —
    recipeSheet gère déjà le va-et-vient entre les deux — d'où deux boutons et
    une seule feuille. */
+/* Une recette du carnet se présente sous la forme `b` des publications : c'est
+   ce qui lui donne gratuitement recIng(), recPrep(), ringBloc() et la réglette
+   de portions, donc exactement la lecture du module recette du feed. Une seule
+   fonction de conversion, appelée partout, plutôt qu'un objet remodelé à la main
+   à chaque usage.
+
+   `pers` porte la base des grammages et non le nombre de personnes déclaré. Les
+   deux coïncident presque toujours ; ils divergent quand on a corrigé « Recette
+   pour » sans recalculer les quantités — le formulaire le signale et propose le
+   recalcul, mais on peut passer outre. Dans ce cas c'est `ingp` qui dit à quoi
+   correspondent réellement les grammes, et diviser par le chiffre déclaré
+   donnerait une empreinte par personne fausse, ici comme dans la conversion en
+   plat type comme chez l'ami qui reçoit le partage. */
+const mrBody = r => ({title:r.t, pers:Math.max(1, r.ingp || r.pers), ing:r.ing,
+                      lab:r.lab, labp:r.labp,
+                      autres:r.autres, prep:r.prep, url:r.url});
+/* Corps de publication : la même chose, plus le rangement. Un ami qui enregistre
+   la recette hérite de la catégorie de son auteur, ce qui vaut mieux que de le
+   lui faire refaire. */
+const mrPost = r => Object.assign(mrBody(r), r.cat ? {cat:r.cat} : {});
+const mrGet  = id => (S.mesRec || []).find(r => r.id === id);
+
 function cuiRecettes(){
-  /* Les recettes complètes du référentiel : celles qui portent à la fois les
-     libellés de leur source (`lab`) et le lien vers la page d'origine (`u`).
-     Les autres plats types n'ont que des grammages, utiles au calcul et muets
-     à qui cherche quoi cuisiner. */
-  const mois = new Date().getMonth();
-  const rec = DISHES().filter(d => d.lab && d.u)
-    .map(d => ({d, n:d.n, kg:kgOf(d.l), sais:saisPart(d.l, mois), cui:cuiOf(d)}))
-    .sort((a, b) => a.kg - b.kg);
+  const L = S.mesRec || [];
+  /* Les catégories offertes au filtre sont celles réellement portées par le
+     carnet, y compris les persos : un onglet « Mexicaine » qui ne ramène rien
+     est un bouton mort, et une catégorie inventée par l'utilisateur mérite son
+     filtre autant que les huit livrées. */
+  const cats = [...new Set(L.map(r => r.cat).filter(Boolean))]
+    .sort((a, b) => catLabel(a).localeCompare(catLabel(b), 'fr'));
+  if(S.mrCat && S.mrCat !== '~' && !cats.includes(S.mrCat)) S.mrCat = '';
+  const sansCat = L.some(r => !r.cat);
+  const rows = L
+    .filter(r => !S.mrCat || (S.mrCat === '~' ? !r.cat : r.cat === S.mrCat))
+    .map(r => ({r, kg: kgOf(r.ing), pers: Math.max(1, r.pers)}))
+    .sort((a, b) => (b.r.ts || 0) - (a.r.ts || 0));
 
   return `
-  <div class="card reco" style="margin-top:0">
+  <h2 class="sec">Mes recettes</h2>
+  <div class="card" style="margin:0 0 14px">
+    <p class="small" style="margin:0">Votre carnet, sur cet appareil seulement.
+      ${L.length ? `${L.length} recette${L.length > 1 ? 's' : ''} enregistrée${L.length > 1 ? 's' : ''}.`
+        : 'Rien n’y est encore.'}
+      Rien n’est envoyé au serveur : une recette ne part chez vos amis que si vous
+      touchez « Partager », depuis sa fiche.</p>
+  </div>
+
+  ${L.length ? `
+    <div class="chips">
+      <button class="chip" aria-pressed="${!S.mrCat}" data-mrc="">Tout</button>
+      ${cats.map(k => `<button class="chip" aria-pressed="${S.mrCat === k}"
+          data-mrc="${esc(k)}">${esc(catLabel(k))}</button>`).join('')}
+      ${sansCat ? `<button class="chip" aria-pressed="${S.mrCat === '~'}"
+          data-mrc="~">Sans catégorie</button>` : ''}
+    </div>
+    <div class="list" style="margin-top:8px">
+      ${rows.length ? rows.map(({r, kg, pers}) => `
+        <button class="frow" data-mr="${esc(r.id)}">
+          <div class="nm">${esc(r.t)}</div>
+          <div class="fk">${n2(kg / pers)}<small>kg CO₂e / pers</small></div>
+          <div class="fm">${r.cat ? catChip(r.cat) + ' · ' : ''}${r.ing.length} ingrédient${
+            r.ing.length > 1 ? 's' : ''}${r.prep.length ? ` · ${r.prep.length} étape${
+            r.prep.length > 1 ? 's' : ''}` : ' · pas de préparation'}${
+            r.src ? ' · ' + esc(r.src) : ''}</div>
+        </button>`).join('')
+      : `<div class="empty">Aucune recette dans cette catégorie.</div>`}
+    </div>`
+  : `<div class="empty" style="margin-bottom:14px">Ajoutez une première recette : collez le lien
+      d’un site de cuisine, ou saisissez les ingrédients à la main. L’empreinte par personne se
+      calcule à la volée, et vous pourrez la ranger dans une catégorie.</div>`}
+
+  <div class="card reco">
     <div class="rhead">
       <span class="ri"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
       <span class="rt">
@@ -5741,10 +5930,11 @@ function cuiRecettes(){
       </span>
     </div>
     <div class="actions" style="margin-top:12px">
-      <button class="btn btn-1" id="cr_url">Depuis un lien</button>
-      <button class="btn btn-2" id="cr_man">Saisie manuelle</button>
+      <button class="btn btn-1" id="cr_man">Saisie manuelle</button>
+      <button class="btn btn-2" id="cr_url">Depuis un lien</button>
     </div>
-    ${SESS ? '' : `<div class="note">Il faut un compte pour enregistrer et partager une recette.</div>`}
+    ${SESS ? '' : `<div class="note">La saisie manuelle fonctionne sans compte : la recette reste
+      sur cet appareil. Lire un lien et partager en demandent un.</div>`}
   </div>
 
   <div class="card reco">
@@ -5764,34 +5954,202 @@ function cuiRecettes(){
     </div>
   </div>
 
+  <div class="src" style="margin:12px 2px 0">Les recettes détaillées du référentiel ont rejoint la
+    Bibliothèque : cet onglet est le vôtre, il ne montre que ce que vous y mettez.</div>`;
+}
+
+/* Liste des recettes complètes du référentiel : celles qui portent à la fois les
+   libellés de leur source (`lab`) et le lien vers la page d'origine (`u`). Les
+   autres plats types n'ont que des grammages, utiles au calcul et muets à qui
+   cherche quoi cuisiner.
+
+   Elles vivaient dans « Mes recettes », qui est devenu privé. Un carnet personnel
+   mêlé à un catalogue livré avec l'app ne laisse plus voir ce qu'on y a mis
+   soi-même — et c'est tout ce qu'on vient y chercher. Leur place est ici, à côté
+   des aliments de référence dont elles sont faites. */
+function biblioRecettes(){
+  const mois = new Date().getMonth();
+  const rec = DISHES().filter(d => d.lab && d.u)
+    .map(d => ({d, n:d.n, kg:kgOf(d.l), sais:saisPart(d.l, mois), cui:cuiOf(d)}))
+    .sort((a, b) => a.kg - b.kg);
+  if(!rec.length) return '';
+  return `
   <h2 class="sec">Recettes détaillées du référentiel</h2>
   <div class="list">
-    ${rec.length ? rec.map(x => `
+    ${rec.map(x => `
       <button class="frow" data-rec="${esc(x.n)}">
         <div class="nm">${esc(x.n)}</div>
         <div class="fk">${n2(x.kg)}<small>kg CO₂e</small></div>
         <div class="fm">${x.d.src_n ? esc(x.d.src_n) : 'source non nommée'}${
           x.cui ? ' · ' + esc(CUIS[x.cui] || x.cui) : ''}${
           x.sais != null ? ` · ${n0(x.sais)} % de saison` : ''}</div>
-      </button>`).join('')
-    : `<div class="empty">Aucune recette détaillée pour l’instant.</div>`}
-    ${rec.length ? `<div class="count">${rec.length} recette${rec.length > 1 ? 's' : ''}
-      avec quantités d’origine et lien vers la source</div>` : ''}
+      </button>`).join('')}
+    <div class="count">${rec.length} recette${rec.length > 1 ? 's' : ''}
+      avec quantités d’origine et lien vers la source</div>
   </div>`;
 }
 
 function bindRecettes(){
   /* recipeSheet crée S.rq au premier appel avec son propre gabarit. On le
      laisse faire puis on impose l'onglet voulu, plutôt que de recopier ici une
-     forme d'objet qui se désynchroniserait au premier champ ajouté. */
+     forme d'objet qui se désynchroniserait au premier champ ajouté.
+     Un brouillon de modification traîne peut-être : on l'écarte avant d'ouvrir
+     une création, sinon « Ajouter » rouvrirait la recette qu'on éditait. */
   const ouvrir = mode => {
-    if(!SESS) return toast('Il faut un compte pour publier une recette');
+    if(mode === 'url' && !SESS)
+      return toast('La lecture d’un lien demande un compte · la saisie manuelle, non');
+    if(S.rq && S.rq.editId) S.rq = null;
     recipeSheet();
     if(S.rq && S.rq.mode !== mode){ S.rq.mode = mode; recipeSheet(); }
   };
   const u = $('#cr_url'); if(u) u.onclick = () => ouvrir('url');
   const m = $('#cr_man'); if(m) m.onclick = () => ouvrir('man');
-  view.querySelectorAll('[data-rec]').forEach(b => b.onclick = () => recetteSheet(b.dataset.rec));
+  view.querySelectorAll('[data-mrc]').forEach(b =>
+    b.onclick = () => { S.mrCat = b.dataset.mrc; renderCuisine(); });
+  view.querySelectorAll('[data-mr]').forEach(b =>
+    b.onclick = () => mesRecSheet(b.dataset.mr));
+}
+
+/* ==================== fiche d'une recette du carnet ====================
+   La lecture est celle du module recette du feed, à l'identique : deux onglets,
+   la réglette de portions, les ingrédients mesurés d'un côté et le hors-calcul
+   de l'autre, la préparation numérotée. Rien n'est réécrit ici — recIng(),
+   ringBloc(), persBar() et la classe .rstep sont appelés tels quels. C'est le
+   seul moyen d'être sûr qu'une recette se lise pareil des deux côtés.
+
+   Ce qui change, ce sont les actions : pas de « j'aime » ni de commentaires sur
+   sa propre recette, mais partager, la passer en plat type, la modifier, la
+   supprimer. */
+function mesRecSheet(id){
+  const r = mrGet(id);
+  if(!r) return;
+  const b = mrBody(r);
+  /* Base des grammages, reprise de mrBody pour n'avoir qu'une source. */
+  const base = b.pers;
+  const declare = Math.max(1, r.pers);
+  const baseLab = Math.max(1, Math.round(+r.labp || 0)) || base;
+  let pers = base;
+  if(!['ing','prep'].includes(S.mrTab)) S.mrTab = 'ing';
+
+  const peint = () => {
+    const ing = recIng(b), prep = recPrep(b), autres = recAutres(b);
+    const k = pers / base, kl = pers / baseLab;
+    const kgBase = kgOf(r.ing), kg = kgBase * k;
+
+    openSheet(`
+      <div class="unit">Ma recette${r.src ? ' · lue sur ' + esc(r.src) : ''}</div>
+      <h3 style="margin:2px 0 6px">${esc(r.t)}</h3>
+      <div class="small mute">${n2(kgBase / base)} kg CO₂e par personne · ${n2(kg)} kg pour ${pers}</div>
+      ${declare !== base ? `<div class="src" style="margin-top:6px">Annoncée pour ${declare}
+        personne${declare > 1 ? 's' : ''}, mais les quantités n’ont jamais été recalculées : elles
+        valent pour ${base}. C’est cette base qui sert au calcul. Touchez « Modifier » pour
+        recalculer, ou pour corriger le nombre annoncé.</div>` : ''}
+      ${r.cat ? `<div style="margin-top:8px">${catChip(r.cat)}</div>` : ''}
+
+      <div class="rtabs">
+        <button data-mrt="ing"  aria-pressed="${S.mrTab === 'ing'}">Ingrédients</button>
+        <button data-mrt="prep" aria-pressed="${S.mrTab === 'prep'}">Préparation</button>
+      </div>
+
+      ${S.mrTab === 'ing'
+        ? `${persBar(pers, base)}
+           ${ing.length || autres.length
+             ? ringBloc(ing, autres, k, baseLab !== base
+                 ? `Les grammages valent pour ${base} personne${base > 1 ? 's' : ''} tels
+                    qu’enregistrés, les libellés pour les ${baseLab} qu’annonçait la source.
+                    Chacun est mis à l’échelle depuis sa propre base.` : null, kl)
+             : `<div class="empty">Aucun ingrédient renseigné.</div>`}`
+        : (prep.length
+            ? prep.map((y, i) => `<div class="rstep"><span class="no">${i + 1}</span>
+                <p>${lien(y)}</p></div>`).join('')
+            : `<div class="empty">Aucune étape renseignée. Touchez « Modifier » pour en
+                ajouter : une par ligne.</div>`)}
+
+      ${r.url ? `<div class="src" style="margin-top:14px">Source : ${lien(r.url)}</div>` : ''}
+
+      <div class="hr"></div>
+      <div class="actions">
+        <button class="btn btn-1" id="mr_sh" ${SESS ? '' : 'disabled'}>Partager à mes amis</button>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn btn-2" id="mr_ed">Modifier</button>
+        <button class="btn btn-2" id="mr_pt">En plat type</button>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn btn-2" id="mr_rm" style="color:var(--brick)">Supprimer</button>
+        <button class="btn btn-2" onclick="closeSheet()">Fermer</button>
+      </div>
+      <div class="src" style="margin-top:10px">${SESS
+        ? `Partager publie une idée de recette visible de vos amis, qui pourront l’enregistrer dans
+           leurs plats types. Pour ne l’adresser qu’à certains, passez par Modifier : le choix des
+           destinataires est dans le formulaire.`
+        : `Le partage demande un compte. La recette, elle, reste lisible et modifiable hors ligne.`}
+        ${autres.length ? 'Ce qui figure hors calcul ne compte pas dans l’empreinte : elle est donc minorante.' : ''}</div>`);
+
+    const sh = $('#sheet');
+    sh.querySelectorAll('[data-mrt]').forEach(btn =>
+      btn.onclick = () => { S.mrTab = btn.dataset.mrt; peint(); });
+    sh.querySelectorAll('[data-pers]').forEach(btn => btn.onclick = () => {
+      pers = clamp(pers + (+btn.dataset.pers), 1, 30); peint();
+    });
+
+    /* Plat type : la conversion passe par la forme `b`, donc par le même code que
+       depuis une recette d'ami. Les portions poussées à la lecture ne comptent
+       pas — c'est la recette enregistrée qu'on convertit, pas l'affichage. */
+    $('#mr_pt').onclick = () => recSaveBody(b);
+
+    $('#mr_ed').onclick = () => mesRecEdit(id);
+
+    $('#mr_rm').onclick = () => {
+      /* Deux touches pour supprimer, et le second libellé nomme la recette : un
+         carnet écrit à la main n'a pas de corbeille, et rien ne la rendrait. */
+      const btn = $('#mr_rm');
+      if(btn.dataset.sur !== '1'){
+        btn.dataset.sur = '1';
+        btn.textContent = 'Confirmer la suppression';
+        return;
+      }
+      S.mesRec = S.mesRec.filter(x => x.id !== id);
+      save(); closeSheet();
+      toast(`« ${r.t} » supprimée de mes recettes`);
+      if(S.tab === 'biblio') renderCuisine();
+    };
+
+    const bsh = $('#mr_sh');
+    if(bsh && SESS) bsh.onclick = async () => {
+      bsh.disabled = true; bsh.textContent = 'Publication…';
+      const res = await postNew('recipe', mrPost(r));
+      if(!res.ok){
+        bsh.disabled = false; bsh.textContent = 'Partager à mes amis';
+        return toast(res.msg);
+      }
+      closeSheet();
+      toast(res.amis ? `Partagée · visible de ${res.amis} ami${res.amis > 1 ? 's' : ''}`
+                     : 'Publiée dans Actu');
+      S.fv = 'actu';
+      frPosts();
+    };
+  };
+  peint();
+}
+
+/* Rouvrir une recette du carnet dans le formulaire. Le brouillon est reconstruit
+   au complet et non fusionné avec ce qui traînait : `editId` porté par S.rq est
+   ce qui décide, à l'enregistrement, entre remplacer et ajouter. */
+function mesRecEdit(id){
+  const r = mrGet(id);
+  if(!r) return;
+  const lab = Array.isArray(r.lab) ? r.lab : [];
+  S.rq = {
+    title: r.t, pers: r.pers,
+    /* Le troisième terme est le libellé de source, que le formulaire attend sur
+       la ligne d'ingrédient et republie tel quel. */
+    ing: r.ing.map((l, i) => lab[i] ? [l[0], l[1], lab[i]] : [l[0], l[1]]),
+    autres: (r.autres || []).join('\n'), prep: (r.prep || []).join('\n'),
+    url: r.url || '', q:'', labp: r.labp || null, ingp: r.ingp || r.pers, dst: null,
+    cat: r.cat || null, catEdit: false, editId: r.id,
+    mode:'man', lien:'', lu:null, err:null, occupe:false};
+  recipeSheet();
 }
 
 /* ==================== Bibliothèque ====================
@@ -5869,7 +6227,8 @@ function cuiBiblio(){
       </button>`).join('') : `<div class="empty">Aucun aliment ne correspond. Essayez « lentilles » ou « bœuf ».</div>`}
     <div class="count">${rows.length} référence${rows.length>1?'s':''} · échelle commune 0 → ${n0(FE_MAX)} kg CO₂e/kg
       · AGRIBALYSE 3.2, plus ${DB.foods.filter(f=>f.x).length} valeurs estimées signalées</div>
-  </div>`;
+  </div>
+  ${biblioRecettes()}`;
 }
 
 function bindBiblio(){
@@ -5880,6 +6239,9 @@ function bindBiblio(){
   if(qx) qx.onclick = () => { S.q = ''; renderCuisine(); const n = $('#q'); if(n) n.focus(); };
   view.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { S.group = b.dataset.g; renderCuisine(); });
   view.querySelectorAll('[data-food]').forEach(b => b.onclick = () => foodSheet(b.dataset.food));
+  /* Les recettes du référentiel s'ouvrent ici depuis qu'elles y ont été
+     déplacées : sans ce branchement, la liste s'affichait et ne répondait pas. */
+  view.querySelectorAll('[data-rec]').forEach(b => b.onclick = () => recetteSheet(b.dataset.rec));
 }
 
 function foodSheet(slug){
@@ -9375,7 +9737,111 @@ function recetteSheet(nom){
 const CUIS = {traditionnelle:'Traditionnelle', francaise:'Française',
   mediterraneenne:'Méditerranéenne', italienne:'Italienne', asiatique:'Asiatique',
   indienne:'Indienne', orientale:'Orientale', mexicaine:'Mexicaine',
-  thai:'Thaïlandaise'};
+  thai:'Thaïlandaise', americaine:'Américaine'};
+
+/* ==================== catégories de recette ====================
+   Le sélecteur ne crée pas un second vocabulaire : ses clés sont celles de CUIS,
+   déjà portées par le référentiel et par le filtre « cuisine » du frigo. Un
+   deuxième jeu d'étiquettes aurait signifié qu'une recette rangée « Italienne »
+   par l'utilisateur et un plat classé `italienne` par cuiOf() ne se retrouvent
+   pas sous le même filtre.
+
+   Un seul axe, la cuisine. Ni régime ni moment de la journée : « végétarien » se
+   déduit déjà des ingrédients et « petit-déjeuner » du créneau de saisie, et les
+   offrir ici obligerait à choisir entre deux étiquettes vraies en même temps.
+
+   Larges, et sans emboîtement — c'est la règle demandée. Pas de « pizza » à côté
+   d'« italienne », pas de « burger » à côté d'« américaine » : une catégorie qui
+   tient à l'intérieur d'une autre force un arbitrage arbitraire au moment de
+   ranger, et deux utilisateurs rangeront le même plat à deux endroits.
+   « Thaïlandaise » existe dans CUIS pour le référentiel — une carte entière de
+   restaurant thaï y est saisie — mais reste hors du sélecteur pour cette raison
+   même : elle tient dans « Asiatique ». */
+const P_CAT = {
+  francaise:       '<path d="M4 3v7a3 3 0 0 0 6 0V3M7 10v11"/><path d="M17 3c-1.6 1.2-2.4 3-2.4 5.2 0 1.7.8 2.8 2.4 2.8s2.4-1.1 2.4-2.8C19.4 6 18.6 4.2 17 3zM17 11v10"/>',
+  italienne:       '<path d="M5 20c0-6 3.1-10 7-10s7 4 7 10z"/><path d="M12 10V6M10.2 6h3.6"/><circle cx="10" cy="16" r=".9"/><circle cx="14.2" cy="17" r=".9"/>',
+  mediterraneenne: '<path d="M12 3c2.6 2.4 4 5 4 7.6 0 3.2-1.8 5.4-4 5.4s-4-2.2-4-5.4C8 8 9.4 5.4 12 3z"/><path d="M12 16v5M8.5 21h7"/>',
+  orientale:       '<path d="M4 19h16"/><path d="M6 19c0-4.4 2.7-8 6-8s6 3.6 6 8"/><path d="M12 11V7M12 7c1.7 0 2.6-1 2.6-2.4C13.4 4.6 12 5.4 12 7z"/>',
+  asiatique:       '<path d="M4 6.5 20 4M4.6 10 20 7.5"/><path d="M5 14h14c0 3.9-3.1 6.6-7 6.6S5 17.9 5 14z"/>',
+  indienne:        '<path d="M3 12h18"/><path d="M5 12a7 7 0 0 1 14 0"/><path d="M12 5V3"/><path d="M6 16h12l-1.4 4.4H7.4z"/>',
+  mexicaine:       '<path d="M3 19c0-6.6 4-12 9-12s9 5.4 9 12z"/><path d="M3 19h18"/><path d="M9 13.5c1-1 2-1 3 0s2 1 3 0"/>',
+  americaine:      '<path d="M4 9.5C4 6.9 7.6 5 12 5s8 1.9 8 4.5z"/><path d="M4 13h16"/><path d="M4.6 16.5h14.8c0 1.9-1.6 3.2-3.6 3.2H8.2c-2 0-3.6-1.3-3.6-3.2z"/>',
+};
+/* Ordre d'affichage : le plus courant en premier, pour que la tuile la plus
+   souvent touchée soit sous le pouce sans défilement. */
+const REC_CATS = ['francaise','italienne','asiatique','orientale',
+                  'mediterraneenne','indienne','mexicaine','americaine'];
+
+/* Une catégorie est une chaîne, et une seule : soit une clé de CUIS, soit le
+   libellé libre saisi par l'utilisateur. Deux champs — clé plus nom perso —
+   auraient créé l'état impossible où les deux sont remplis et se contredisent.
+   La collision est sans conséquence : quelqu'un qui tape « asiatique » à la main
+   obtient exactement la catégorie qu'il visait. */
+const catLabel = c => !c ? null : (CUIS[c] || c);
+const catPicto = c => P_CAT[c]
+  /* Catégorie perso : une étoile, qui dit « la vôtre » sans prétendre illustrer
+     un mot que l'app ne connaît pas. Deviner un pictogramme depuis « banger du
+     moment » ne peut que tomber à côté. */
+  || '<path d="M12 4.2l2.3 4.7 5.2.8-3.8 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1-3.8-3.6 5.2-.8z"/>';
+const catChip = c => !c ? '' : `<span class="cchip"><svg viewBox="0 0 24 24"
+  aria-hidden="true">${catPicto(c)}</svg>${esc(catLabel(c))}</span>`;
+
+/* Grille de sélection, commune à la création et à la modification. `sel` est la
+   catégorie courante, `null` quand rien n'est choisi — ce qui reste permis : une
+   recette sans catégorie se range sous « Sans catégorie » et n'est pas perdue,
+   là où imposer un choix ferait ranger au hasard. */
+function catGrille(sel, edit){
+  const perso = sel && !P_CAT[sel];
+  return `
+    <div class="catgrid">
+      ${REC_CATS.map(k => `<button type="button" class="ctile" data-cat="${k}"
+          aria-pressed="${sel === k}">
+          <svg viewBox="0 0 24 24" aria-hidden="true">${P_CAT[k]}</svg>
+          <span>${esc(CUIS[k])}</span>
+        </button>`).join('')}
+      <button type="button" class="ctile" data-catperso aria-pressed="${!!perso}">
+        <svg viewBox="0 0 24 24" aria-hidden="true">${catPicto(perso ? sel : '~')}</svg>
+        <span>${perso ? esc(sel) : 'La mienne…'}</span>
+      </button>
+    </div>
+    ${edit ? `
+      <div class="srchw mb">
+        <input class="search" id="cat_n" maxlength="24" autocomplete="off"
+               value="${esc(perso ? sel : '')}"
+               placeholder="Le nom que vous voulez — ex. Banger du moment">
+      </div>
+      <div class="actions" style="margin:-4px 0 4px">
+        <button class="btn btn-2" data-catann>Annuler</button>
+        <button class="btn btn-1" data-catok>Valider</button>
+      </div>`
+    : sel ? `<button class="btn btn-2" data-catnon style="margin:0 0 4px">Retirer la
+        catégorie</button>` : ''}`;
+}
+
+/* Branchement de la grille. Un seul endroit pour les cinq gestes, parce que la
+   grille apparaît à la création comme à la modification et que dupliquer ces
+   `onclick` garantissait qu'un jour l'un des deux oublierait la validation du
+   nom perso. L'appelant ne fournit que `appliquer(categorie, enEdition)` : à lui
+   de relire ses champs avant de repeindre, ce que lui seul sait faire. */
+function catBind(root, courant, appliquer){
+  root.querySelectorAll('[data-cat]').forEach(b => b.onclick = () =>
+    /* Retoucher la tuile déjà choisie la désélectionne : c'est le geste attendu
+       quand on s'est trompé, et il évite d'aller chercher « Retirer » plus bas. */
+    appliquer(b.dataset.cat === courant() ? null : b.dataset.cat, false));
+  const p = root.querySelector('[data-catperso]');
+  if(p) p.onclick = () => appliquer(courant(), true);
+  const non = root.querySelector('[data-catnon]');
+  if(non) non.onclick = () => appliquer(null, false);
+  const ann = root.querySelector('[data-catann]');
+  if(ann) ann.onclick = () => appliquer(courant(), false);
+  const ok = root.querySelector('[data-catok]');
+  if(ok) ok.onclick = () => {
+    const el = root.querySelector('#cat_n');
+    const v = ((el && el.value) || '').trim().replace(/\s+/g, ' ').slice(0, 24);
+    if(v.length < 2) return toast('Deux lettres au minimum');
+    appliquer(v, false);
+  };
+}
 const MOIS_L = ['janvier','février','mars','avril','mai','juin',
   'juillet','août','septembre','octobre','novembre','décembre'];
 
