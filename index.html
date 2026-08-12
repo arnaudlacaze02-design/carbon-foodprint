@@ -1022,9 +1022,11 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .stack i{height:100%}
 .stagelist{display:grid; grid-template-columns:auto 1fr auto; gap:6px 9px; align-items:center; font-size:12.5px}
 .stagelist .sv{font-family:var(--display); font-weight:800; font-variant-numeric:tabular-nums; text-align:right}
-.months{display:flex; gap:3px; margin-top:4px}
-.months i{flex:1; height:18px; border-radius:2px; background:var(--seg-bg); font-family:var(--mono); font-size:8px; color:var(--mute); display:flex; align-items:center; justify-content:center; font-style:normal}
-.months i.on{background:var(--forest); color:#fff}
+/* `.months` a été retiré avec le second calendrier de saison qu'il habillait :
+   celui de la fiche aliment, qui lisait le champ `m` décalé d'un mois. La
+   bibliothèque et le Tracker passent tous deux par cal12 et .cal12 désormais.
+   Le style n'est pas gardé « au cas où » : un gabarit orphelin est une
+   invitation à réécrire le calcul à côté du bon. */
 
 /* ---------------- tabbar ---------------- */
 .tabbar{
@@ -5901,8 +5903,8 @@ function foodSheet(slug){
     ${x.x ? `<div class="note"><b>Valeur estimée, absente de la base ADEME.</b><br>
       Reprise de « ${esc(x.xs)} » : ${esc(x.xn)}. À remplacer par la ligne AGRIBALYSE correspondante
       si l’aliment devient structurant dans vos saisies.</div>` : ''}
-    ${x.m ? `<div class="hr"></div><div class="unit">Saison en France</div>
-      <div class="months">${MONTHS.map((m,i)=>`<i class="${x.m.includes(i+1)?'on':''}">${m}</i>`).join('')}</div>` : ''}
+    ${x.m || x.sais != null ? `<div class="hr"></div><div class="unit">Saison en France</div>
+      ${cal12(x.s)}` : ''}
     <div class="hr"></div>
     <div class="actions">
       <button class="btn btn-1" onclick="quickAdd('${x.s}')">Ajouter à la saisie</button>
@@ -11861,9 +11863,16 @@ let saisPer = 'tout', saisCal = null;
    devant un « hors saison » : quand est-ce que j'en remange ? Les trois cas
    explicites ont chacun leur lecture — un importé n'a pas de mois de retour, et
    le dire vaut mieux que d'afficher douze cases éteintes sans explication. */
-const MOIS12 = ['J','F','M','A','M','J','J','A','S','O','N','D'];
-const MOISN  = ['janvier','février','mars','avril','mai','juin','juillet','août',
-                'septembre','octobre','novembre','décembre'];
+/* Les mêmes douze mois que MONTHS et MOIS_L, déclarés plus haut. Ils vivaient
+   ici en double, et c'est précisément ce genre de copie qui a produit le
+   décalage d'un mois corrigé dans foodSheet : deux tables identiques finissent
+   par être lues avec deux conventions. Un seul jeu, une seule convention.
+
+   Convention, une fois pour toutes : le champ `m` de la base est indexé à
+   partir de zéro — 0 = janvier, 11 = décembre —, comme Date.getMonth(). Toute
+   lecture de `m` se fait donc avec l'indice de boucle tel quel, jamais `i+1`. */
+const MOIS12 = MONTHS;
+const MOISN  = MOIS_L;
 
 function cal12(slug){
   const f = F.get(slug);
@@ -11875,6 +11884,14 @@ function cal12(slug){
   let mot;
   if(imp) mot = `Importé : pas de saison locale. Son empreinte est de ${n2(f.t)} kg par kilo.`;
   else if(f.sais === 1) mot = 'Disponible toute l’année en local, récolté puis conservé.';
+  /* Neutre : ni au numérateur ni au dénominateur du pourcentage de saison.
+     Ce cas n'apparaissait pas quand cal12 ne servait qu'à la feuille du
+     Tracker, qui ne l'appelle que sur des lignes déjà jugées hors saison. Il
+     apparaît depuis que la bibliothèque s'en sert aussi, et sans lui un fruit
+     à coque afficherait « pas de calendrier renseigné » — vrai mais muet sur
+     la seule chose qui compte : qu'il ne pèse pas dans le score. */
+  else if(f.sais === 2) mot = 'Hors calcul de saison : disponible toute l’année ou transformé, '
+    + 'il n’entre pas dans le pourcentage de saison.';
   else if(!f.m) mot = 'Pas de calendrier renseigné.';
   else {
     const ms = f.m.map(i => MOISN[i]);
@@ -13032,8 +13049,10 @@ var MINI     = 4;    /* sous ce nombre de repas, pas de pop-up */
 var DUREE    = 6800;
 
 var JRS = ['L','M','M','J','V','S','D'];
-var MOIS = ['janvier','février','mars','avril','mai','juin',
-            'juillet','août','septembre','octobre','novembre','décembre'];
+/* Troisième copie des noms de mois, supprimée pour la même raison que FR_J
+   juste au-dessus : MOIS_L porte déjà exactement cette table, avec la même
+   indexation à partir de zéro. */
+var MOIS = MOIS_L;
 
 /* Ancrage à midi, comme monday() : à 12 h locales la date UTC et la date
    locale coïncident toujours en France, ce qui évite le décalage d'un jour
