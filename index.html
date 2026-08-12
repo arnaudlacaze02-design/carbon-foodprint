@@ -890,6 +890,10 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 .ctile svg{width:26px; height:26px; fill:none; stroke:var(--ink-soft);
   stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
 .ctile span{font-size:11.5px; line-height:1.25; color:var(--ink-soft); font-weight:600}
+/* Compte de recettes, sous le nom. En mono et plus petit : c'est une donnée, pas
+   un second nom, et la tuile doit rester lisible d'un coup d'œil. */
+.ctile b{font-family:var(--mono); font-size:9.5px; font-weight:400; color:var(--mute);
+  letter-spacing:.03em; margin-top:-3px}
 .ctile:active{background:var(--active)}
 /* Sélection : la bordure seule ne suffit pas sur un fond clair, le fond teinté
    fait le travail et la coche lève toute ambiguïté quand deux tuiles voisines
@@ -2147,7 +2151,7 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          fv:'actu', notif:NOTIF0(), nutri:true, marques:{}, notes:undefined,
          plike:{}, pcom:{}, rq:null, rtab:'ing',
          cv:'frigo', frigo:[], fgq:'', fgCarb:'', fgSais:false, fgCui:'',
-         mesRec:[], mrCat:'', mrTab:'ing',
+         mesRec:[], mrCat:'', mrTab:'ing', mrAll:false,
          partner:null, parts:[], podium:{or:0, argent:0, bronze:0},
          platLarge:false, modeFrom:null,
          stdP:null, stdF:null, stdL:null, stdSize:'normal',
@@ -5874,16 +5878,45 @@ const mrGet  = id => (S.mesRec || []).find(r => r.id === id);
 function cuiRecettes(){
   const L = S.mesRec || [];
   /* Les catégories offertes au filtre sont celles réellement portées par le
-     carnet, y compris les persos : un onglet « Mexicaine » qui ne ramène rien
-     est un bouton mort, et une catégorie inventée par l'utilisateur mérite son
-     filtre autant que les huit livrées. */
+     carnet, y compris les persos : une tuile « Mexicaine » qui ne ramène rien est
+     une tuile morte, et une catégorie inventée par l'utilisateur mérite sa place
+     autant que les huit livrées.
+     `~` désigne les recettes sans catégorie. Un caractère qui ne peut pas être
+     une clé de CUIS ni un nom saisi — les noms perso sont nettoyés et font deux
+     lettres au minimum — donc pas de collision possible avec une vraie valeur. */
+  const compte = c => L.filter(r => c === '~' ? !r.cat : r.cat === c).length;
   const cats = [...new Set(L.map(r => r.cat).filter(Boolean))]
-    .sort((a, b) => catLabel(a).localeCompare(catLabel(b), 'fr'));
-  if(S.mrCat && S.mrCat !== '~' && !cats.includes(S.mrCat)) S.mrCat = '';
-  const sansCat = L.some(r => !r.cat);
+    /* Les plus fournies d'abord : c'est ce qui rend la vue repliée utile, puisque
+       ce sont elles qu'on filtre le plus souvent. Départage alphabétique pour que
+       l'ordre soit stable à égalité. */
+    .sort((a, b) => compte(b) - compte(a) || catLabel(a).localeCompare(catLabel(b), 'fr'));
+  const liste = L.some(r => !r.cat) ? [...cats, '~'] : cats;
+  if(S.mrCat && !liste.includes(S.mrCat)) S.mrCat = '';
+
+  /* Au-delà de deux catégories la grille se replie : trois tuiles tiennent sur
+     une ligne — « Tout » plus les deux premières —, et le carnet reste visible
+     sans défiler. Une exception, sans quoi l'écran mentirait : si la catégorie
+     filtrée fait partie des repliées, on déplie, parce qu'une tuile active hors
+     de l'écran laisse croire qu'on voit tout le carnet. */
+  const trop = liste.length > 2;
+  const force = S.mrCat && liste.indexOf(S.mrCat) > 1;
+  const ouvert = !trop || S.mrAll || force;
+  const vis = ouvert ? liste : liste.slice(0, 2);
+
+  const P_TOUT = '<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/>';
+  const P_SANS = '<path d="M5 5h14v14H5z" stroke-dasharray="3 2.6"/>';
+  /* Le compte est passé, non deviné depuis la clé : la tuile « Tout » n'a pas de
+     catégorie à compter et un repli implicite aurait fini par afficher le total
+     du carnet sur une catégorie réellement vide. */
+  const tuile = (k, nom, picto, n) => `
+    <button type="button" class="ctile" data-mrc="${esc(k)}" aria-pressed="${S.mrCat === k}">
+      <svg viewBox="0 0 24 24" aria-hidden="true">${picto}</svg>
+      <span>${esc(nom)}</span><b>${n}</b>
+    </button>`;
+
   const rows = L
     .filter(r => !S.mrCat || (S.mrCat === '~' ? !r.cat : r.cat === S.mrCat))
-    .map(r => ({r, kg: kgOf(r.ing), pers: Math.max(1, r.pers)}))
+    .map(r => ({r, kg: kgOf(r.ing), pers: Math.max(1, r.ingp || r.pers)}))
     .sort((a, b) => (b.r.ts || 0) - (a.r.ts || 0));
 
   return `
@@ -5897,13 +5930,17 @@ function cuiRecettes(){
   </div>
 
   ${L.length ? `
-    <div class="chips">
-      <button class="chip" aria-pressed="${!S.mrCat}" data-mrc="">Tout</button>
-      ${cats.map(k => `<button class="chip" aria-pressed="${S.mrCat === k}"
-          data-mrc="${esc(k)}">${esc(catLabel(k))}</button>`).join('')}
-      ${sansCat ? `<button class="chip" aria-pressed="${S.mrCat === '~'}"
-          data-mrc="~">Sans catégorie</button>` : ''}
-    </div>
+    ${liste.length ? `
+      <div class="catgrid">
+        ${tuile('', 'Tout', P_TOUT, L.length)}
+        ${vis.map(k => k === '~'
+          ? tuile('~', 'Sans catégorie', P_SANS, compte('~'))
+          : tuile(k, catLabel(k), catPicto(k), compte(k))).join('')}
+      </div>
+      ${trop ? `<button class="btn btn-2" id="mr_all" style="margin:2px 0 4px"
+        data-open="${ouvert ? 0 : 1}" data-raz="${force && !S.mrAll ? 1 : 0}">${ouvert
+        ? 'Réduire' : `+ Tout afficher · ${liste.length} catégories`}</button>` : ''}`
+    : ''}
     <div class="list" style="margin-top:8px">
       ${rows.length ? rows.map(({r, kg, pers}) => `
         <button class="frow" data-mr="${esc(r.id)}">
@@ -6006,6 +6043,15 @@ function bindRecettes(){
   const m = $('#cr_man'); if(m) m.onclick = () => ouvrir('man');
   view.querySelectorAll('[data-mrc]').forEach(b =>
     b.onclick = () => { S.mrCat = b.dataset.mrc; renderCuisine(); });
+  /* « Réduire » quand la grille était dépliée d'office pour montrer une tuile
+     active repliée doit aussi lever le filtre : sinon on masquerait la catégorie
+     en cours et la liste en dessous n'aurait plus d'explication à l'écran. */
+  const ba = $('#mr_all');
+  if(ba) ba.onclick = () => {
+    S.mrAll = ba.dataset.open === '1';
+    if(ba.dataset.raz === '1') S.mrCat = '';
+    renderCuisine();
+  };
   view.querySelectorAll('[data-mr]').forEach(b =>
     b.onclick = () => mesRecSheet(b.dataset.mr));
 }
