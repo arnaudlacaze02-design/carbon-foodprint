@@ -30,7 +30,7 @@
      plus bas, qui dit ce que chaque graisse signifie. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Comfortaa:wght@400;500;600;700&display=swap">
 <style>
 :root{
   /* palette de marque, invariante */
@@ -45,7 +45,15 @@
      fond garde --forest, le texte prend --accent. */
   --accent:#0E4D45;
   --s1:#0E4D45; --s2:#3A6E5C; --s3:#6E9075; --s4:#A8B37A; --s5:#D9C05B; --s6:#E7DCA8;
-  --serif:ui-serif,"New York",Iowan Old Style,Georgia,serif;
+  /* Ce qui était en serif passe à Comfortaa. Le nom de la variable ne change
+     pas : il est lu à sept endroits — jours du calendrier, chiffres du journal,
+     liens de détail, mini-navigation — et les renommer tous n'apporterait qu'un
+     risque de coquille pour un gain nul. Ce que la variable désigne, c'est « la
+     famille de contraste », et c'est toujours son rôle.
+     Le repli reste une pile sans serif : si Comfortaa n'est pas chargée — premier
+     lancement hors ligne, réseau coupé —, mieux vaut la police système du reste
+     de l'app qu'un Georgia qui trahirait la mise en page. */
+  --serif:"Comfortaa",var(--round);
   --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --round:ui-rounded,"SF Pro Rounded","Arial Rounded MT Bold","Trebuchet MS",var(--sans);
@@ -165,7 +173,11 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .rgl .rgll i{width:2.5px; height:11px; border-radius:2px; flex:0 0 auto}
 .rgl .rgll b{font-family:var(--display); font-weight:800; font-size:12px; color:var(--ink);
   font-variant-numeric:tabular-nums}
-.rgl .cap{font-family:var(--mono); font-size:9px; color:var(--mute); margin-top:6px; line-height:1.4}
+/* `.rgl .cap` a été retiré avec la légende toujours visible qu'il habillait :
+   l'explication de la réglette passe par infoCap() et la classe .infox. Ne pas
+   garder le style orphelin — un gabarit sans code appelle une réécriture à côté
+   du bon. À ne pas confondre avec `.post .cap`, qui légende les cartes du fil
+   et n'a rien à voir. */
 
 /* ---------------- deux cadrans, jour et semaine ---------------- */
 .duo{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px}
@@ -601,6 +613,26 @@ p{margin:0 0 9px}
 .num{font-family:var(--display); font-weight:800; font-variant-numeric:tabular-nums}
 .unit{font-family:var(--mono); font-size:10px; letter-spacing:.05em; color:var(--mute)}
 .src{font-family:var(--mono); font-size:10px; color:var(--mute); letter-spacing:.02em}
+/* ── Explication de graphique, derrière un « i » ───────────────────────
+   Ces phrases disent comment lire la barre ou le cadran. On en a besoin une
+   fois, puis plus jamais — et pendant ce temps elles occupent trois lignes sous
+   chaque graphique, ce qui repousse le suivant hors de l'écran. Elles restent
+   donc accessibles mais repliées.
+   Le « i » est un vrai bouton avec `aria-expanded` : replier une information par
+   commodité visuelle ne doit pas la retirer aux lecteurs d'écran. */
+.info{display:flex; justify-content:flex-end; margin-top:6px}
+.ibtn{width:20px; height:20px; flex:0 0 auto; padding:0; border-radius:50%;
+  border:1px solid var(--line); background:transparent; color:var(--mute);
+  font-family:var(--serif); font-size:11px; font-weight:700; line-height:1;
+  display:flex; align-items:center; justify-content:center}
+.ibtn:active{background:var(--active)}
+.ibtn[aria-expanded="true"]{background:var(--ink); border-color:var(--ink);
+  color:var(--paper)}
+/* `hidden` ne suffit pas : les règles d'affichage flex du parent le remettraient
+   en jeu sur certains navigateurs. La règle explicite ferme la porte. */
+.infox[hidden]{display:none}
+.infox{font-family:var(--mono); font-size:9.5px; color:var(--mute); line-height:1.5;
+  margin-top:7px; padding:9px 10px; background:var(--track); border-radius:8px}
 .hr{height:1px; background:var(--line-soft); margin:13px 0}
 
 /* ---------------- gauge : élément signature ---------------- */
@@ -706,6 +738,22 @@ p{margin:0 0 9px}
 .seg button b{font-weight:600}
 .seg button small{font-family:var(--mono); font-size:9px; color:var(--mute)}
 .seg button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08)}
+/* Variante haute, pour le seul sélecteur d'« En cuisine ». Une classe à part et
+   non une retouche de `.seg` : le sélecteur de base sert à sept autres endroits
+   — périodes du tracker, onglets de recette, saisonnalité — qui n'ont ni la
+   place ni le besoin d'une barre de cette taille.
+   La hauteur vient du `min-height` et non du `padding` : elle reste tenue même
+   si un libellé passe sur deux lignes, ce qui est le cas de « Mes recettes » sur
+   les écrans les plus étroits. */
+.seg.tall button{
+  min-height:78px; padding:12px 6px; gap:8px; justify-content:center; font-size:13.5px;
+}
+.seg.tall svg{width:27px; height:27px; flex:0 0 auto; fill:none; stroke:currentColor;
+  stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
+/* Le pictogramme suit l'état du bouton via currentColor : atténué au repos,
+   franc sur l'onglet actif, sans seconde règle de couleur à tenir à jour. */
+.seg.tall button svg{opacity:.62}
+.seg.tall button[aria-pressed="true"] svg{opacity:1; stroke:var(--accent)}
 .seg button[aria-pressed="true"] small{color:var(--accent)}
 
 /* ---------------- listes ---------------- */
@@ -877,29 +925,78 @@ p{margin:0 0 9px}
 .rstep p{margin:0; font-size:14px; line-height:1.5}
 a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; word-break:break-word}
 
-/* ── Teintes de fond des tuiles ────────────────────────────────────────
-   Huit fonds, déclarés en classes et non en style inline, parce qu'un fond
-   pastel écrit en dur devient illisible en thème sombre : chaque teinte a donc
-   sa valeur claire et sa valeur sombre, et la tuile ne connaît qu'un numéro.
-   Le texte et le pictogramme gardent --ink-soft, qui suit déjà le thème : c'est
-   ce qui rend les huit fonds lisibles des deux côtés sans huit couleurs de
-   texte à accorder. */
-[data-co="1"]{--co-bg:#E2EFDA}
-[data-co="2"]{--co-bg:#DCE9E6}
-[data-co="3"]{--co-bg:#F4EBC8}
-[data-co="4"]{--co-bg:#F6E3CC}
-[data-co="5"]{--co-bg:#F5DCDA}
-[data-co="6"]{--co-bg:#EADCEC}
-[data-co="7"]{--co-bg:#DDE3EA}
-[data-co="8"]{--co-bg:#EDE7DC}
-:root[data-theme="dark"] [data-co="1"]{--co-bg:#223324}
-:root[data-theme="dark"] [data-co="2"]{--co-bg:#1E302E}
-:root[data-theme="dark"] [data-co="3"]{--co-bg:#35301A}
-:root[data-theme="dark"] [data-co="4"]{--co-bg:#3A2E1F}
-:root[data-theme="dark"] [data-co="5"]{--co-bg:#3A2422}
-:root[data-theme="dark"] [data-co="6"]{--co-bg:#2F2436}
-:root[data-theme="dark"] [data-co="7"]{--co-bg:#212832}
-:root[data-theme="dark"] [data-co="8"]{--co-bg:#2E2A24}
+/* ── Teintes de fond ───────────────────────────────────────────────────
+   Sept couleurs franches, celles de la planche fournie. Elles servent au fond
+   des cartes du portefeuille et des tuiles de catégorie.
+
+   Chaque teinte porte SA couleur de texte, et non une couleur commune. Sur du
+   #DF1515 le blanc s'impose, sur du #A4C2B6 il disparaît : une seule couleur de
+   texte pour sept fonds aurait forcément rendu deux ou trois d'entre eux
+   illisibles. `--co-on` est donc choisi teinte par teinte, du côté où le
+   contraste est le meilleur.
+
+   Pas de variante sombre. C'est délibéré et ça diffère du reste du fichier : ces
+   couleurs sont ici l'objet même — on les a choisies pour leur franchise —, et
+   les rabattre en thème sombre reviendrait à répondre à côté. Elles sont posées
+   sur des cartes, jamais sur de grandes surfaces, et le texte qu'elles portent
+   est fixé avec elles : le contraste ne dépend donc pas du thème. */
+[data-co="1"]{--co-bg:#DF1515; --co-on:#FFF3F1}
+[data-co="2"]{--co-bg:#FF6400; --co-on:#2A1200}
+[data-co="3"]{--co-bg:#0C7461; --co-on:#EAF6F1}
+[data-co="4"]{--co-bg:#738F66; --co-on:#0F1C0C}
+[data-co="5"]{--co-bg:#A4C2B6; --co-on:#12241D}
+[data-co="6"]{--co-bg:#B2966F; --co-on:#241A08}
+[data-co="7"]{--co-bg:#F79FD0; --co-on:#3A0F27}
+
+/* Pinceau de personnalisation, à droite du titre de section. Il remplace un
+   bouton pleine largeur nommé « Personnaliser « Italienne » » : ce bouton
+   répétait le nom de la catégorie déjà lisible sur la tuile active juste en
+   dessous, et occupait une ligne entière pour une action secondaire. */
+.pinceau{margin-left:auto; flex:0 0 auto; width:34px; height:34px; padding:0;
+  border-radius:10px; border:1px solid var(--line); background:var(--card);
+  display:flex; align-items:center; justify-content:center}
+.pinceau svg{width:19px; height:19px; fill:none; stroke:var(--ink-soft);
+  stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
+.pinceau:active{background:var(--active)}
+
+/* ── Portefeuille de recettes ──────────────────────────────────────────
+   Les cartes se chevauchent comme dans un porte-cartes : chacune remonte sur la
+   précédente par une marge négative, et seule sa tête reste visible. L'empilement
+   suit l'ordre du DOM — la dernière carte peint par-dessus —, donc rien à gérer
+   en z-index tant qu'on n'ouvre rien.
+
+   Marges négatives et non positionnement absolu : la pile garde ainsi sa hauteur
+   naturelle dans le flux, ce qui évite de calculer un `height` de conteneur qui
+   se serait décalé à chaque carte ajoutée ou dépliée. */
+.wallet{display:flex; flex-direction:column; margin:10px 0 4px}
+.wcard{
+  position:relative; display:block; width:100%; text-align:left;
+  margin-top:-42px; padding:15px 17px 17px; border:0; border-radius:20px;
+  background:var(--co-bg, var(--forest)); color:var(--co-on, #fff);
+  min-height:104px; box-shadow:0 -7px 20px rgba(12,20,17,.17);
+  transition:margin .18s ease, transform .18s ease;
+}
+.wcard:first-child{margin-top:0}
+.wcard .wt{font-family:var(--display); font-weight:700; font-size:17px; line-height:1.15;
+  display:block; overflow-wrap:anywhere}
+.wcard .wk{font-family:var(--mono); font-size:11px; opacity:.82; margin-top:5px; display:block}
+.wcard .wm{font-family:var(--mono); font-size:9.5px; opacity:.66; margin-top:3px; display:block}
+/* La carte ouverte passe devant et cesse d'être recouverte : la suivante reprend
+   une marge positive, donc le corps déplié n'est jamais masqué. */
+.wcard.on{z-index:3; transform:translateY(-2px); box-shadow:0 14px 34px rgba(12,20,17,.3)}
+.wcard.on + .wcard{margin-top:14px}
+.wbody{margin-top:14px; padding-top:13px; border-top:1px solid rgba(255,255,255,.28)}
+.wcard[data-co="4"] .wbody, .wcard[data-co="5"] .wbody,
+.wcard[data-co="6"] .wbody, .wcard[data-co="7"] .wbody,
+.wcard[data-co="2"] .wbody{border-top-color:rgba(0,0,0,.18)}
+.wbody .wl{display:flex; justify-content:space-between; gap:12px;
+  font-family:var(--mono); font-size:11px; padding:4px 0}
+.wbody .wl span:last-child{opacity:.78}
+.wact{display:flex; gap:8px; margin-top:13px}
+.wact button{flex:1; padding:11px 8px; border:0; border-radius:11px;
+  background:rgba(255,255,255,.9); color:#16211E;
+  font-size:13px; font-weight:600}
+.wact button:active{opacity:.8}
 
 /* Sélecteur de pictogramme. Six colonnes de petites cases : on parcourt la
    planche d'un coup d'œil sans défiler, et la cible reste au-dessus du seuil
@@ -918,8 +1015,8 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 .teintes{display:flex; gap:7px; flex-wrap:wrap; margin:2px 0 10px}
 .teintes button{width:36px; height:36px; padding:0; border-radius:10px;
   border:1px solid var(--line); background:var(--co-bg)}
-.teintes button[aria-pressed="true"]{border-color:var(--forest-2);
-  box-shadow:inset 0 0 0 2px var(--forest-2)}
+.teintes button[aria-pressed="true"]{border-color:var(--ink);
+  box-shadow:inset 0 0 0 2px var(--ink), inset 0 0 0 4px var(--co-bg, var(--card))}
 
 /* Grille de catégories. Des carrés et non une liste : à cette taille le
    pictogramme se lit d'un coup d'œil là où neuf lignes de texte demandent de
@@ -948,11 +1045,18 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
    l'anneau qui porte la sélection, et le fond neutre ne se teinte que faute de
    couleur choisie. */
 .ctile[data-co]{background:var(--co-bg); border-color:transparent}
+.ctile[data-co] svg{stroke:var(--co-on); opacity:.9}
+.ctile[data-co] span{color:var(--co-on)}
+.ctile[data-co] b{color:var(--co-on); opacity:.66}
 .ctile[aria-pressed="true"]:not([data-co]){background:var(--kpi-good)}
-.ctile[aria-pressed="true"]{border-color:var(--forest-2);
+.ctile[aria-pressed="true"]:not([data-co]){border-color:var(--forest-2);
   box-shadow:inset 0 0 0 2px var(--forest-2)}
-.ctile[aria-pressed="true"] svg{stroke:var(--accent)}
-.ctile[aria-pressed="true"] span{color:var(--accent)}
+/* Sur une tuile teintée l'anneau reprend la couleur du texte : un anneau vert
+   sur un fond rouge vibrerait, et un anneau clair disparaîtrait sur le vert
+   d'eau. La couleur du texte est par construction celle qui contraste. */
+.ctile[data-co][aria-pressed="true"]{box-shadow:inset 0 0 0 2.5px var(--co-on)}
+.ctile[aria-pressed="true"]:not([data-co]) svg{stroke:var(--accent)}
+.ctile[aria-pressed="true"]:not([data-co]) span{color:var(--accent)}
 /* Puce de rappel, dans les listes et les en-têtes de fiche. */
 .cchip{display:inline-flex; align-items:center; gap:5px; padding:3px 8px 3px 6px;
   border-radius:999px; background:var(--seg-bg); font-family:var(--mono);
@@ -1176,7 +1280,11 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 /* ---------------- carte de score (Trophées) ---------------- */
 .rank{background:var(--card-2-bg); color:var(--card-2-on); border:0; position:relative}
 .rank .kicker{font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--straw)}
-.detaillink{font-family:var(--serif); font-style:italic; font-size:11px; letter-spacing:0;
+/* Comfortaa n'existe qu'en romain. Laisser `font-style:italic` aurait fait
+   pencher la police par le navigateur — un faux italique, qui déforme les
+   rondeurs de cette famille au point de la rendre méconnaissable. Le contraste
+   passe donc par la graisse. */
+.detaillink{font-family:var(--serif); font-weight:600; font-size:11px; letter-spacing:0;
   text-transform:none; color:var(--straw); margin-left:8px; text-decoration:underline;
   text-underline-offset:2px; vertical-align:baseline}
 .rank .pts{font-family:var(--display); font-weight:800; font-size:46px; line-height:1; margin:6px 0 0; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
@@ -2202,7 +2310,7 @@ let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:
          fv:'actu', notif:NOTIF0(), nutri:true, marques:{}, notes:undefined,
          plike:{}, pcom:{}, rq:null, rtab:'ing',
          cv:'frigo', frigo:[], fgq:'', fgCarb:'', fgSais:false, fgCui:'',
-         mesRec:[], mrCat:null, mrTab:'ing', mrAll:false, catStyle:{},
+         mesRec:[], mrCat:null, mrTab:'ing', mrAll:false, catStyle:{}, mrOpen:null,
          partner:null, parts:[], podium:{or:0, argent:0, bronze:0},
          platLarge:false, modeFrom:null,
          stdP:null, stdF:null, stdL:null, stdSize:'normal',
@@ -5633,7 +5741,7 @@ function aideSheet(){
 /* ============================ onglet 1 — En cuisine ============================
    Trois vues sous un même onglet, réunies parce qu'elles répondent à la même
    question — qu'est-ce que je mange. Le frigo part de ce qu'on a, Mes recettes
-   de ce qu'on a trouvé ailleurs, la Bibliothèque de ce que pèse chaque
+   de ce qu'on a trouvé ailleurs, « En savoir + » de ce que pèse chaque
    ingrédient. L'ancien onglet Bibliothèque n'était que la troisième.
 
    L'identifiant interne de l'onglet reste 'biblio'. Il est écrit dans le
@@ -5641,7 +5749,27 @@ function aideSheet(){
    voyage dans les notifications push : le renommer ferait repartir tout le
    monde sur l'onglet par défaut au prochain lancement, pour un gain purement
    cosmétique. Le nom visible, lui, est bien « En cuisine ». */
-const CUI_VUES = [['frigo','Mon frigo'], ['recettes','Mes recettes'], ['biblio','Bibliothèque']];
+/* Pictogrammes du sélecteur. Dessinés ici comme ceux des catégories, pour les
+   mêmes raisons : l'app doit s'afficher entière hors ligne, et un tracé partage
+   l'épaisseur et les jointures du reste.
+   L'ampoule porte quatre petits traits de rayonnement — c'est ce qui la
+   distingue d'une ampoule éteinte, une poire seule ne dit rien. */
+const P_VUE = {
+  frigo: '<rect x="5" y="2.8" width="14" height="18.4" rx="2.6"/>'
+       + '<path d="M5 9.6h14"/><path d="M16.2 5.4v2.2M16.2 12.2v2.8"/>',
+  livre: '<path d="M12 6.6C10.2 5.2 7.6 4.6 4 4.6v12.8c3.6 0 6.2.6 8 2 1.8-1.4 4.4-2 8-2V4.6'
+       + 'c-3.6 0-6.2.6-8 2z"/><path d="M12 6.6v13.8"/>',
+  savoir:'<path d="M9.2 15.4a5.4 5.4 0 1 1 5.6 0v1.8H9.2z"/>'
+       + '<path d="M9.9 19.6h4.2M10.6 21.6h2.8"/>'
+       + '<path d="M12 2.6V1.2M5.7 5.5l-1-1M18.3 5.5l1-1M3.3 11.8H1.9M22.1 11.8h-1.4"/>',
+};
+/* « En savoir + » plutôt que « Bibliothèque » : l'onglet ne contient pas qu'un
+   catalogue, il porte aussi les repères d'empreinte et les recettes détaillées
+   du référentiel. La clé reste `biblio` — c'est celle que retient S.cv et que
+   plusieurs écrans passent à renderCuisine. */
+const CUI_VUES = [['frigo','Mon frigo','frigo'],
+                  ['recettes','Mes recettes','livre'],
+                  ['biblio','En savoir +','savoir']];
 
 function renderCuisine(){
   if(!CUI_VUES.some(([k]) => k === S.cv)) S.cv = 'frigo';
@@ -5649,8 +5777,11 @@ function renderCuisine(){
   const brancher = {frigo:bindFrigo, recettes:bindRecettes, biblio:bindBiblio}[S.cv];
 
   view.innerHTML = `
-    <div class="seg" style="margin-bottom:12px">${CUI_VUES.map(([k,l]) =>
-      `<button data-cv="${k}" aria-pressed="${S.cv === k}"><b>${l}</b></button>`).join('')}</div>
+    <div class="seg tall" style="margin-bottom:12px">${CUI_VUES.map(([k,l,ic]) =>
+      `<button data-cv="${k}" aria-pressed="${S.cv === k}">
+        <svg viewBox="0 0 24 24" aria-hidden="true">${P_VUE[ic]}</svg>
+        <b>${l}</b>
+      </button>`).join('')}</div>
     ${corps()}`;
 
   view.querySelectorAll('[data-cv]').forEach(b => b.onclick = () => {
@@ -5940,6 +6071,25 @@ const mrBody = r => ({title:r.t, pers:Math.max(1, r.ingp || r.pers), ing:r.ing,
 const mrPost = r => Object.assign(mrBody(r), r.cat ? {cat:r.cat} : {});
 const mrGet  = id => (S.mesRec || []).find(r => r.id === id);
 
+/* Couleur de la carte. Trois sources, dans cet ordre : la teinte que
+   l'utilisateur a posée sur la catégorie, puis une couleur tirée de
+   l'identifiant, et rien s'il n'y a ni l'une ni l'autre.
+
+   Le tirage est un hachage de l'identifiant, pas un index de position dans la
+   liste : la pile est triée par date et la liste se filtre par catégorie, donc
+   une couleur assise sur le rang aurait changé chaque fois qu'une recette est
+   ajoutée ou qu'on touche un filtre. On reconnaît une recette à sa couleur, ce
+   qui suppose qu'elle ne bouge pas. */
+const mrCouleur = r => {
+  if(!r) return null;
+  const t = catCo(r.cat);
+  if(t) return t;
+  let h = 0;
+  const s = String(r.id);
+  for(let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 100003;
+  return TEINTES[h % TEINTES.length];
+};
+
 function cuiRecettes(){
   const L = S.mesRec || [];
   /* Les catégories offertes au filtre sont celles réellement portées par le
@@ -6011,7 +6161,14 @@ function cuiRecettes(){
   </div>
 
   ${L.length ? `
-    <h2 class="sec">Mes recettes</h2>
+    <h2 class="sec">Mes recettes${S.mrCat && S.mrCat !== '~' && S.mrCat !== ''
+      ? `<button class="pinceau" id="mr_style" type="button"
+          aria-label="Personnaliser la catégorie ${esc(catLabel(S.mrCat))}">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M13.4 4.6l6 6-7.6 7.6a3 3 0 0 1-1.5.8l-4.6 1 1-4.6a3 3 0 0 1 .8-1.5z"/>
+            <path d="M12 6l6 6M5.2 19.4l-.6 1.8 1.8-.6"/>
+          </svg>
+        </button>` : ''}</h2>
     <div class="catgrid">
       ${tuile('', 'Tout', P_TOUT, L.length, null)}
       ${vis.map(k => k === '~'
@@ -6021,24 +6178,45 @@ function cuiRecettes(){
     ${trop ? `<button class="btn btn-2" id="mr_all" style="margin:2px 0 4px"
       data-open="${ouvert ? 0 : 1}" data-raz="${force && !S.mrAll ? 1 : 0}">${ouvert
       ? 'Réduire' : `+ Tout afficher · ${liste.length} catégories`}</button>` : ''}
-    ${S.mrCat && S.mrCat !== '~' ? `<div class="actions" style="margin:2px 0 4px">
-      <button class="btn btn-2" id="mr_style">Personnaliser « ${esc(catLabel(S.mrCat))} »</button>
-    </div>` : ''}
     ${!choisi
       ? `<div class="src" style="margin:8px 2px 0">Touchez une catégorie pour voir ses recettes,
           ou « Tout » pour le carnet entier.</div>`
-      : `<div class="list" style="margin-top:8px">
-      ${rows.length ? rows.map(({r, kg, pers}) => `
-        <button class="frow" data-mr="${esc(r.id)}">
-          <div class="nm">${esc(r.t)}</div>
-          <div class="fk">${n2(kg / pers)}<small>kg CO₂e / pers</small></div>
-          <div class="fm">${r.cat ? catChip(r.cat) + ' · ' : ''}${r.ing.length} ingrédient${
-            r.ing.length > 1 ? 's' : ''}${r.prep.length ? ` · ${r.prep.length} étape${
-            r.prep.length > 1 ? 's' : ''}` : ' · pas de préparation'}${
-            r.src ? ' · ' + esc(r.src) : ''}</div>
-        </button>`).join('')
-      : `<div class="empty">Aucune recette dans cette catégorie.</div>`}
-    </div>`}`
+      : rows.length
+        /* Le portefeuille remplace la liste : les deux ensemble auraient montré
+           deux fois les mêmes recettes, et c'est la pile qui porte désormais le
+           geste d'ouverture. */
+        ? `<div class="wallet" id="wallet">${rows.map(({r, kg, pers}) => {
+            const co = mrCouleur(r), ouv = S.mrOpen === r.id;
+            /* La carte n'est pas un <button> mais un div à `role="button"` : elle
+               contient elle-même un bouton d'action une fois ouverte, et un
+               bouton dans un bouton n'est pas du HTML valide — le navigateur
+               remonte le nœud hors de son parent et le geste part sur la
+               mauvaise cible. `tabindex` et la gestion d'Entrée/Espace plus bas
+               rendent au div ce que le <button> donnait gratuitement. */
+            return `<div class="wcard${ouv ? ' on' : ''}" data-wc="${esc(r.id)}"
+              ${co ? `data-co="${co}"` : ''} role="button" tabindex="0"
+              aria-expanded="${ouv}">
+              <span class="wt">${esc(r.t)}</span>
+              <span class="wk">${n2(kg / pers)} kg CO₂e / pers</span>
+              <span class="wm">${r.cat ? esc(catLabel(r.cat)) + ' · ' : ''}${
+                r.ing.length} ingrédient${r.ing.length > 1 ? 's' : ''}${
+                r.prep.length ? ` · ${r.prep.length} étape${r.prep.length > 1 ? 's' : ''}`
+                              : ' · pas de préparation'}</span>
+              ${ouv ? `<div class="wbody">
+                <div class="wl"><span>Pour ${pers} personne${pers > 1 ? 's' : ''}</span>
+                  <span>${n2(kg)} kg au total</span></div>
+                <div class="wl"><span>Ingrédients mesurés</span>
+                  <span>${r.ing.length}</span></div>
+                <div class="wl"><span>Étapes de préparation</span>
+                  <span>${r.prep.length || '—'}</span></div>
+                ${r.src ? `<div class="wl"><span>Source</span><span>${esc(r.src)}</span></div>` : ''}
+                <div class="wact">
+                  <button type="button" data-wopen="${esc(r.id)}">Ouvrir la recette</button>
+                </div>
+              </div>` : ''}
+            </div>`;
+          }).join('')}</div>`
+        : `<div class="empty">Aucune recette dans cette catégorie.</div>`}`
   : `<div class="empty">Ajoutez une première recette : collez le lien d’un site de cuisine, ou
       saisissez les ingrédients à la main. Vous pourrez la ranger dans une catégorie, choisir son
       pictogramme et la couleur de son carré.</div>`}
@@ -6061,7 +6239,7 @@ function cuiRecettes(){
   </div>
 
   <div class="src" style="margin:12px 2px 0">Les recettes détaillées du référentiel ont rejoint la
-    Bibliothèque : cet onglet est le vôtre, il ne montre que ce que vous y mettez.</div>`;
+    « En savoir + » : cet onglet est le vôtre, il ne montre que ce que vous y mettez.</div>`;
 }
 
 /* Liste des recettes complètes du référentiel : celles qui portent à la fois les
@@ -6123,8 +6301,29 @@ function bindRecettes(){
   };
   const bs = $('#mr_style');
   if(bs) bs.onclick = () => catStyleSheet(S.mrCat);
-  view.querySelectorAll('[data-mr]').forEach(b =>
-    b.onclick = () => mesRecSheet(b.dataset.mr));
+
+  /* La pile. Toucher une carte l'ouvre, la retoucher la referme : c'est le même
+     geste dans les deux sens, et il n'y a donc pas de croix à viser. */
+  view.querySelectorAll('[data-wc]').forEach(c => {
+    const ouvre = () => {
+      S.mrOpen = S.mrOpen === c.dataset.wc ? null : c.dataset.wc;
+      renderCuisine();
+    };
+    c.onclick = ev => {
+      /* Le bouton d'action de la carte ouverte ne doit pas la refermer au
+         passage : il vit à l'intérieur, donc son clic remonte jusqu'ici. */
+      if(ev.target.closest('[data-wopen]')) return;
+      ouvre();
+    };
+    /* Un div à `role="button"` n'a pas le clavier d'un <button> : on le lui
+       rend, sinon la pile serait inatteignable autrement qu'au doigt. */
+    c.onkeydown = ev => {
+      if(ev.key !== 'Enter' && ev.key !== ' ') return;
+      ev.preventDefault(); ouvre();
+    };
+  });
+  view.querySelectorAll('[data-wopen]').forEach(b =>
+    b.onclick = () => mesRecSheet(b.dataset.wopen));
 }
 
 /* Retoucher l'apparence d'une catégorie déjà utilisée, depuis l'onglet. Même
@@ -7161,7 +7360,7 @@ function stdPanel(){
         lignes.length ? '' : 'disabled'}>Ajouter au plat</button>
     </div>
     <div class="src" style="margin-top:8px">Viande rouge, viande blanche, poisson et féculent sont des
-      moyennes de la base : leur composition et leur écart sont détaillés dans la bibliothèque.
+      moyennes de la base : leur composition et leur écart sont détaillés dans « En savoir + ».
       Les grammages restent modifiables après ajout.</div>`;
 }
 
@@ -9993,7 +10192,7 @@ const ICO_LISTE = ['bol','assiette','pizza','burger','sushi','taco',
                    'nouilles','fourche','marmite','wok','poisson','poulet',
                    'feuille','legume','fromage','pain','gateau','cafe',
                    'verre','epi','piment','flamme','coeur','etoile'];
-const TEINTES = ['1','2','3','4','5','6','7','8'];
+const TEINTES = ['1','2','3','4','5','6','7'];
 
 /* Une catégorie est une chaîne, et une seule : soit une clé de CUIS, soit le
    libellé libre saisi par l'utilisateur. Deux champs — clé plus nom perso —
@@ -10220,8 +10419,25 @@ function reglette(o){
     </div>
     <div class="rgll">${refs.map(r => `<span><i style="background:${r.c}"></i>${
       r.l} <b>${n2(r.v)}</b></span>`).join('')}</div>
-    <div class="cap">${o.cap || ''}</div>
+    ${infoCap(o.cap)}
   </div>`;
+}
+
+/* Explication de graphique, repliée derrière un « i ». Les identifiants sont
+   tirés d'un compteur et non du texte : deux graphiques peuvent porter la même
+   phrase — la réglette du jour et celle de la semaine en sont un cas — et deux
+   `id` identiques feraient basculer les deux panneaux ensemble.
+   Le compteur repart à chaque peinture complète : il ne sert qu'à relier un
+   bouton à son panneau dans le document courant. */
+let INFO_N = 0;
+function infoCap(txt){
+  if(!txt) return '';
+  const id = 'inf' + (++INFO_N);
+  return `<div class="info">
+      <button class="ibtn" type="button" data-info="${id}" aria-expanded="false"
+        aria-controls="${id}" aria-label="Comment lire ce graphique">i</button>
+    </div>
+    <div class="infox" id="${id}" hidden>${txt}</div>`;
 }
 
 function duoData(a){
@@ -11110,8 +11326,8 @@ function tvAn(a){
           <div class="tr"><i style="width:${(p.perDay/mxd*100).toFixed(1)}%;background:${p.c}"></i></div>
         </div>`).join('')}
       </div>
-      <div class="src">Contribution moyenne de chaque repas à une journée, en kg CO₂e. Le total des
-        quatre barres fait la moyenne quotidienne ci-dessus.</div>
+      ${infoCap('Contribution moyenne de chaque repas à une journée, en kg CO₂e. Le total des '
+        + 'quatre barres fait la moyenne quotidienne ci-dessus.')}
     </div>
 
     <h2 class="sec">Extrapolation annuelle</h2>
@@ -11130,8 +11346,8 @@ function tvAn(a){
         <div class="val">${n0(r.v)}</div>
         <div class="tr"><i style="width:${(r.v/mx*100).toFixed(1)}%;background:${r.c}"></i></div>
       </div>`).join('')}
-      <div class="src">kg CO₂e par an et par personne. Le budget cible de ${n0(f.budget)} kg est une
-      hypothèse de travail, pas une norme officielle.</div>
+      ${infoCap(`kg CO₂e par an et par personne. Le budget cible de ${n0(f.budget)} kg est une
+      hypothèse de travail, pas une norme officielle.`)}
     </div>
 
     <h2 class="sec">Ce que ça vaut</h2>
@@ -11198,7 +11414,7 @@ function cumulCard(o){
       </div>
       <div class="axis"><span>${o.jours.length ? dLabel(o.jours[0]) : ''}</span>
         <span>${o.jours.length ? dLabel(o.jours[o.jours.length - 1]) : ''}</span></div>
-      <div class="src" style="margin-top:9px">${o.legende}</div>
+      ${infoCap(o.legende)}
     </div>`;
 }
 
@@ -11278,8 +11494,16 @@ function tvCumule(a){
         ${MEALS.map(m => `<span><i class="dot" style="background:${m.c}"></i>${m.l}</span>`).join('')}
         <span><i class="budkey"></i>budget/j</span>
       </div>
-      <div class="src" style="margin-top:9px">Chaque colonne = un jour, empilé par repas. Toucher pour le détail jour par jour ›</div>
+      <div class="src" style="margin-top:9px">Toucher pour le détail jour par jour ›</div>
     </button>
+    ${/* Le « i » ne peut pas vivre dans le graphique : celui-ci est lui-même un
+          bouton, et un bouton dans un bouton n'est pas du HTML valide — le
+          navigateur remonte le nœud hors de son parent et le geste part sur la
+          mauvaise cible. L'explication est donc posée juste après la carte, et
+          l'invitation à toucher reste visible puisqu'elle n'explique rien : elle
+          dit ce que fait le geste. */''}
+    ${infoCap('Chaque colonne est un jour, empilée par repas. Le trait horizontal est le '
+      + 'budget quotidien : une colonne qui le dépasse sort du cadre clair.')}
 
     ${nuOn() ? nutCumul(a, last) : ''}
 
@@ -12876,6 +13100,46 @@ const bellBtn = document.getElementById('bell');
 if(bellBtn) bellBtn.onclick = () => notesSheet();
 const avaBtn = document.getElementById('topAva');
 if(avaBtn) avaBtn.onclick = () => go('profil');
+/* ==================== gestes globaux ====================
+   Un seul écouteur délégué, à la racine, pour deux comportements qui ne peuvent
+   pas vivre ailleurs : l'ouverture d'une explication de graphique, et la
+   désélection au clic hors de la zone concernée.
+
+   Délégué et non posé sur chaque élément, parce que les explications
+   apparaissent dans quatre écrans et deux feuilles, et qu'un branchement par
+   endroit finissait toujours par manquer là où l'on venait de peindre. Le
+   document, lui, ne se repeint jamais. */
+document.addEventListener('click', ev => {
+  /* 1. Le « i » d'un graphique. On bascule sans repeindre : la vue entière se
+        redessinerait pour une phrase, et le compteur d'identifiants repartant à
+        zéro, le panneau visé aurait changé de numéro en cours de route. */
+  const inf = ev.target.closest('[data-info]');
+  if(inf){
+    const box = document.getElementById(inf.dataset.info);
+    if(box){
+      const ouvre = box.hasAttribute('hidden');
+      if(ouvre) box.removeAttribute('hidden'); else box.setAttribute('hidden', '');
+      inf.setAttribute('aria-expanded', String(ouvre));
+    }
+    return;
+  }
+
+  /* 2. Clic hors du portefeuille. Deux crans, du plus intérieur au plus
+        extérieur : on referme d'abord la carte ouverte, et seulement au clic
+        suivant on lâche la catégorie. Tout défaire d'un coup ferait disparaître
+        la pile entière alors qu'on voulait juste replier une carte.
+        Rien ne se déclenche si le clic a touché un élément interactif — tuile,
+        bouton, champ, feuille ouverte : sinon replier une carte demanderait de
+        viser une zone vide, et toucher « Réduire » refermerait la pile au
+        passage. */
+  if(S.tab !== 'biblio' || S.cv !== 'recettes') return;
+  if(S.mrOpen == null && S.mrCat == null) return;
+  if(ev.target.closest('.wcard, .ctile, button, a, input, textarea, .sheet, #pm')) return;
+  if(S.mrOpen != null) S.mrOpen = null;
+  else S.mrCat = null;
+  renderCuisine();
+});
+
 SB.readSess();
 load();
 /* Rattrapage avant addStandards : les six favoris standards, posés d'office au
