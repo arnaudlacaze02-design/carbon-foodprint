@@ -1477,6 +1477,19 @@ button.tip:active{transform:scale(.995)}
   letter-spacing:-.01em}
 .hcard .hs{font-family:var(--mono); font-size:9px; letter-spacing:.04em; text-transform:uppercase;
   color:var(--mute); line-height:1.35; overflow-wrap:anywhere; max-width:100%}
+
+/* Tuiles d'accueil teintées. Le cas particulier ici est la pastille ronde de
+   l'icône, en vert forêt sur fond blanc : posée sur un fond franc elle se
+   perdrait dans le brun ou jurerait avec l'orange. Elle s'inverse donc — fond
+   en encre de teinte, trait du pictogramme dans la teinte elle-même —, ce qui
+   la garde lisible quelle que soit la couleur choisie et sans avoir à décider
+   d'un vert par teinte. */
+.hcard[data-co]{background:var(--co-bg); border-color:transparent; color:var(--co-on)}
+.hcard[data-co] .ht{color:var(--co-on)}
+.hcard[data-co] .hs{color:var(--co-on); opacity:.78}
+.hcard[data-co] .hi{background:var(--co-on)}
+.hcard[data-co] .hi svg{stroke:var(--co-bg)}
+.hcard[data-co]:active{background:var(--co-bg); filter:brightness(.92)}
 .mealblocks{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
 .mblock{background:var(--card); border:1px solid var(--line); border-radius:11px; padding:15px 12px;
   display:flex; flex-direction:column; align-items:center; gap:3px; text-align:center}
@@ -2570,7 +2583,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-104';
+const BUILD = 'cfp-105';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -8059,7 +8072,7 @@ function partenairesPanel(){
       <div class="srchw mb${S.partQ ? ' on' : ''}" style="margin-top:12px">
         <input class="search" id="pt_q" type="search" value="${esc(S.partQ || '')}"
                autocorrect="on" autocapitalize="sentences"
-               placeholder="Chercher un plat chez tous les lieux">
+               placeholder="Chercher un plat">
         <button class="srchx" id="pt_qx" type="button" aria-label="Effacer la recherche">✕</button>
       </div>
       ${q.length >= 2 ? `<div class="list mb">
@@ -8246,12 +8259,12 @@ function renderSaisie(){
       <i class="brandbig" role="img" aria-label="Carbon FOODprint"></i>
       ${window.RECAP ? RECAP.blocTrous() : ''}
       <div class="homegrid">
-        <button class="hcard" id="hNew">
+        <button class="hcard" data-co="6" id="hNew">
           <span class="hi"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
           <span class="ht">Nouveau repas</span>
           <span class="hs">Petit-déj · déj · en-cas · dîner</span>
         </button>
-        <button class="hcard" id="hEdit">
+        <button class="hcard" data-co="4" id="hEdit">
           <span class="hi"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 6.5l3 3"/></svg></span>
           <span class="ht">Modifier un repas</span>
           <span class="hs">${S.hist.length} repas enregistré${S.hist.length>1?'s':''}</span>
