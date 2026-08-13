@@ -1540,6 +1540,27 @@ button.tip:active{transform:scale(.995)}
 .mcard[data-co] .mcn{color:var(--co-on); opacity:.72}
 .mcard[data-co] .mcs{color:var(--co-on); opacity:.82}
 .mcard[data-co]:active{background:var(--co-bg); filter:brightness(.92)}
+
+/* ---------------- réorganisation par appui long ----------------
+   Deux états seulement, et pas d'animation d'insertion : la vignette prise se
+   soulève, la destination s'entoure. Faire glisser les autres éléments pour
+   ouvrir un trou serait plus joli mais demande de traiter séparément la colonne
+   et la grille à deux colonnes ; l'entourage se lit aussi bien et marche pour
+   les deux dispositions sans une ligne de plus.
+
+   `touch-action:manipulation` sur les éléments réorganisables, et non
+   `touch-action:none` : couper tous les gestes du navigateur rendrait la liste
+   impossible à faire défiler. C'est le module qui coupe le défilement, et
+   seulement après la prise. */
+.ordre-actif [data-part], .ordre-actif .dish{transition:transform .12s ease, opacity .12s ease}
+.ordre-pris{position:relative; z-index:20; opacity:.92;
+  box-shadow:0 16px 34px rgba(12,20,17,.34); border-radius:13px}
+.ordre-cible{box-shadow:inset 0 0 0 2.5px var(--accent); border-radius:13px}
+/* Pendant qu'on tient une vignette, plus rien ne doit se sélectionner sous le
+   doigt : une sélection de texte qui apparaît au milieu d'un déplacement le
+   fait paraître cassé. */
+.ordre-actif, .ordre-actif *{user-select:none; -webkit-user-select:none}
+.modegrid [data-part], .list .dish{touch-action:manipulation}
 /* Compteur des cartes du sas : c'est un nombre, il prend la face des nombres. */
 .mcard .mcn{font-family:var(--display); font-weight:800; font-size:14px; color:var(--accent);
   font-variant-numeric:tabular-nums; white-space:nowrap}
@@ -2370,7 +2391,7 @@ function save(){
         prof:S.prof, people:S.people, notif:S.notif, nutri:S.nutri,
         marques:S.marques, pmVu:S.pmVu, frigo:S.frigo, parts:S.parts,
         podium:S.podium, skip:S.skip, noask:S.noask, mesRec:S.mesRec,
-        catStyle:S.catStyle})); }catch(e){}
+        catStyle:S.catStyle, partOrdre:S.partOrdre, recOrdre:S.recOrdre})); }catch(e){}
   /* Les signaux d'attente se recalculent à partir de S : les repeindre ici,
      c'est garantir qu'ils ne mentent jamais après une écriture, sans avoir à
      penser à les appeler depuis chacun des vingt endroits qui écrivent.
@@ -2381,6 +2402,7 @@ function load(){
   S.favs=[]; S.hist=[]; S.tomb=[]; S.starred=[]; S.stdInit=false; S.lastSync=null; S.prof={};
   S.people=[]; S.notif=NOTIF0(); S.nutri=true; S.marques={}; S.pmVu=false; S.frigo=[];
   S.parts=[]; S.partner=null; S.podium={or:0, argent:0, bronze:0};
+  S.partOrdre=[]; S.recOrdre=[];
   /* Repas déclarés sautés, et créneaux qu'on ne veut plus voir proposés. Deux
      listes de clés « AAAA-MM-JJ|serv ». Volontairement locales et non
      synchronisées, comme le frigo : c'est une déclaration d'intention sur un
@@ -2403,6 +2425,9 @@ function load(){
          disparaître ce qui était visible hier serait pris pour une régression. */
       S.nutri = o.nutri !== false;
       S.marques = o.marques || {};
+      /* Les ordres personnels des deux listes réorganisables. Absents d'une
+         sauvegarde antérieure : liste vide, donc ordre d'origine. */
+      S.partOrdre = o.partOrdre || []; S.recOrdre = o.recOrdre || [];
       /* Absent d'une sauvegarde antérieure au tutoriel : on considère qu'un
          utilisateur déjà installé n'a pas besoin qu'on le lui impose. */
       S.pmVu = 'pmVu' in o ? !!o.pmVu : true;
@@ -2508,7 +2533,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-100';
+const BUILD = 'cfp-101';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -7525,27 +7550,176 @@ const PART_CATS = [
    d:'Tenders, wings, box.'},
 ];
 
+/* Les couleurs des marques sont posées à la main et non prises dans le nuancier
+   des dix teintes : ce sont leurs couleurs, pas les nôtres, et aucune ne tombe
+   sur une case de la planche. Elles arrivent donc en `bg`, avec leur encre
+   choisie une par une — quatre des cinq sont des pastels qui appellent une
+   encre sombre, et toutes passent 8:1 sauf le gris d'Urban Bagel, expliqué
+   plus bas.
+
+   `vide:1` signale un univers dont le catalogue n'existe pas encore : la tuile
+   se cache tant qu'elle ne compte aucune référence, et réapparaît d'elle-même
+   au premier plat qui s'y range. C'est préférable à une suppression, qui
+   demanderait de reposer l'entrée le jour où le catalogue arrive. */
 const PARTENAIRES = [
   {k:'hellofresh', n:'HelloFresh',  t:'Kit repas',  mode:'frais',
+   bg:'#9FDD32', on:'#1B2600',
    d:'Kits livrés, cuisinés chez vous.'},
   {k:'picard',     n:'Picard',      t:'Surgelés',   mode:'surgele',
+   bg:'#C9F2EE', on:'#0C2C28',
    d:'Plats du congélateur.'},
   {k:'mimo',       n:'Gruppomimo',  t:'Restaurant', mode:'resto',
+   bg:'#F0D5D2', on:'#3A1E1A',
    d:'Pizzas, pâtes et desserts.'},
   {k:'oxymore',    n:'Oxymore',     t:'Restaurant', mode:'resto',
+   bg:'#FBC67F', on:'#3A2205',
    d:'Les pizzas à prénoms.'},
   {k:'urbanbagel', n:'Urban Bagel', t:'Restaurant', mode:'resto',
+   /* Le seul gris moyen du lot, et le seul cas où l'encre se discute : le blanc
+      n'y atteint que 3,6:1, sous le seuil d'un texte courant, alors que l'encre
+      sombre monte à 5,3:1. Sombre donc, au risque de faire un peu « tuile
+      éteinte » à côté des quatre pastels. */
+   bg:'#898686', on:'#0F0E0E',
    d:'Bagels et salades.'},
-  {k:'mlleshawn',  n:'Mlle Shawn',  t:'Restaurant', mode:'resto',
-   d:'Ce que vous y prenez d’habitude.'},
-  {k:'jow',        n:'Jow',         t:'Kit repas',  mode:'frais',
+  {k:'jow',        n:'Jow',         t:'Kit repas',  mode:'frais', vide:1,
    d:'Catalogue à venir.'},
 ];
 
 /* Les adresses ajoutées à la main viennent s'ajouter aux sept ci-dessus. Elles
    vivent dans l'état persisté, pas dans une constante : c'est une donnée
    d'utilisateur, elle doit suivre le compte. */
-const partTous = () => PARTENAIRES.concat(PART_CATS, S.parts || []);
+/* ---------------- appui long pour réorganiser ----------------
+   Deux listes se réorganisent à la main — les tuiles de lieux et le carnet de
+   recettes — et le geste doit être le même aux deux endroits, d'où un module et
+   non deux implémentations.
+
+   Le geste imite celui des icônes d'un téléphone, parce que c'est celui que tout
+   le monde connaît : on appuie sans bouger, la vignette se soulève, on la
+   déplace, on lâche. Trois seuils règlent tout, et chacun est là pour écarter un
+   faux positif précis. 420 ms avant la prise, sinon un simple tap ouvrirait un
+   déplacement. 8 px de tolérance pendant l'attente, parce qu'un doigt posé n'est
+   jamais parfaitement immobile — mais au-delà c'est un défilement, et l'attente
+   est annulée. Et `preventDefault` seulement après la prise : l'annuler avant
+   bloquerait le défilement de la page pour tout appui, y compris ceux qui n'ont
+   rien à voir.
+
+   Le rendu ne repeint rien pendant le déplacement. L'app repeint tout à chaque
+   changement d'état, ce qui détruirait l'élément qu'on tient : la vignette suit
+   donc le doigt par une simple transformation CSS, hors du cycle de rendu, et
+   l'ordre n'est écrit et sauvé qu'au relâchement.
+
+   La cible n'est pas devinée par un calcul d'insertion mais par le centre le
+   plus proche du doigt. Un seul code marche alors pour une liste en colonne et
+   pour une grille à deux colonnes, là où un modèle « insérer avant / après »
+   demande de traiter les deux axes séparément. */
+function ordreBind(root, sel, lire, ecrire){
+  const items = [...root.querySelectorAll(sel)];
+  if(items.length < 2) return;
+
+  items.forEach((el, idx) => {
+    let t = null, pris = false, x0 = 0, y0 = 0, rects = null, cible = idx;
+
+    const nettoie = () => {
+      clearTimeout(t); t = null;
+      items.forEach(e => { e.style.transform = ''; e.style.transition = '';
+        e.classList.remove('ordre-pris', 'ordre-cible'); });
+      root.classList.remove('ordre-actif');
+    };
+
+    const prend = () => {
+      pris = true;
+      /* Les rectangles sont relevés une fois, à la prise. Les relire à chaque
+         mouvement les lirait déjà transformés, et la cible se déplacerait avec
+         le doigt au lieu de rester sur place. */
+      rects = items.map(e => { const r = e.getBoundingClientRect();
+        return {cx:r.left + r.width / 2, cy:r.top + r.height / 2}; });
+      el.classList.add('ordre-pris');
+      root.classList.add('ordre-actif');
+      if(navigator.vibrate) try{ navigator.vibrate(12); }catch(e){}
+    };
+
+    const bouge = (x, y) => {
+      if(!pris){
+        if(Math.abs(x - x0) > 8 || Math.abs(y - y0) > 8) nettoie();
+        return false;
+      }
+      el.style.transform = `translate(${x - x0}px, ${y - y0}px) scale(1.04)`;
+      let best = idx, d = Infinity;
+      rects.forEach((r, k) => {
+        const dd = (r.cx - x) ** 2 + (r.cy - y) ** 2;
+        if(dd < d){ d = dd; best = k; }
+      });
+      if(best !== cible){
+        cible = best;
+        items.forEach((e, k) => e.classList.toggle('ordre-cible', k === cible && k !== idx));
+      }
+      return true;
+    };
+
+    const lache = () => {
+      const bougé = pris && cible !== idx;
+      nettoie(); pris = false;
+      if(!bougé) return;
+      const l = lire().slice();
+      l.splice(cible, 0, l.splice(idx, 1)[0]);
+      ecrire(l);
+    };
+
+    el.addEventListener('touchstart', e => {
+      if(e.touches.length !== 1) return;
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; cible = idx;
+      t = setTimeout(prend, 420);
+    }, {passive:true});
+
+    /* Non passif, et c'est le seul endroit où ça compte : une fois la vignette
+       prise il faut pouvoir couper le défilement de la page, sinon le doigt
+       emporte l'écran au lieu de la tuile. */
+    el.addEventListener('touchmove', e => {
+      if(bouge(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault();
+    }, {passive:false});
+
+    el.addEventListener('touchend', lache);
+    el.addEventListener('touchcancel', () => { nettoie(); pris = false; });
+
+    /* Le clic ne doit pas partir après un déplacement : sans ce garde-fou,
+       relâcher une tuile de lieu ouvrirait le lieu qu'on vient de ranger. */
+    el.addEventListener('click', e => {
+      if(el.dataset.ordreFait){ delete el.dataset.ordreFait;
+        e.preventDefault(); e.stopPropagation(); }
+    }, true);
+
+    /* Souris, pour la mise au point sur ordinateur. Le même geste, sans le
+       problème de défilement. */
+    el.addEventListener('mousedown', e => {
+      if(e.button !== 0) return;
+      x0 = e.clientX; y0 = e.clientY; cible = idx;
+      t = setTimeout(prend, 420);
+      const mv = ev => bouge(ev.clientX, ev.clientY);
+      const up = () => { document.removeEventListener('mousemove', mv);
+        document.removeEventListener('mouseup', up);
+        if(pris && cible !== idx) el.dataset.ordreFait = '1';
+        lache(); };
+      document.addEventListener('mousemove', mv);
+      document.addEventListener('mouseup', up);
+    });
+  });
+}
+
+/* Applique un ordre enregistré à une liste, par une clé. Les entrées absentes de
+   l'ordre — une marque ajoutée par une mise à jour, une recette créée depuis —
+   gardent leur place d'origine à la fin plutôt que d'être écartées : un ordre
+   personnel ne doit jamais faire disparaître ce qu'il ne connaît pas. */
+function ordreApplique(liste, ordre, cle){
+  if(!Array.isArray(ordre) || !ordre.length) return liste;
+  const rang = new Map(ordre.map((k, i) => [k, i]));
+  return liste.slice().sort((a, b) =>
+    (rang.has(cle(a)) ? rang.get(cle(a)) : 1e6) -
+    (rang.has(cle(b)) ? rang.get(cle(b)) : 1e6));
+}
+
+const partTous = () => ordreApplique(
+  PARTENAIRES.concat(PART_CATS, S.parts || []).filter(p => !p.vide || partCompte(p.k)),
+  S.partOrdre, p => p.k);
 const partDe   = k => partTous().find(p => p.k === k) || null;
 const catDe    = k => PART_CATS.find(c => c.k === k) || null;
 
@@ -7854,7 +8028,8 @@ function partenairesPanel(){
       </div>` : ''}
       <div class="modegrid">
         ${tous.map(p => { const n = partCompte(p.k); return `
-          <button class="mcard" data-part="${esc(p.k)}"${p.co ? ` data-co="${p.co}"` : ''}>
+          <button class="mcard" data-part="${esc(p.k)}"${p.co ? ` data-co="${p.co}"`
+            : p.bg ? ` data-co="marque" style="--co-bg:${p.bg};--co-on:${p.on}"` : ''}>
             <span class="mct">${esc(p.n)}</span>
             <span class="mcn">${n || '—'}</span>
             <span class="mcs">${esc(p.t)} · ${n
@@ -8208,9 +8383,14 @@ function renderSaisie(){
     .sort((a, b) => a.kg - b.kg);
   /* Les six standards posés d'office au premier lancement ne sont pas des
      recettes de l'utilisateur : la voie Standard les remplace. */
-  const mesRecettes = S.favs.map((f, i) => ({...f, i, custom:true, kg:kgOf(f.l)}))
-    .filter(f => !f.std && favMeals(f).some(m => listMeals.includes(m)))
-    .sort((a, b) => a.kg - b.kg);
+  /* Le tri par empreinte croissante n'est plus qu'un ordre par défaut : dès que
+     le carnet a été réorganisé à la main, c'est l'ordre personnel qui gagne.
+     Les recettes créées depuis restent à la fin, sans se faire écarter. */
+  const mesRecettes = ordreApplique(
+    S.favs.map((f, i) => ({...f, i, custom:true, kg:kgOf(f.l)}))
+      .filter(f => !f.std && favMeals(f).some(m => listMeals.includes(m)))
+      .sort((a, b) => a.kg - b.kg),
+    S.recOrdre, f => f.n);
 
   /* Un bloc vidé entre-temps — un favori retiré, une recette supprimée —
      renvoie à la question plutôt qu'à un panneau blanc. Ce contrôle doit venir
@@ -8454,6 +8634,18 @@ function renderSaisie(){
   const ptqx = $('#pt_qx');
   if(ptqx) ptqx.onclick = () => { S.partQ = ''; renderSaisie();
     const n = $('#pt_q'); if(n) n.focus(); };
+  /* Réorganisation par appui long. La clé écrite est celle du lieu et non son
+     rang : réenregistrer des rangs se désaligne dès qu'une adresse est ajoutée
+     ou qu'une marque apparaît, alors qu'une liste de clés survit à tout. */
+  if(S.path === 'part' && !S.partner) ordreBind(view, '.modegrid [data-part]',
+    () => partTous().map(p => p.k),
+    l => { S.partOrdre = l; save(); renderSaisie(); toast('Ordre des lieux enregistré'); });
+  /* La poignée est la ligne entière et non le bouton « Ajouter » : on saisit ce
+     qu'on voit bouger. `.dish` ne désigne que le carnet ici, la voie recettes
+     étant la seule à peindre une liste. */
+  if(S.path === 'recettes') ordreBind(view, '.list .dish',
+    () => mesRecettes.map(f => f.n),
+    l => { S.recOrdre = l; save(); renderSaisie(); toast('Ordre du carnet enregistré'); });
   const ptb = $('#pt_back'); if(ptb) ptb.onclick = () => { S.partner = null; renderSaisie(); };
   const pta = $('#pt_add');  if(pta) pta.onclick = partAddSheet;
   const ptc = $('#pt_comp'); if(ptc) ptc.onclick = () => { S.path = 'compose'; renderSaisie(); };
