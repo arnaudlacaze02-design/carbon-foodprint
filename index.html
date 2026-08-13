@@ -480,6 +480,19 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
    inerte au toucher, sous le toast (60) et sous #spin (70) : la fête d'une
    journée tenue reste prioritaire, la pluie n'est que l'accusé de réception
    d'un repas. */
+/* Le voile fige la page au lieu de la remplacer : on reste sur le récapitulatif
+   qu'on vient de valider, il passe au flou, et les aliments tombent par-dessus.
+   backdrop-filter plutôt qu'un filter:blur sur le conteneur : le fond est
+   statique pendant toute l'animation, il n'est donc rastérisé qu'une fois et
+   composité ensuite — flouter le sous-arbre du <main> le ferait repeindre à
+   chaque image. Il capte les touchers sans rien en faire : la page du dessous
+   décrit un repas déjà enregistré, un tap sur ses boutons agirait dans le vide. */
+#fxbg{position:fixed; inset:0; z-index:54; display:none; opacity:0;
+      touch-action:none; background:rgba(20,30,26,.10);
+      -webkit-backdrop-filter:blur(11px) saturate(.92);
+      backdrop-filter:blur(11px) saturate(.92);
+      transition:opacity .3s ease}
+#fxbg.on{opacity:1}
 #fxsp{position:fixed; inset:0; z-index:55; pointer-events:none; display:none}
 #fxkg{position:fixed; left:0; right:0; z-index:56; pointer-events:none;
       text-align:center; opacity:0; will-change:transform,opacity}
@@ -488,7 +501,7 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 #fxkg .u{margin-top:4px; font:600 13px/1 var(--round); letter-spacing:.06em;
          text-transform:uppercase; color:var(--mute)}
 #fxkg .l{margin-top:9px; font:600 14px/1 var(--round); color:var(--ink-soft)}
-@media (prefers-reduced-motion:reduce){ #fxsp{display:none!important} }
+@media (prefers-reduced-motion:reduce){ #fxsp,#fxbg{display:none!important} }
 #spin{position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center;
   pointer-events:none}
 #spin.on{display:flex; animation:spinfade 2.1s ease forwards}
@@ -2047,6 +2060,7 @@ html[data-gate="1"] .phone{display:none}
 <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
 <div class="toast" id="toast"></div>
 <div id="spin" aria-hidden="true"><div class="m"></div><div class="t"></div></div>
+<div id="fxbg" aria-hidden="true"></div>
 <canvas id="fxsp" aria-hidden="true"></canvas>
 <div id="fxkg" aria-hidden="true"><div class="v"></div><div class="u">kg CO₂e</div><div class="l"></div></div>
 <script>
@@ -7297,24 +7311,34 @@ function commitMeal(){
      et l'écran re-rendu : l'animation part du bouton qu'on vient de toucher, et
      elle a besoin de savoir ce qu'il y avait dans l'assiette. */
   const fxLignes = S.draft.slice();
-  const fxDe = fxOrigine('#rec');
+  /* « Enregistrer et remplacer mon habitude » passe aussi par ici, avec un autre
+     bouton : sans ce repli le jet partirait du centre de l'écran. */
+  const fxDe = fxOrigine('#rec') || fxOrigine('#pd_repl');
   const fxLabel = `${MEAL[S.meal].l} enregistré`;
   S.draft = []; S.wiz = null; S.step = 'home';
   S.pdjSave = false; S.pdjNew = false; S.pdjEdit = false;
-  save(); renderSaisie();
+  /* L'état part sur disque tout de suite — le repas est enregistré, une app
+     tuée pendant l'animation ne doit pas laisser de brouillon derrière elle —
+     mais l'écran n'est PAS repeint. On garde le récapitulatif à l'image, on le
+     passe au flou, et les aliments tombent dessus. La bascule vers l'accueil
+     attend la fin de l'animation, sous le voile, si bien qu'on ne voit jamais
+     le récapitulatif net d'un repas déjà validé. */
+  save();
   if(SESS) syncNow(true);
-  /* Une seule surface à la fois. Si la journée est tenue, c'est elle qu'on fête
-     et la pluie ne part pas ; sinon la pluie porte le chiffre et remplace le
-     toast, qui disait la même chose en plus petit. Le toast reste quand il a
-     quelque chose de plus à dire — la nouvelle habitude — ou quand l'animation
-     n'a pas pu partir (mouvement réduit, planche pas encore décodée). */
-  const fete = celebrate();
-  const pluie = fete ? false : fxJoue(fxLignes, kg, fxDe, fxLabel);
-  troWatch();
-  if(habNouvelle || !pluie)
-    toast(habNouvelle
-      ? `Petit-déjeuner enregistré · ${n2(kg)} kg · c’est votre nouvelle habitude`
-      : `${MEAL[S.meal].l} enregistré · ${n2(kg)} kg`);
+  let pluie = false;
+  const suite = () => {
+    renderSaisie();
+    const fete = celebrate();
+    troWatch();
+    /* La pluie a déjà dit le chiffre ; le toast ne reste que s'il a quelque
+       chose de plus à dire, ou si l'animation n'a pas pu partir. */
+    if(habNouvelle || !pluie)
+      toast(habNouvelle
+        ? `Petit-déjeuner enregistré · ${n2(kg)} kg · c’est votre nouvelle habitude`
+        : `${MEAL[S.meal].l} enregistré · ${n2(kg)} kg`);
+  };
+  pluie = fxJoue(fxLignes, kg, fxDe, fxLabel, suite);
+  if(!pluie) suite();
 }
 
 /* enregistre un service composé comme nouveau plat type */
@@ -14876,9 +14900,12 @@ function fxCasting(lignes){
 }
 
 /* Lance l'animation. Renvoie true seulement si elle part vraiment : c'est ce
-   booléen qui décide si le toast doit encore dire le chiffre. */
-function fxJoue(lignes, kg, de, label){
+   booléen qui décide si le toast doit encore dire le chiffre. `fin` est appelée
+   une fois, sous le voile encore posé — c'est là que l'appelant repeint l'écran,
+   pour que la bascule vers l'accueil se fasse à l'abri du flou. */
+function fxJoue(lignes, kg, de, label, fin){
   const cv = document.getElementById('fxsp'), el = document.getElementById('fxkg');
+  const bg = document.getElementById('fxbg');
   if(!cv || !el || !cv.getContext) return false;
   if(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches) return false;
   if(!fxTuiles){ fxCharge(); return false; }   /* décodage en cours : le toast prend le relais */
@@ -14890,10 +14917,11 @@ function fxJoue(lignes, kg, de, label){
   cv.style.width = VW + 'px'; cv.style.height = VH + 'px';
   cx.setTransform(dpr, 0, 0, dpr, 0, 0);
   cv.style.display = 'block';
+  if(bg){ bg.style.display = 'block'; void bg.offsetWidth; bg.classList.add('on'); }
 
   const G = 2100, JET = 520, ETAL = 190, SPIN = 4, REBOND = .28;
   const SMIN = 36, SMAX = 74, DECAL = 280;
-  const FADE_A = 1900, FADE_D = 420, CPT_A = 620, CPT_D = 900;
+  const FADE_A = 1900, FADE_D = 420, CPT_A = 620, CPT_D = 900, TENUE = 1400;
   const R = (a, b) => a + Math.random() * (b - a);
   const o = de || {x:VW / 2, y:VH * .58};
   const sol = VH - 22;
@@ -14918,8 +14946,26 @@ function fxJoue(lignes, kg, de, label){
   if(vEl) vEl.textContent = n2(0);
 
   const easeOut = t => t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
-  let t0 = 0, last = 0;
+  let t0 = 0, last = 0, clos = false;
   cancelAnimationFrame(fxRaf);
+
+  /* Point de sortie unique. L'ordre compte : on repeint d'abord — l'accueil
+     apparaît encore flou — puis on lève le voile. L'inverse laisserait voir un
+     dixième de seconde le récapitulatif net d'un repas déjà enregistré. */
+  function termine(){
+    if(clos) return;
+    clos = true;
+    cancelAnimationFrame(fxRaf);
+    cx.clearRect(0, 0, VW, VH);
+    cv.style.display = 'none';
+    el.style.opacity = 0;
+    el.style.transform = '';
+    try{ if(typeof fin === 'function') fin(); }catch(e){}
+    if(bg){
+      bg.classList.remove('on');
+      setTimeout(() => { if(!bg.classList.contains('on')) bg.style.display = 'none'; }, 340);
+    }
+  }
 
   function frame(ts){
     if(!t0){ t0 = ts; last = ts; }
@@ -14975,12 +15021,9 @@ function fxJoue(lignes, kg, de, label){
       el.style.transform = `scale(${(.86 + .14 * easeOut(ap)).toFixed(3)})`;
     }
 
-    if(!vivants && el_ms > CPT_A + CPT_D + 900){
-      cx.clearRect(0, 0, VW, VH);
-      cv.style.display = 'none';
-      el.style.opacity = 0;
-      return;
-    }
+    /* Le chiffre reste lisible une bonne seconde après que les aliments se sont
+       effacés : c'est lui qu'on est venu chercher, pas la chute. */
+    if(!vivants && el_ms > CPT_A + CPT_D + TENUE) return termine();
     fxRaf = requestAnimationFrame(frame);
   }
   fxRaf = requestAnimationFrame(frame);
