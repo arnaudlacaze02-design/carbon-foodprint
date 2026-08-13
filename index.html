@@ -1210,14 +1210,10 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 /* Une grille de KPI collée à la carte suivante : .card + .card était prévu,
    pas .kpis + .card, et les deux blocs se touchaient bord à bord. */
 .kpis + .card, .card + .kpis, .kpis + .kpis{margin-top:12px}
-/* Trois colonnes au lieu de deux : le libellé, le chiffre, puis le « i ». La
-   barre et la phrase s'étendent sur toute la largeur en dessous. */
-.bars .row{display:grid; grid-template-columns:1fr auto auto; gap:3px 8px; margin-bottom:11px;
-  align-items:baseline}
+.bars .row{display:grid; grid-template-columns:1fr auto; gap:3px 10px; margin-bottom:11px}
 .bars .lab{font-size:13.5px}
 .bars .val{font-family:var(--display); font-weight:800; font-variant-numeric:tabular-nums; font-size:15px; text-align:right}
 .bars .tr{grid-column:1/-1; height:9px; background:var(--track); border-radius:2px; overflow:hidden}
-.bars .obnote{grid-column:1/-1; margin-top:5px; line-height:1.6}
 .bars .tr i{display:block; height:100%}
 .days{display:flex; align-items:flex-end; gap:2px; height:78px; margin-top:4px}
 .dayscard{background:var(--card)}
@@ -1615,10 +1611,9 @@ button.tip:active{transform:scale(.995)}
    ne fait que 20 px de haut, un rond de 30 px la déformerait. 24 px, sans marge
    supérieure, et l'alignement suit la ligne de base du chiffre. */
 .obi-s{width:24px; height:24px; margin-top:0; font-size:12px; transform:translateY(3px)}
-/* La légende, elle, n'appartient à aucune ligne : elle se pose seule sous les
-   barres, à gauche, là où le paragraphe qu'elle remplace commençait. */
-.obi-leg{margin-top:2px}
-.obnote{margin-top:6px}
+/* Le bouton se pose seul en bas à droite de la carte, hors du flux des barres :
+   c'est la place d'un renvoi, pas celle d'une commande. */
+.obibar{display:flex; justify-content:flex-end; margin-top:2px}
 
 /* Éteinte parce que choisie : la teinte cède. Le gris est le seul signal qui
    dise « celle-là est déjà prise », et une tuile restée colorée se rouvrirait
@@ -2631,7 +2626,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-107';
+const BUILD = 'cfp-108';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -11523,30 +11518,38 @@ function objBlock(a){
       ${lignes.map(l => `<div class="row">
         <div class="lab">${l.lab}</div>
         <div class="val">${l.val}</div>
-        <button class="obi obi-s" data-obn="${l.k}" aria-expanded="false"
-                aria-label="Où en est « ${esc(l.lab)} »">i</button>
         ${l.bar}
-        <div class="small obnote" data-obn-t="${l.k}" hidden>${l.note}</div>
       </div>`).join('')}
     </div>
-    <button class="obi obi-s obi-leg" data-obn="_leg" aria-expanded="false"
-            aria-label="À quoi sert le trait vertical">i</button>
-    <div class="src obnote" data-obn-t="_leg" hidden>Le trait vertical marque où l’on devrait en
-      être à ce stade de la semaine, non la cible entière — sans lui, tout mercredi paraîtrait
-      vertueux. Modifiable dans Profil.</div>
+    <div class="obibar">
+      <button class="obi obi-s" data-obn="tout" aria-expanded="false"
+              aria-label="Où j’en suis sur chaque objectif">i</button>
+    </div>
+    <div data-obn-t="tout" hidden>
+      <div class="small" style="margin-top:2px;line-height:1.65">
+        ${lignes.map(l => l.note).join('<br>')}</div>
+      <div class="src" style="margin-top:8px">Le trait vertical marque où l’on devrait en être à ce
+        stade de la semaine, non la cible entière — sans lui, tout mercredi paraîtrait vertueux.
+        Modifiable dans Profil.</div>
+    </div>
   </div>`;
 }
 
-/* Les « i » de la carte des objectifs du Tracker. Une phrase par ligne, plus la
-   légende du trait vertical : quatre objectifs réglés faisaient cinq paragraphes
-   sous trois barres, et les barres — la seule chose qu'on vient lire d'un coup
-   d'œil — se retrouvaient noyées.
+/* Le « i » de la carte des objectifs du Tracker. Un seul, en bas à droite, qui
+   ouvre d'un coup l'écart au rythme de chaque ligne et la légende du trait
+   vertical.
 
-   La phrase s'affiche sous SA barre et non en bloc en bas de carte, ce qui la
-   rattache à ce qu'elle commente : « 221 g de retard sur le rythme » ne dit rien
-   si on ne sait plus de quelle ligne il s'agit. Le repeint est local, pas un
-   renderTracker() complet : la carte est calculée à partir de tout l'historique,
-   et la recalculer pour ouvrir une phrase ferait clignoter l'écran entier. */
+   Il y en a eu cinq, un par ligne, et c'était une erreur de dosage : cinq ronds
+   dans une carte qui compte trois barres attirent plus l'œil que les barres
+   elles-mêmes, et la carte se lisait comme un formulaire. Un seul bouton passe
+   inaperçu jusqu'à ce qu'on le cherche, ce qui est exactement le comportement
+   voulu pour du texte d'appoint. Les phrases perdent le rattachement visuel à
+   leur barre, mais chacune nomme son unité — kg, kcal, g, repas —, ce qui suffit
+   à savoir de quelle ligne elle parle.
+
+   Le repeint est local, pas un renderTracker() complet : la carte est calculée à
+   partir de tout l'historique, et la recalculer pour ouvrir un paragraphe ferait
+   clignoter l'écran entier. */
 function objNotesBind(root){
   (root || document).querySelectorAll('[data-obn]').forEach(b => b.onclick = () => {
     const t = (root || document).querySelector(`[data-obn-t="${b.dataset.obn}"]`);
