@@ -1486,6 +1486,22 @@ button.tip:active{transform:scale(.995)}
 .mblock[aria-pressed="true"]{background:var(--forest); border-color:var(--forest)}
 .mblock[aria-pressed="true"] .ml{color:#fff}
 .mblock[aria-pressed="true"] .mv{color:var(--on-topbar-mute)}
+
+/* Blocs de repas teintés. Même principe que les tuiles de lieux : le fond prend
+   --co-bg et tout le texte --co-on, la hiérarchie se faisant à l'opacité. La
+   sous-ligne est en --mute dans un bloc normal, ce qui donnerait un gris sale
+   sur un fond franc.
+   L'état choisi reste vert forêt et non la teinte du repas : c'est la couleur de
+   la sélection partout dans l'app, et la faire varier d'un bloc à l'autre
+   supprimerait le seul repère qui dit « celui-là est pris ». La règle est donc
+   placée avant celle d'aria-pressed, qui la recouvre. */
+.mblock[data-co]{background:var(--co-bg); border-color:transparent; color:var(--co-on)}
+.mblock[data-co] .ml{color:var(--co-on)}
+.mblock[data-co] .mv{color:var(--co-on); opacity:.78}
+.mblock[data-co]:active{background:var(--co-bg); filter:brightness(.92)}
+.mblock[data-co][aria-pressed="true"]{background:var(--forest); border-color:var(--forest)}
+.mblock[data-co][aria-pressed="true"] .ml{color:#fff}
+.mblock[data-co][aria-pressed="true"] .mv{color:var(--on-topbar-mute); opacity:1}
 .star{flex:0 0 auto; padding:2px; margin-right:2px; display:flex; align-items:center}
 .star svg{width:17px; height:17px; fill:none; stroke:var(--mute); stroke-width:1.6; stroke-linejoin:round}
 .star.on svg{fill:var(--straw); stroke:var(--straw)}
@@ -2533,7 +2549,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-101';
+const BUILD = 'cfp-103';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -6997,6 +7013,15 @@ function pdjSame(){
 
 /* ============================ onglet 2 — saisie ============================ */
 const MEAL_ORDER = ['pdj','dej','encas','din'];   // ordre demandé pour les quatre blocs
+
+/* Une teinte par repas, prise dans le nuancier des dix et non posée en hex :
+   les quatre couleurs demandées y tombaient exactement, et passer par la
+   planche évite de dupliquer les encres — chaque teinte porte déjà la sienne,
+   vérifiée au contraste. Ce sont aussi les couleurs que l'utilisateur voit sur
+   ses cartes de recettes, donc un vocabulaire et non une décoration de plus.
+   La couleur ne code rien ici : elle sert à viser le bon bloc sans le lire, un
+   petit-déjeuner et un dîner ne se distinguant sinon que par un mot. */
+const MEAL_CO = {pdj:'7', dej:'5', encas:'2', din:'8'};
 const COURSES = [{k:'entree', l:'Entrée'}, {k:'plat', l:'Plat'}, {k:'dessert', l:'Dessert'}];
 
 const COM_COEF = {boisson:1, entree:0.55, plat:1, dessert:1, cafethe:1};
@@ -7562,8 +7587,7 @@ const PART_CATS = [
    au premier plat qui s'y range. C'est préférable à une suppression, qui
    demanderait de reposer l'entrée le jour où le catalogue arrive. */
 const PARTENAIRES = [
-  {k:'hellofresh', n:'HelloFresh',  t:'Kit repas',  mode:'frais',
-   bg:'#9FDD32', on:'#1B2600',
+  {k:'hellofresh', n:'HelloFresh',  t:'Kit repas',  mode:'frais', co:'4',
    d:'Kits livrés, cuisinés chez vous.'},
   {k:'picard',     n:'Picard',      t:'Surgelés',   mode:'surgele',
    bg:'#C9F2EE', on:'#0C2C28',
@@ -7575,11 +7599,11 @@ const PARTENAIRES = [
    bg:'#FBC67F', on:'#3A2205',
    d:'Les pizzas à prénoms.'},
   {k:'urbanbagel', n:'Urban Bagel', t:'Restaurant', mode:'resto',
-   /* Le seul gris moyen du lot, et le seul cas où l'encre se discute : le blanc
-      n'y atteint que 3,6:1, sous le seuil d'un texte courant, alors que l'encre
-      sombre monte à 5,3:1. Sombre donc, au risque de faire un peu « tuile
-      éteinte » à côté des quatre pastels. */
-   bg:'#898686', on:'#0F0E0E',
+   /* Aubergine, hors nuancier : c'est le seul fond franchement sombre de la
+      grille, ce qui le distingue mieux que ne le faisait le jaune, et il libère
+      la teinte 10 pour Poulet frit. Encre rose très pâle à 11,3:1 — le blanc pur
+      monterait à 12,6 mais durcit inutilement un fond aussi profond. */
+   bg:'#4A283D', on:'#FBEFF6',
    d:'Bagels et salades.'},
   {k:'jow',        n:'Jow',         t:'Kit repas',  mode:'frais', vide:1,
    d:'Catalogue à venir.'},
@@ -8228,7 +8252,8 @@ function renderSaisie(){
       ${!isToday ? `<div class="pastwarn">Saisie antidatée · ${dLabel(D)}</div>` : ''}
       <h2 class="sec">Quel repas ?</h2>
       <div class="mealblocks">${MEAL_ORDER.map(k => { const m = MEAL[k]; return `
-        <button class="mblock" data-meal="${k}">
+        <button class="mblock" data-meal="${k}"${
+          MEAL_CO[k] ? ` data-co="${MEAL_CO[k]}"` : ''}>
           <span class="ml">${m.l}</span>
           <span class="mv">${m.s}</span>
         </button>`; }).join('')}</div>
@@ -8471,25 +8496,25 @@ function renderSaisie(){
   ${step && QUICK[step.k] && !S.drinkMore ? '' : (!S.mode ? modeLine() : (platChoix ? `
   <div class="modegrid" style="margin-top:12px">
     ${isPlat ? `
-    <button class="mcard" data-path="std">
+    <button class="mcard" data-co="7" data-path="std">
       <span class="mct">Standard</span>
       <span class="mcn">3 choix</span>
       <span class="mcs">Une protéine, un féculent, un légume, et la taille de l’assiette.
         Le plus rapide, et suffisant pour la plupart des repas de tous les jours.</span>
     </button>` : ''}
-    <button class="mcard" data-path="compose">
+    <button class="mcard" data-co="6" data-path="compose">
       <span class="mct">Rechercher</span>
       <span class="mcn">${DB.foods.length + DISHES().length}</span>
       <span class="mcs">Recherche des aliments et des plats types que vous pourrez
         personnaliser : les grammes se corrigent ligne par ligne après l’ajout.</span>
     </button>
-    <button class="mcard" data-path="part">
+    <button class="mcard" data-co="4" data-path="part">
       <span class="mct">Restaurants et partenaires</span>
       <span class="mcn">${partTous().length}</span>
       <span class="mcs">HelloFresh, Picard, vos adresses habituelles. Le lieu applique
         sa provenance au repas et garde vos plats d’une fois sur l’autre.</span>
     </button>
-    <button class="mcard" data-path="recettes"${
+    <button class="mcard" data-co="2" data-path="recettes"${
       mesRecettes.length ? '' : ' disabled aria-disabled="true"'}>
       <span class="mct">Mes recettes</span>
       <span class="mcn">${mesRecettes.length || '—'}</span>
