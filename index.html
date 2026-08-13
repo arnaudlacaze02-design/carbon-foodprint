@@ -1210,10 +1210,14 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 /* Une grille de KPI collée à la carte suivante : .card + .card était prévu,
    pas .kpis + .card, et les deux blocs se touchaient bord à bord. */
 .kpis + .card, .card + .kpis, .kpis + .kpis{margin-top:12px}
-.bars .row{display:grid; grid-template-columns:1fr auto; gap:3px 10px; margin-bottom:11px}
+/* Trois colonnes au lieu de deux : le libellé, le chiffre, puis le « i ». La
+   barre et la phrase s'étendent sur toute la largeur en dessous. */
+.bars .row{display:grid; grid-template-columns:1fr auto auto; gap:3px 8px; margin-bottom:11px;
+  align-items:baseline}
 .bars .lab{font-size:13.5px}
 .bars .val{font-family:var(--display); font-weight:800; font-variant-numeric:tabular-nums; font-size:15px; text-align:right}
 .bars .tr{grid-column:1/-1; height:9px; background:var(--track); border-radius:2px; overflow:hidden}
+.bars .obnote{grid-column:1/-1; margin-top:5px; line-height:1.6}
 .bars .tr i{display:block; height:100%}
 .days{display:flex; align-items:flex-end; gap:2px; height:78px; margin-top:4px}
 .dayscard{background:var(--card)}
@@ -1607,6 +1611,14 @@ button.tip:active{transform:scale(.995)}
 .obi:active{background:var(--active)}
 .obi.on{background:var(--forest); border-color:var(--forest); color:#fff}
 .obsur{margin:6px 0 0 38px}
+/* Variante réduite, pour les lignes de la carte du Tracker : une ligne de barre
+   ne fait que 20 px de haut, un rond de 30 px la déformerait. 24 px, sans marge
+   supérieure, et l'alignement suit la ligne de base du chiffre. */
+.obi-s{width:24px; height:24px; margin-top:0; font-size:12px; transform:translateY(3px)}
+/* La légende, elle, n'appartient à aucune ligne : elle se pose seule sous les
+   barres, à gauche, là où le paragraphe qu'elle remplace commençait. */
+.obi-leg{margin-top:2px}
+.obnote{margin-top:6px}
 
 /* Éteinte parce que choisie : la teinte cède. Le gris est le seul signal qui
    dise « celle-là est déjà prise », et une tuile restée colorée se rouvrirait
@@ -2619,7 +2631,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-106';
+const BUILD = 'cfp-107';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -11443,6 +11455,7 @@ function objBlock(a){
   if(cibleVege != null){
     const attendu = cibleVege * jours / 7;
     lignes.push({
+      k: 'vege',
       lab: 'Repas végétaux',
       val: `${vege} / ${cibleVege}`,
       bar: barre(vege, cibleVege, 'var(--forest)', false),
@@ -11457,6 +11470,7 @@ function objBlock(a){
     const attendu = cibleKg * jours / 7;
     const dep = kgSem > attendu;
     lignes.push({
+      k: 'kg',
       lab: 'Carbone de la semaine',
       val: `${n2(kgSem)} / ${n2(cibleKg)}`,
       bar: barre(kgSem, cibleKg, 'var(--straw)', kgSem > cibleKg),
@@ -11471,6 +11485,7 @@ function objBlock(a){
   if(cibleCal != null){
     const attendu = cibleCal * jours / 7;
     lignes.push({
+      k: 'cal',
       lab: 'Calories de la semaine',
       val: `${n0(kcalSem)} / ${n0(cibleCal)}`,
       bar: barre(kcalSem, cibleCal, 'var(--s4)', false),
@@ -11481,6 +11496,7 @@ function objBlock(a){
   if(cibleProt != null){
     const attendu = cibleProt * jours / 7;
     lignes.push({
+      k: 'prot',
       lab: 'Protéines de la semaine',
       val: `${n0(protSem)} / ${n0(cibleProt)}`,
       bar: barre(protSem, cibleProt, 'var(--forest-2)', false),
@@ -11507,15 +11523,38 @@ function objBlock(a){
       ${lignes.map(l => `<div class="row">
         <div class="lab">${l.lab}</div>
         <div class="val">${l.val}</div>
+        <button class="obi obi-s" data-obn="${l.k}" aria-expanded="false"
+                aria-label="Où en est « ${esc(l.lab)} »">i</button>
         ${l.bar}
+        <div class="small obnote" data-obn-t="${l.k}" hidden>${l.note}</div>
       </div>`).join('')}
     </div>
-    <div class="small" style="margin-top:4px;line-height:1.65">
-      ${lignes.map(l => l.note).join('<br>')}</div>
-    <div class="src" style="margin-top:8px">Le trait vertical marque où l’on devrait en être à ce
-      stade de la semaine, non la cible entière — sans lui, tout mercredi paraîtrait vertueux.
-      Modifiable dans Profil.</div>
+    <button class="obi obi-s obi-leg" data-obn="_leg" aria-expanded="false"
+            aria-label="À quoi sert le trait vertical">i</button>
+    <div class="src obnote" data-obn-t="_leg" hidden>Le trait vertical marque où l’on devrait en
+      être à ce stade de la semaine, non la cible entière — sans lui, tout mercredi paraîtrait
+      vertueux. Modifiable dans Profil.</div>
   </div>`;
+}
+
+/* Les « i » de la carte des objectifs du Tracker. Une phrase par ligne, plus la
+   légende du trait vertical : quatre objectifs réglés faisaient cinq paragraphes
+   sous trois barres, et les barres — la seule chose qu'on vient lire d'un coup
+   d'œil — se retrouvaient noyées.
+
+   La phrase s'affiche sous SA barre et non en bloc en bas de carte, ce qui la
+   rattache à ce qu'elle commente : « 221 g de retard sur le rythme » ne dit rien
+   si on ne sait plus de quelle ligne il s'agit. Le repeint est local, pas un
+   renderTracker() complet : la carte est calculée à partir de tout l'historique,
+   et la recalculer pour ouvrir une phrase ferait clignoter l'écran entier. */
+function objNotesBind(root){
+  (root || document).querySelectorAll('[data-obn]').forEach(b => b.onclick = () => {
+    const t = (root || document).querySelector(`[data-obn-t="${b.dataset.obn}"]`);
+    if(!t) return;
+    t.hidden = !t.hidden;
+    b.setAttribute('aria-expanded', !t.hidden);
+    b.classList.toggle('on', !t.hidden);
+  });
 }
 
 /* ==================== fenêtre « Mes objectifs » ====================
@@ -11757,6 +11796,7 @@ function tvRepas(a){
      « Enregistrer » au lieu d'un parcours à dérouler jusqu'au bout. */
   const og = $('#obj_go');
   if(og) og.onclick = objSheet;
+  objNotesBind($('#tv'));
   /* Les trois jauges portent les mêmes clés de repas : le repas décide de ce qui
      s'ouvre. L'axe cliqué, lui, n'est plus perdu — il sert à préouvrir la bonne
      décomposition par aliment dans la fiche. */
