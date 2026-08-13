@@ -73,6 +73,17 @@
   --topbar:var(--forest); --on-topbar:#F3F6F1; --on-topbar-strong:#fff; --on-topbar-mute:#AFC6BC;
   --note-bg:#FBF4DC; --note-line:#EBDDA6; --note-ink:#6B5B1E; --note-line-2:#E8D89A;
   --kpi-good:#E2EFDA;
+  /* Couleur du grand chiffre de chaque axe du Tracker. Elle était écrite en dur
+     dans le code — --forest pour le carbone, --s4 pour les calories, --forest-2
+     pour les protéines — et ces trois-là sont des couleurs de PLANCHE, pensées
+     pour remplir une surface, pas pour porter du texte. Mesuré : les calories
+     tombaient à 2,24:1 sur carte blanche et 1,43:1 sur leur propre bande, le
+     carbone à 1,62:1 en thème sombre. Le chiffre est grand, donc le seuil est
+     3:1, mais on en était très loin : il fallait deviner.
+     Trois variables, redéfinies par thème, plutôt que trois hex dans le code :
+     c'est le thème qui décide, et la valeur ne peut plus diverger d'un axe à
+     l'autre. */
+  --axe-kg:#0E4D45; --axe-kcal:#636E33; --axe-prot:#3A6E5C;
   --shell:#20302B;
   --tabbar:rgba(255,255,255,.94);
   --card-2-bg:var(--ink); --card-2-on:#EDF1EE;
@@ -88,6 +99,10 @@
   --topbar:#0B3B35; --on-topbar:#EAF1EC; --on-topbar-strong:#fff; --on-topbar-mute:#7FA398;
   --note-bg:#2E2A16; --note-line:#524A26; --note-ink:#D8C88A; --note-line-2:#4A4322;
   --accent:#6FC2A6;
+  /* En sombre les trois s'éclaircissent : un vert de marque posé sur une carte
+     #1D2523 ne se lit pas. Le carbone rejoint --accent, qui existe déjà pour
+     cette raison exacte ailleurs dans l'app. */
+  --axe-kg:#6FC2A6; --axe-kcal:#C3CE8C; --axe-prot:#7FC3AB;
   --kpi-good:#223324;
   --shell:#0A0E0D;
   --tabbar:rgba(20,26,24,.92);
@@ -130,6 +145,12 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   padding:12px 18px 11px; display:flex; align-items:center; justify-content:space-between; gap:10px;
 }
 .brand{display:flex; align-items:center; gap:7px; min-width:0}
+/* Le bloc marque devient un bouton. Il hérite de la mise en page qu'il avait en
+   span — même alignement, même gouttière — et n'ajoute qu'un retour tactile.
+   Pas de soulignement ni de couleur de lien : ce qui le signale comme cliquable
+   est sa position et l'habitude, pas une décoration qui abîmerait la marque. */
+.brandgo{display:flex; align-items:center; gap:7px; min-width:0; padding:2px 0}
+.brandgo:active{opacity:.6}
 /* Marque de l'app dans le bandeau, entre la pastille de profil et le mot. Même
    masque alpha que la grande version : un seul fichier, qui prend ici la teinte
    paille du « FOOD » du mot juste à côté. Décoratif — d'où aria-hidden et
@@ -1572,6 +1593,21 @@ button.tip:active{transform:scale(.995)}
 .mcard[data-co] .mck{color:var(--co-on); opacity:.72}
 .mcard[data-co] .mcs{color:var(--co-on); opacity:.82}
 .mcard[data-co]:active{background:var(--co-bg); filter:brightness(.92)}
+
+/* Rangée d'un objectif : la case prend toute la largeur restante, le « i » garde
+   sa taille. Le « i » fait 30 px de côté — sous les 44 px recommandés pour une
+   cible tactile, mais il est bordé de vide et n'a pas de voisin dangereux : le
+   rater ne fait qu'ouvrir la case d'à côté, qui se referme d'un second appui. */
+.obrow{display:flex; align-items:flex-start; gap:8px}
+.obrow .chk{flex:1; min-width:0}
+.obi{flex:0 0 auto; width:30px; height:30px; margin-top:9px; border-radius:50%;
+  border:1px solid var(--line); background:var(--card); color:var(--mute);
+  font-family:var(--display); font-weight:800; font-size:14px; line-height:1;
+  display:flex; align-items:center; justify-content:center}
+.obi:active{background:var(--active)}
+.obi.on{background:var(--forest); border-color:var(--forest); color:#fff}
+.obsur{margin:6px 0 0 38px}
+
 /* Éteinte parce que choisie : la teinte cède. Le gris est le seul signal qui
    dise « celle-là est déjà prise », et une tuile restée colorée se rouvrirait
    à l'œil comme un choix encore ouvert. */
@@ -1941,7 +1977,7 @@ html[data-gate="1"] .phone{display:none}
           <path d="M27 88c0-12.7 10.3-23 23-23s23 10.3 23 23z"/>
         </g>
       </svg>
-    </button><span class="brandmark" aria-hidden="true"></span><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></div>
+    </button><button class="brandgo" id="brandGo" aria-label="Revenir au Tracker"><span class="brandmark" aria-hidden="true"></span><span class="wordmark"><span>Carbon</span><span><em>FOOD</em>print</span></span></button></div>
     <div style="display:flex;align-items:center;gap:12px">
       <div class="streak" id="topStreak" title="Jours consécutifs renseignés">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 L4 14 h6 l-1 8 9-12 h-6 z"/></svg>
@@ -2583,7 +2619,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-105';
+const BUILD = 'cfp-106';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -11531,12 +11567,24 @@ function objSheet(){
   const W = {kg:S.prof.objKg, vege:S.prof.objVege, cal:S.prof.objCal,
              prot:S.prof.objProt, nu:nuOn()};
 
+  /* La phrase d'explication passe derrière un « i ». Quatre objectifs, chacun
+     suivi de deux lignes de commentaire, faisaient un mur de texte dans lequel
+     les quatre cases — la seule chose sur laquelle on vient agir — se noyaient.
+     L'explication reste utile, mais une fois : on la lit à la première visite,
+     pas aux suivantes.
+     Le « i » est un bouton à part, hors du bouton de la case, parce qu'un bouton
+     dans un bouton n'est pas du HTML valide et que le clic irait au mauvais des
+     deux. D'où `data-ob` sur l'un et `data-ob-i` sur l'autre, côte à côte. */
   const bloc = o => `
-    <button class="chk" data-ob="${o.k}" role="checkbox" aria-checked="${W[o.k] != null}"
-            style="margin-top:10px">
-      <span class="bx">✓</span>
-      <span class="tx"><b>${o.lab}</b><span>${o.sur}</span></span>
-    </button>
+    <div class="obrow" style="margin-top:10px">
+      <button class="chk" data-ob="${o.k}" role="checkbox" aria-checked="${W[o.k] != null}">
+        <span class="bx">✓</span>
+        <span class="tx"><b>${o.lab}</b></span>
+      </button>
+      <button class="obi" data-ob-i="${o.k}" aria-expanded="false"
+              aria-label="Ce que fait « ${esc(o.lab)} »">i</button>
+    </div>
+    <div class="src obsur" data-ob-sur="${o.k}" hidden>${o.sur}</div>
     <div data-rng="${o.k}"${W[o.k] != null ? '' : ' hidden'}>
       <div class="qbig" data-out="${o.k}"></div>
       <input class="qrange" type="range" data-in="${o.k}"
@@ -11552,18 +11600,22 @@ function objSheet(){
   openSheet(`
     <div class="unit">Profil</div>
     <h3 style="margin:2px 0 6px">Mes objectifs</h3>
-    <p class="small mute" style="margin:0 0 4px">Chaque objectif est facultatif : la case dit s’il
-      existe, le curseur dit lequel. Où ils se lisent : le Tracker, onglet « Par repas ».</p>
+    <p class="small mute" style="margin:0 0 4px">Chaque objectif est facultatif. Le « i » dit
+      à quoi sert chacun.</p>
     ${carbone}
 
     <div class="hr"></div>
     <div class="unit" style="margin-bottom:2px">Données nutritionnelles</div>
-    <button class="chk" data-ob="nu" role="checkbox" aria-checked="${W.nu}">
-      <span class="bx">✓</span>
-      <span class="tx"><b>Afficher les calories et les protéines</b>
-        <span>Détail du jour, fiche de chaque repas, objectifs de la semaine et cumuls. Décochée,
-          l’app ne montre plus que le carbone.</span></span>
-    </button>
+    <div class="obrow">
+      <button class="chk" data-ob="nu" role="checkbox" aria-checked="${W.nu}">
+        <span class="bx">✓</span>
+        <span class="tx"><b>Afficher les calories et les protéines</b></span>
+      </button>
+      <button class="obi" data-ob-i="nu" aria-expanded="false"
+              aria-label="Ce que fait l’affichage des calories et des protéines">i</button>
+    </div>
+    <div class="src obsur" data-ob-sur="nu" hidden>Détail du jour, fiche de chaque repas,
+      objectifs de la semaine et cumuls. Décochée, l’app ne montre plus que le carbone.</div>
     <div id="ob_nu"${W.nu ? '' : ' hidden'}>${nutri}</div>
 
     <div class="actions" style="margin-top:16px">
@@ -11618,6 +11670,15 @@ function objSheet(){
     const r = rng(o.k);
     r.oninput = () => { W[o.k] = +r.value; paint(o.k); };
     paint(o.k);
+  });
+
+  /* Le « i » bascule sa seule phrase. Pas d'accordéon qui referme les autres :
+     comparer deux objectifs demande de les lire ensemble. */
+  sh.querySelectorAll('[data-ob-i]').forEach(b => b.onclick = () => {
+    const p = sh.querySelector(`[data-ob-sur="${b.dataset.obI}"]`);
+    p.hidden = !p.hidden;
+    b.setAttribute('aria-expanded', !p.hidden);
+    b.classList.toggle('on', !p.hidden);
   });
 
   sh.querySelectorAll('[data-ob]').forEach(b => b.onclick = () => {
@@ -11724,7 +11785,7 @@ function axesDuJour(a, t){
     premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : whenWord() === 'demain' ? 'journée close' : 'journée en cours',
     total:j.kg, unite:'kg', fmt:n2, par:j.par.kg, axe:'kg',
     repere:BUDGET_J, repLabel:'budget', sens:'plafond',
-    couleur:j.kg > BUDGET_J ? 'var(--brick)' : 'var(--forest)',
+    couleur:j.kg > BUDGET_J ? 'var(--brick)' : 'var(--axe-kg)',
     mot: rien
       ? `Rien d\u2019enregistré aujourd\u2019hui. Budget du jour : ${n0(BUDGET_J*1000)} g CO\u2082e.`
       : restCO2 >= 0
@@ -11771,7 +11832,7 @@ function axesDuJour(a, t){
     sous: cCal != null ? (choisie ? 'Cible : ' + n0(cCal) + ' kcal/j' : 'Besoin estimé : ' + n0(cCal) + ' kcal/j')
                        : 'Aucune cible renseignée',
     repere:cCal || 0, repLabel:choisie ? 'cible' : 'besoin', sens:'neutre',
-    couleur:'var(--s4)',
+    couleur:'var(--axe-kcal)',
     mot: rien ? 'Rien d\u2019enregistré aujourd\u2019hui.'
       : cCal == null
         ? `<b>${n0(j.kcal)} kcal</b> sur la journée. <button class="backlink" id="cal_go" style="display:inline;padding:0">Renseigner une cible \u203a</button>`
@@ -11788,7 +11849,7 @@ function axesDuJour(a, t){
     titre:'Protéines', unite:'g', fmt:n0, total:j.prot, par:j.par.prot, axe:'prot',
     sous: cProt != null ? 'Cible : ' + n0(cProt) + ' g/j' : 'Aucune cible renseignée',
     repere:cProt || 0, repLabel:'cible', sens:'plancher',
-    couleur:'var(--forest-2)',
+    couleur:'var(--axe-prot)',
     mot: rien ? 'Rien d\u2019enregistré aujourd\u2019hui.'
       : cProt == null
         ? `<b>${n0(j.prot)} g</b> de protéines sur la journée. <button class="backlink" id="prot_go" style="display:inline;padding:0">Renseigner une cible \u203a</button>`
@@ -13707,6 +13768,16 @@ function go(tab){
   paintAlertes();
 }
 document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => go(b.dataset.tab));
+/* La marque ramène au Tracker. C'est la convention du web depuis toujours — le
+   logo est le chemin du retour — et elle manquait ici : depuis le fond d'une
+   fiche de recette ou d'un panneau de partenaires, revenir à l'écran principal
+   demandait de viser un onglet de la barre du bas. La marque est en haut, sous
+   le pouce qui vient de faire défiler.
+   Elle ne fait rien quand on y est déjà : `go` repeindrait la vue et
+   renverrait le défilement en tête, ce qui ressemble à un bug pour qui a
+   simplement effleuré le bandeau. */
+const bg = document.getElementById('brandGo');
+if(bg) bg.onclick = () => { if(S.tab !== 'tracker') go('tracker'); };
 
 /* L'engrenage du bandeau a disparu avec sa fenêtre. Il ne portait que deux
    lignes — Apparence et Version — que la page Profil montre déjà, et un même
