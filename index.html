@@ -1554,8 +1554,19 @@ button.tip:active{transform:scale(.995)}
 .mcard[data-co]{background:var(--co-bg); border-color:transparent; color:var(--co-on)}
 .mcard[data-co] .mct{color:var(--co-on)}
 .mcard[data-co] .mcn{color:var(--co-on); opacity:.72}
+/* Le coefficient des tuiles de provenance. Il vit en --mute dans une tuile
+   normale, ce qui donnait un gris sale sur un fond franc. */
+.mcard[data-co] .mck{color:var(--co-on); opacity:.72}
 .mcard[data-co] .mcs{color:var(--co-on); opacity:.82}
 .mcard[data-co]:active{background:var(--co-bg); filter:brightness(.92)}
+/* Éteinte parce que choisie : la teinte cède. Le gris est le seul signal qui
+   dise « celle-là est déjà prise », et une tuile restée colorée se rouvrirait
+   à l'œil comme un choix encore ouvert. */
+.mcard[data-co][disabled]{background:var(--active); border-color:var(--line); color:var(--mute)}
+.mcard[data-co][disabled] .mct{color:var(--mute)}
+.mcard[data-co][disabled] .mcs{color:var(--mute); opacity:1}
+.mcard[data-co][disabled] .mck{color:var(--accent); opacity:1}
+.mcard[data-co][disabled]:active{background:var(--active); filter:none}
 
 /* ---------------- réorganisation par appui long ----------------
    Deux états seulement, et pas d'animation d'insertion : la vignette prise se
@@ -2239,6 +2250,16 @@ const MODE = {
 };
 const modeK = m => (MODE[m] ? MODE[m].k : 1);
 
+/* Une teinte par provenance, prise dans le nuancier comme partout ailleurs.
+   Elle ne code pas l'intensité du coefficient : le restaurant est à +10 % et le
+   surgelé à +15 %, or l'orange se lit comme « plus » que le vert. Ce sont trois
+   repères pour viser sans lire, pas une échelle — c'est le pourcentage écrit
+   dans la tuile qui dit le poids, et lui seul.
+   Ces trois teintes sont aussi celles du déjeuner, de l'en-cas et du dîner sur
+   l'écran précédent. Les deux écrans se suivent, donc la même couleur peut
+   sembler reportée d'un choix à l'autre. */
+const MODE_CO = {frais:'6', surgele:'4', resto:'2'};
+
 const kgOf = lines => lines.reduce((a,l) =>
   a + (F.has(l[0]) ? F.get(l[0]).t * l[1]/1000 * modeK(l[3]) : 0), 0);
 const clamp = (v,a,b) => Math.max(a, Math.min(b,v));
@@ -2549,7 +2570,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-103';
+const BUILD = 'cfp-104';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -7021,7 +7042,7 @@ const MEAL_ORDER = ['pdj','dej','encas','din'];   // ordre demandé pour les qua
    ses cartes de recettes, donc un vocabulaire et non une décoration de plus.
    La couleur ne code rien ici : elle sert à viser le bon bloc sans le lire, un
    petit-déjeuner et un dîner ne se distinguant sinon que par un mot. */
-const MEAL_CO = {pdj:'7', dej:'5', encas:'2', din:'8'};
+const MEAL_CO = {pdj:'7', dej:'6', encas:'4', din:'2'};
 const COURSES = [{k:'entree', l:'Entrée'}, {k:'plat', l:'Plat'}, {k:'dessert', l:'Dessert'}];
 
 const COM_COEF = {boisson:1, entree:0.55, plat:1, dessert:1, cafethe:1};
@@ -7500,6 +7521,7 @@ function renderMode(D, isToday){
         const coef = v.k === 1 ? 'référence' : '+' + Math.round((v.k - 1) * 100) + ' %';
         return `
         <button class="mcard${sel ? ' on' : ''}" data-pmode="${k}"${
+          MODE_CO[k] ? ` data-co="${MODE_CO[k]}"` : ''}${
           sel ? ' disabled aria-disabled="true"' : ''}>
           <span class="mct">${esc(v.l)}</span>
           <span class="mck">${sel ? '✓ choisi · ' + coef : coef}</span>
