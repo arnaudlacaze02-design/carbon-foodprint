@@ -181,17 +181,27 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 
 /* ---------------- deux cadrans, jour et semaine ---------------- */
 .duo{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:12px}
+/* Les deux lignes de commentaire sous chaque cadran ont été retirées : à 8,5 px
+   elles étaient illisibles sur un iPhone et disaient ce que la fiche de détail
+   dit en grand dès qu'on touche la cellule. La place libérée — une trentaine de
+   pixels dans une cellule carrée — va au cadran et au chiffre, qui sont ce
+   qu'on lit d'un coup d'œil. La règle .dc reste définie : la classe sert encore
+   ailleurs. */
 .dcell{aspect-ratio:1; background:var(--card); border:1px solid var(--line); border-radius:var(--r);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
-  padding:10px 8px; text-align:center; font-family:inherit; color:var(--ink); cursor:pointer}
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  padding:8px; text-align:center; font-family:inherit; color:var(--ink); cursor:pointer}
 .dcell:active{background:var(--active)}
 .dcell .dt{font-family:var(--display); font-weight:800; font-size:15px;
-  letter-spacing:-.005em; text-transform:none; color:var(--ink); margin-bottom:2px}
+  letter-spacing:-.005em; text-transform:none; color:var(--ink); margin-bottom:0}
 .dcell .dc{font-family:var(--mono); font-size:8.5px; color:var(--mute); line-height:1.35}
-.dnt{width:90px; height:90px; display:block; flex:0 0 auto}
-.dnt .dv{font-family:var(--display); font-weight:800; font-size:20px; font-variant-numeric:tabular-nums;
+/* Taille en pourcentage de la cellule et non en pixels fixes : la cellule est
+   carrée et suit la largeur de l'écran, un cadran de 90 px y flottait sur un
+   grand téléphone et un cadran de 120 px y débordait sur un petit. Les 64 %
+   laissent le titre, la rangée de points et les marges. */
+.dnt{width:64%; max-width:132px; height:auto; aspect-ratio:1; display:block; flex:0 0 auto}
+.dnt .dv{font-family:var(--display); font-weight:800; font-size:24px; font-variant-numeric:tabular-nums;
   text-anchor:middle}
-.dnt .du{font-family:var(--mono); font-size:6.5px; fill:var(--mute); text-anchor:middle;
+.dnt .du{font-family:var(--mono); font-size:7px; fill:var(--mute); text-anchor:middle;
   letter-spacing:.06em}
 .wdots{display:flex; gap:3px; align-items:center}
 .wdots i{width:6px; height:6px; border-radius:50%; background:var(--line); flex:0 0 auto}
@@ -967,6 +977,10 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
    fonds clairs. */
 [data-co="8"]{--co-bg:#6050DC; --co-on:#F0EEFF}
 [data-co="9"]{--co-bg:#D2006E; --co-on:#FFF0F6}
+/* Le jaune citron, lui, est la première teinte franchement claire de la planche
+   après le vert d'eau et le rose : encre sombre, et il doit donc rejoindre la
+   règle qui assombrit le filet du corps de carte, sinon filet blanc sur jaune. */
+[data-co="10"]{--co-bg:#FFD700; --co-on:#2A2200}
 
 /* Pinceau de personnalisation, à droite du titre de section. Il remplace un
    bouton pleine largeur nommé « Personnaliser « Italienne » » : ce bouton
@@ -1008,6 +1022,7 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 .wbody{margin-top:14px; padding-top:13px; border-top:1px solid rgba(255,255,255,.28)}
 .wcard[data-co="4"] .wbody, .wcard[data-co="5"] .wbody,
 .wcard[data-co="6"] .wbody, .wcard[data-co="7"] .wbody,
+.wcard[data-co="10"] .wbody,
 .wcard[data-co="2"] .wbody{border-top-color:rgba(0,0,0,.18)}
 .wbody .wl{display:flex; justify-content:space-between; gap:12px;
   font-family:var(--mono); font-size:11px; padding:4px 0}
@@ -2480,7 +2495,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-97';
+const BUILD = 'cfp-98';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -2854,6 +2869,39 @@ function toast(msg){
    aussi. */
 const nrmT = t => String(t).toLowerCase().normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '').replace(/œ/g, 'oe');
+
+/* Recherche d'aliment, classée par pertinence. Le filtre nu qu'elle remplace
+   — nom OU groupe contient la saisie, puis huit premiers — était juste dans son
+   résultat et faux dans son ordre, et « œuf » le montrait crûment : le groupe
+   s'appelle « Laitiers & œufs », donc chaque fromage de la base correspondait.
+   Sur 27 correspondances, « Œufs » arrivait seizième et les huit cases montrées
+   étaient l'huile d'olive, le bœuf et six fromages. L'aliment cherché était bien
+   trouvé et jamais affiché.
+
+   D'où un rang explicite, du plus fort au plus faible : nom exact, nom qui
+   commence par la saisie, saisie en début d'un mot du nom, saisie ailleurs dans
+   le nom, et seulement en dernier une correspondance sur le seul groupe. Le tri
+   est stable, donc à rang égal l'ordre de la base — décroissant en intensité —
+   est conservé : chercher « fromage » continue de donner les plus lourds
+   d'abord. Le rang du groupe reste dans la liste plutôt que d'être écarté : il
+   fait travailler « laitier » ou « boisson », qui n'ont d'existence que là. */
+function rqCherche(t, n){
+  const mots = s => s.split(/[^a-z0-9]+/).filter(Boolean);
+  const rang = f => {
+    const nom = nrmT(f.n);
+    if(nom === t) return 0;
+    if(nom.startsWith(t)) return 1;
+    if(mots(nom).some(m => m.startsWith(t))) return 2;
+    if(nom.includes(t)) return 3;
+    return 4;
+  };
+  return DB.foods
+    .map(f => ({f, r:rang(f)}))
+    .filter(o => o.r < 4 || nrmT(o.f.g).includes(t))
+    .sort((a, b) => a.r - b.r)
+    .slice(0, n || 8)
+    .map(o => o.f);
+}
 
 const COEUR = plein => `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
   style="vertical-align:-2px"><path d="M12 20.6 4.1 12.7a4.9 4.9 0 0 1 6.9-6.9l1 1 1-1a4.9 4.9 0 0 1 6.9 6.9z"
@@ -4127,8 +4175,7 @@ function recipeSheet(){
     const qi = $('#rq_q'), sg = $('#rq_sg');
     const peintSugg = () => {
       const t = nrmT(qi.value.trim());
-      const l = t.length >= 2
-        ? DB.foods.filter(f => nrmT(f.n).includes(t) || nrmT(f.g).includes(t)).slice(0, 8) : [];
+      const l = t.length >= 2 ? rqCherche(t) : [];
       sg.innerHTML = l.map(f => `<button type="button" data-radd="${esc(f.s)}">
           <span class="nm">${esc(f.n)}${f.x ? '<span class="tag">estimé</span>' : ''}<i>${esc(f.g)}</i></span>
           <b>${n2(f.t * f.p / 1000)}</b></button>`).join('');
@@ -10375,7 +10422,7 @@ const ICO_LISTE = ['bol','assiette','pizza','burger','sushi','taco',
                    'nouilles','fourche','marmite','wok','poisson','poulet',
                    'feuille','legume','fromage','pain','gateau','cafe',
                    'verre','epi','piment','flamme','coeur','etoile'];
-const TEINTES = ['1','2','3','4','5','6','7','8','9'];
+const TEINTES = ['1','2','3','4','5','6','7','8','9','10'];
 
 /* Le tirage automatique de mrCouleur ne pioche que dans les sept premières,
    celles de la planche d'origine. Le modulo porte sur la longueur de la liste :
@@ -10767,19 +10814,12 @@ function duoCards(a){
           col:week.over ? 'var(--brick)' : 'var(--ink)'})}
         <span class="wdots">${week.days.map(d =>
           `<i class="${a.days[d] ? 'on' : d <= t ? 'miss' : 'soon'}${d === t ? ' tdy' : ''}"></i>`).join('')}</span>
-        <span class="dc">${week.n === 0 ? 'aucune saisie cette semaine'
-          : week.miss === 0 ? `${week.n} j sur ${week.elapsed} · à jour`
-          : `${week.n} j sur ${week.elapsed} · ${week.miss} manqué${week.miss>1?'s':''}`}</span>
-        <span class="dc">attendu ${n1(week.pace)} · semaine ${n1(week.obj != null ? week.obj : week.bud)}</span>
       </button>
 
       <button class="dcell" id="dqSais" aria-label="Détail de la saisonnalité">
         <span class="dt">Saisonnalité</span>
         ${donut({scale:100, segs:sp == null ? [] : [{v:sp, c:spCol}], ticks:[],
           big:sp == null ? '—' : n0(sp) + ' %', unit:'DE SAISON', col:spCol})}
-        <span class="dc">${sp == null ? 'aucun fruit ni légume enregistré'
-          : 'fruits et légumes, à la date du repas'}</span>
-        <span class="dc">depuis le début</span>
       </button>
     </div>`;
 }
