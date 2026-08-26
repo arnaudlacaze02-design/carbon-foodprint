@@ -84,6 +84,7 @@
      c'est le thème qui décide, et la valeur ne peut plus diverger d'un axe à
      l'autre. */
   --axe-kg:#0E4D45; --axe-kcal:#636E33; --axe-prot:#3A6E5C;
+  --axe-lip:#B08642; --axe-gluc:#4F7FA6; --axe-fib:#5C8A5A; --axe-eq:#8A5FA0;
   --shell:#20302B;
   --tabbar:rgba(255,255,255,.94);
   --card-2-bg:var(--ink); --card-2-on:#EDF1EE;
@@ -103,6 +104,7 @@
      #1D2523 ne se lit pas. Le carbone rejoint --accent, qui existe déjà pour
      cette raison exacte ailleurs dans l'app. */
   --axe-kg:#6FC2A6; --axe-kcal:#C3CE8C; --axe-prot:#7FC3AB;
+  --axe-lip:#D9AE72; --axe-gluc:#7FB2D9; --axe-fib:#8FC58C; --axe-eq:#C79FDB;
   --kpi-good:#223324;
   --shell:#0A0E0D;
   --tabbar:rgba(20,26,24,.92);
@@ -807,10 +809,11 @@ p{margin:0 0 9px}
 .seg button b{font-weight:600}
 .seg button small{font-family:var(--mono); font-size:9px; color:var(--mute)}
 .seg button[aria-pressed="true"]{background:var(--card); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.08)}
-/* Variante haute, pour le seul sélecteur d'« En cuisine ». Une classe à part et
-   non une retouche de `.seg` : le sélecteur de base sert à sept autres endroits
-   — périodes du tracker, onglets de recette, saisonnalité — qui n'ont ni la
-   place ni le besoin d'une barre de cette taille.
+/* Variante haute du sélecteur, avec pictogramme au-dessus du libellé — utilisée
+   pour les barres d'onglets qui méritent plus de présence : « En cuisine » et
+   les onglets du Tracker. Une classe à part et non une retouche de `.seg` :
+   le sélecteur de base sert à d'autres endroits (périodes, onglets de recette,
+   saisonnalité) qui n'ont ni la place ni le besoin d'une barre de cette taille.
    La hauteur vient du `min-height` et non du `padding` : elle reste tenue même
    si un libellé passe sur deux lignes, ce qui est le cas de « Mes recettes » sur
    les écrans les plus étroits. */
@@ -1997,6 +2000,65 @@ html[data-gate="1"] .phone{display:none}
   .wordmark em{font-size:15px}
   .tabbar span:not(.ic){font-size:7.5px}
 }
+
+/* ---------------- Coach Nutrition (onglet Santé) ----------------
+   Réutilise les jetons existants (--forest, --card, --line, .seg, .card,
+   h2.sec) plutôt qu'une palette à part. L'anneau SVG est un indicateur
+   purement visuel (couleur seulement) : aucune information n'est portée par
+   du texte positionné en absolu par-dessus, pour rester lisible quelle que
+   soit la largeur d'écran — toute la lecture précise vit dans la légende, en
+   flux normal juste en dessous. */
+.coachnu-wrap{width:100%; display:flex; flex-direction:column; align-items:center}
+.coachnu-anneau{position:relative; width:172px; height:172px; margin:4px auto 14px; flex:0 0 auto}
+.coachnu-anneau svg{width:100%; height:100%}
+.coachnu-arc{fill:none; stroke-width:16; stroke-linecap:round; cursor:pointer; transition:stroke-width .15s ease}
+.coachnu-arc:hover, .coachnu-arc.sel{stroke-width:19}
+.coachnu-center{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none}
+.coachnu-center b{display:block; font-family:var(--display); font-weight:800; font-size:26px; color:var(--ink); line-height:1}
+.coachnu-center span{display:block; font-family:var(--mono); font-size:8.5px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--mute); margin-top:3px}
+.coachnu-legende{width:100%; display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px}
+.coachnu-leg{display:flex; align-items:center; gap:7px; background:var(--card); border:1px solid var(--line);
+  border-radius:10px; padding:8px 9px; text-align:left; min-width:0}
+.coachnu-leg.sel{border-color:var(--forest)}
+.coachnu-leg .ic{font-size:15px; flex:0 0 auto; line-height:1}
+.coachnu-leg .lb{flex:1 1 auto; min-width:0; font-size:10.5px; font-weight:700; color:var(--mute);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.coachnu-leg .vv{flex:0 0 auto; font-family:var(--mono); font-size:11.5px; font-weight:800; white-space:nowrap}
+.coachnu-leg .gp{flex:0 0 auto; font-family:var(--mono); font-size:9.5px; font-weight:700; white-space:nowrap; min-width:30px; text-align:right}
+.coachnu-histo{width:100%; margin-top:2px}
+.coachnu-histo-head{margin-bottom:8px}
+/* Le défilement horizontal, plutôt que des colonnes qui rétrécissent, garde
+   chaque barre lisible que la période affichée soit 7, 14 ou 30 jours. */
+.coachnu-chart-scroll{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px}
+.coachnu-chart{position:relative; height:112px; display:flex; align-items:flex-end;
+  padding:0 0 20px; border-bottom:1px dashed var(--line)}
+.coachnu-target{position:absolute; left:0; right:0; border-top:1.5px dashed var(--ink-soft); opacity:.55; z-index:1}
+.coachnu-target-lab{position:absolute; right:0; top:-10px; font-size:9px; font-weight:800; color:var(--ink-soft);
+  background:var(--paper); padding:1px 6px; border-radius:4px; white-space:nowrap}
+.coachnu-col{flex:0 0 auto; display:flex; flex-direction:column; align-items:center; height:100%;
+  justify-content:flex-end; cursor:pointer; position:relative; z-index:2}
+.coachnu-bwrap{width:15px; height:100%; display:flex; align-items:flex-end; position:relative; margin:0 auto}
+.coachnu-bar{width:100%; border-radius:5px 5px 2px 2px; transition:height .5s cubic-bezier(.25,1,.5,1)}
+.coachnu-col.on .coachnu-bar{outline:2px solid var(--forest); outline-offset:1px}
+.coachnu-val{position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:9.5px; font-weight:800;
+  color:var(--ink); white-space:nowrap; font-family:var(--mono)}
+.coachnu-day{font-size:9.5px; font-weight:700; color:var(--mute); margin-top:4px}
+.coachnu-repas{margin-top:10px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px}
+.coachnu-repas .h{font-size:11px; font-weight:800; color:var(--ink); display:flex; justify-content:space-between; margin-bottom:6px}
+.coachnu-repas .m{font-size:11.5px; padding:4px 0; border-bottom:1px dotted var(--line-soft); display:flex; justify-content:space-between; gap:8px}
+.coachnu-repas .m:last-child{border-bottom:0}
+.coachnu-repas .m b{font-weight:700; color:var(--ink)}
+.coachnu-repas .m span{color:var(--mute); font-size:10.5px; text-align:right}
+.coachnu-dish{display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%;
+  text-align:left; padding:10px 2px; border-bottom:1px solid var(--line-soft); cursor:pointer; background:none}
+.coachnu-dish:last-child{border-bottom:0}
+.coachnu-dish .t{min-width:0}
+.coachnu-dish .t b{display:block; font-size:13px; font-weight:700; color:var(--ink); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis}
+.coachnu-dish .t small{display:block; font-family:var(--mono); font-size:10px; color:var(--mute); margin-top:2px}
+.coachnu-dish .go{flex:0 0 auto; color:var(--mute); font-size:16px}
+@media(max-width:359px){ .coachnu-legende{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -10563,13 +10625,32 @@ function bindAccount(){
   if(lost) lost.onclick = () => recoverSheet(($('#ac_p').value || '').trim());
 }
 
+/* Pictogrammes des onglets du Tracker, même style dessiné à la main que P_VUE
+   (traits, sans remplissage — la couleur vient de currentColor en CSS). */
+const P_TV = {
+  repas: '<circle cx="12" cy="12.6" r="7.6"/>'
+       + '<path d="M8.6 6.8v4.4M7.4 6.8v2.6a1.2 1.2 0 0 0 2.4 0V6.8M8.6 11.2v6.4"/>'
+       + '<path d="M15.6 6.8c-1 .3-1.7 1.6-1.7 3.1s.7 2.7 1.7 3v4.7"/>',
+  sante: '<path d="M12 20.2s-7.2-4.6-9.4-9.2C1 7.4 2.6 4 6 4c2 0 3.4 1.1 4 2.4.9-1.6 2.4-2.4 4-2.4 3.4 0 5 3.4 3.4 7-2.2 4.6-9.4 9.2-9.4 9.2z"/>'
+       + '<path d="M4.4 12.4h2.6l1.3-2.6 1.8 4.8 1.4-3.4 1 1.2h5.3"/>',
+  an:    '<path d="M4 18h16M4 18V4"/>'
+       + '<path d="M4 15.5 9 11l3 3 8-9"/>'
+       + '<path d="M17.2 5h2.8v2.8"/>',
+  cumule:'<rect x="3.6" y="5" width="16.8" height="15" rx="2.4"/>'
+       + '<path d="M3.6 9.6h16.8M8 3v3.6M16 3v3.6"/>'
+       + '<path d="M7.6 13.4h2M11 13.4h2M14.4 13.4h2M7.6 16.6h2M11 16.6h2"/>'
+};
+
 function renderTracker(){
   topbar();
   const a = agg();
-  const tabs = [['repas','Par repas'],['an','Sur un an'],['cumule','Cumulé']];
+  const tabs = [['repas','Par repas','repas'],['sante','Santé','sante'],['an','Sur un an','an'],['cumule','Cumulé','cumule']];
   view.innerHTML = `
-    <div class="seg">${tabs.map(([k,l]) =>
-      `<button data-tv="${k}" aria-pressed="${S.tv===k}"><b>${l}</b></button>`).join('')}</div>
+    <div class="seg tall" style="margin-bottom:12px">${tabs.map(([k,l,ic]) =>
+      `<button data-tv="${k}" aria-pressed="${S.tv===k}">
+        <svg viewBox="0 0 24 24" aria-hidden="true">${P_TV[ic]}</svg>
+        <b>${l}</b>
+      </button>`).join('')}</div>
     <div id="tv"></div>
     ${profRappel()}
     <h2 class="sec">Sauvegarde locale</h2>
@@ -10583,7 +10664,7 @@ function renderTracker(){
     </div>`;
   view.querySelectorAll('[data-tv]').forEach(b => b.onclick = () => { S.tv = b.dataset.tv; renderTracker(); });
   bindRappel();
-  ({repas:tvRepas, an:tvAn, cumule:tvCumule})[S.tv](a);
+  ({repas:tvRepas, sante:tvSante, an:tvAn, cumule:tvCumule})[S.tv](a);
 
   /* Le conseil du jour ouvre la recette qu'il nomme. Délégué après le rendu de
      la vue, parce que tvRepas() réécrit le contenu et emporterait un handler
@@ -11823,6 +11904,345 @@ function objProfilBlock(){
     <button class="btn btn-1" id="pf_obj">Modifier mes objectifs</button>
     <div class="src" style="margin-top:10px">L’avancement de la semaine se lit dans le Tracker, à
       l’onglet « Par repas ». Ici on règle, là-bas on regarde.</div>`;
+}
+
+/* ==================== Coach Nutrition ====================
+   Onglet dédié « Santé » du Tracker, entre « Par repas » et « Sur un an ».
+   Toutes les données viennent de nuParJour() sur la période choisie (7, 14 ou
+   30 jours glissants, jamais une semaine calendaire fixe) et de
+   S.prof.objCal / S.prof.objProt, les deux seules cibles que l'utilisateur
+   choisit vraiment. Lipides, glucides et fibres n'ont pas de cible
+   personnelle dans cette app : ce sont des repères ANSES recalculés depuis la
+   cible calorique, jamais présentés comme un choix de l'utilisateur.
+   « Équilibre » n'est pas une mesure indépendante : c'est la synthèse des
+   écarts des quatre autres axes sur la période, ramenée sur 10 — dit
+   explicitement dans le texte d'accompagnement.
+
+   Le mode d'entraînement (Chill / Prépa / Peak / J-3 Compét') applique des
+   coefficients de périodisation sportive usuels à la cible PROPRE de
+   l'utilisateur, jamais à des valeurs absolues inventées : repère indicatif,
+   pas un avis médical.
+
+   Choix de mise en page délibéré : pas de texte positionné en flottant
+   au-dessus d'un anneau SVG (fragile sur mobile, se chevauche facilement).
+   L'anneau reste un simple indicateur visuel coloré ; toute la lecture —
+   valeur, repère, écart — passe par une légende en flux normal, robuste à
+   toutes les tailles d'écran. */
+const COACH_KEYS = [
+  {k:'kcal', label:'Calories',  unit:'kcal', icon:'\u{1F525}'},
+  {k:'prot', label:'Prot\u00e9ines', unit:'g',    icon:'\u{1F357}'},
+  {k:'lip',  label:'Lipides',   unit:'g',    icon:'\u{1F951}'},
+  {k:'gluc', label:'Glucides',  unit:'g',    icon:'\u{1F35A}'},
+  {k:'fib',  label:'Fibres',    unit:'g',    icon:'\u{1F33E}'},
+  {k:'eq',   label:'\u00c9quilibre', unit:'/10', icon:'\u2696\uFE0F'}
+];
+const MODES_ENTR = {
+  chill:  {l:'Chill',          kcal:0.85, prot:0.90, lip:0.90, gluc:0.75, fib:1.00},
+  prepa:  {l:'Pr\u00e9pa',          kcal:1.00, prot:1.00, lip:1.00, gluc:1.00, fib:1.00},
+  peak:   {l:'Peak',           kcal:1.15, prot:1.05, lip:1.00, gluc:1.30, fib:0.95},
+  compet: {l:'J-3 Comp\u00e9t\u2019', kcal:1.20, prot:0.90, lip:0.75, gluc:1.60, fib:0.65}
+};
+const COACH_PERIODES = [7, 14, 30];
+
+/* Cibles/repères du mode courant, dérivées de la cible calorique choisie (ou
+   du besoin estimé ANSES à défaut). null si l'app ne peut encore rien
+   estimer — profil incomplet et aucune cible calorique renseignée. */
+function coachTargets(mode){
+  const P = S.prof || {};
+  const calBase = P.objCal != null ? P.objCal : besoinCal();
+  if(calBase == null) return null;
+  const protBase = P.objProt != null ? P.objProt : null;
+  const lipBase = calBase * 0.35 / 9;
+  const glucBase = calBase * 0.50 / 4;
+  const fibBase = 30 * (calBase / 2600);
+  const M = MODES_ENTR[mode] || MODES_ENTR.prepa;
+  return {
+    kcal: {v: calBase * M.kcal, cible: P.objCal != null},
+    prot: {v: protBase != null ? protBase * M.prot : null, cible: protBase != null},
+    lip:  {v: lipBase * M.lip, cible: false},
+    gluc: {v: glucBase * M.gluc, cible: false},
+    fib:  {v: fibBase * M.fib, cible: false}
+  };
+}
+
+/* `jours` derniers jours civils, aujourd'hui compris, glissants — jamais une
+   semaine calendaire fixe. */
+function coachDonnees(jours){
+  const nu = nuParJour();
+  const out = [];
+  for(let i = jours - 1; i >= 0; i--){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const iso_ = iso(d);
+    const v = nu[iso_] || {kcal:0, prot:0, lip:0, gluc:0, fib:0};
+    out.push({d:iso_, kcal:v.kcal, prot:v.prot, lip:v.lip, gluc:v.gluc, fib:v.fib});
+  }
+  return out;
+}
+
+/* Moyenne par jour sur la période affichée : c'est elle, et non le seul
+   aujourd'hui, qui alimente l'anneau et la légende — cohérent avec le choix
+   d'une période d'évaluation. */
+function coachMoyenne(data){
+  const n = data.length || 1;
+  const s = {kcal:0, prot:0, lip:0, gluc:0, fib:0};
+  data.forEach(d => { s.kcal+=d.kcal; s.prot+=d.prot; s.lip+=d.lip; s.gluc+=d.gluc; s.fib+=d.fib; });
+  return {kcal:s.kcal/n, prot:s.prot/n, lip:s.lip/n, gluc:s.gluc/n, fib:s.fib/n};
+}
+
+const coachJourLabel = iso_ =>
+  new Date(iso_+'T12:00').toLocaleDateString('fr-FR',{weekday:'short'}).replace(/\.$/, '');
+
+/* Synthèse 0–10 des quatre axes mesurables (calories, protéines, lipides,
+   glucides) sur la moyenne de la période ; un axe sans cible n'y participe
+   pas. Ce n'est pas une mesure de plus : c'est une moyenne des écarts déjà
+   affichés dans la légende. */
+function coachEq(moy, t){
+  const axes = ['kcal','prot','lip','gluc'].filter(k => t[k] && t[k].v);
+  if(!axes.length) return null;
+  let somme = 0;
+  axes.forEach(k => {
+    const cible = t[k].v, val = moy[k] || 0;
+    somme += cible > 0 ? Math.min(1, Math.abs(1 - val/cible)) : 0;
+  });
+  return Math.max(0, 10 * (1 - somme/axes.length));
+}
+
+function coachCouleur(val, cible){
+  if(!cible) return 'var(--mute)';
+  const diff = Math.abs(1 - val/cible);
+  if(diff <= 0.08) return 'var(--forest)';
+  if(diff <= 0.20) return 'var(--straw)';
+  return 'var(--brick)';
+}
+
+function coachArc(startDeg, endDeg, cx, cy, r){
+  const rad1 = startDeg*Math.PI/180, rad2 = endDeg*Math.PI/180;
+  const x1 = cx + r*Math.cos(rad1), y1 = cy + r*Math.sin(rad1);
+  const x2 = cx + r*Math.cos(rad2), y2 = cy + r*Math.sin(rad2);
+  const large = (endDeg-startDeg) > 180 ? 1 : 0;
+  return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+}
+
+/* Anneau purement visuel : six arcs colorés, cliquables, sans aucun texte en
+   position flottante par-dessus. La lecture précise vit dans la légende. */
+function coachAnneauHTML(moy, t, selKey){
+  const cx = 100, cy = 100, r = 65, gap = 14;
+  const arcLen = 360/COACH_KEYS.length - gap;
+  let svg = '';
+  COACH_KEYS.forEach((ax, i) => {
+    const start = i*(arcLen+gap) - 90 + gap/2, end = start + arcLen;
+    let val, cible, color;
+    if(ax.k === 'eq'){
+      val = coachEq(moy, t); cible = null;
+      color = val == null ? 'var(--mute)' : val >= 8.5 ? 'var(--forest)' : val >= 6.5 ? 'var(--straw)' : 'var(--brick)';
+    } else {
+      val = moy[ax.k] || 0;
+      cible = t[ax.k] ? t[ax.k].v : null;
+      color = coachCouleur(val, cible);
+    }
+    const sel = ax.k === selKey ? ' sel' : '';
+    svg += `<path class="coachnu-arc${sel}" d="${coachArc(start,end,cx,cy,r)}" stroke="${color}" data-cnk="${ax.k}"></path>`;
+  });
+  return svg;
+}
+
+/* Légende en flux normal : icône, libellé, valeur moyenne/jour et écart à la
+   cible. C'est ici, pas sur l'anneau, que se lit vraiment le chiffre. */
+function coachLegendeHTML(moy, t, selKey){
+  return `<div class="coachnu-legende">${COACH_KEYS.map(ax => {
+    let val, cible, color;
+    if(ax.k === 'eq'){
+      val = coachEq(moy, t); cible = null;
+      color = val == null ? 'var(--mute)' : val >= 8.5 ? 'var(--forest)' : val >= 6.5 ? 'var(--straw)' : 'var(--brick)';
+    } else {
+      val = moy[ax.k] || 0;
+      cible = t[ax.k] ? t[ax.k].v : null;
+      color = coachCouleur(val, cible);
+    }
+    const gapTxt = cible ? `${val>cible?'+':''}${Math.round((val-cible)/cible*100)}%` : '\u2014';
+    const valTxt = ax.k === 'eq' ? (val != null ? n1(val) : '\u2014') : `${n0(val)} ${ax.unit}`;
+    const sel = ax.k === selKey ? ' sel' : '';
+    return `<button class="coachnu-leg${sel}" data-cnk="${ax.k}">
+      <span class="ic">${ax.icon}</span>
+      <span class="lb">${ax.label}</span>
+      <span class="vv" style="color:${color}">${valTxt}</span>
+      <span class="gp" style="color:${color}">${gapTxt}</span>
+    </button>`;
+  }).join('')}</div>`;
+}
+
+/* Historique en colonnes de largeur fixe, dans un conteneur qui défile
+   horizontalement au-delà de sept jours : sur 14 ou 30 jours, des colonnes qui
+   se contractent pour tenir dans l'écran deviennent illisibles, un défilement
+   les garde lisibles quel que soit le nombre de jours affichés. */
+function coachChartHTML(data, t, selKey, selIdx){
+  const ax = COACH_KEYS.find(k => k.k === selKey);
+  const isEq = selKey === 'eq';
+  const vals = data.map(d => isEq ? (coachEq(d, t) || 0) : (d[selKey] || 0));
+  const cible = isEq ? null : (t[selKey] ? t[selKey].v : null);
+  const maxVal = Math.max(cible || 0, ...vals, isEq ? 10 : 1) * (isEq ? 1.05 : 1.25);
+  const colW = 30, gapW = 8, n = data.length;
+  const totalW = n * colW + (n - 1) * gapW;
+  const cols = data.map((d, i) => {
+    const val = vals[i], h = (val/maxVal*100).toFixed(1);
+    const color = isEq
+      ? (val>=8.5?'var(--forest)':val>=6.5?'var(--straw)':'var(--brick)')
+      : coachCouleur(val, cible);
+    return `<div class="coachnu-col${i===selIdx?' on':''}" data-cnd="${i}" style="width:${colW}px">
+      <div class="coachnu-bwrap">
+        <div class="coachnu-val">${isEq?n1(val):n0(val)}</div>
+        <div class="coachnu-bar" style="height:${h}%;background:${color}"></div>
+      </div>
+      <div class="coachnu-day">${coachJourLabel(d.d)}</div>
+    </div>`;
+  }).join('');
+  const ligne = cible ? `<div class="coachnu-target" style="bottom:${(cible/maxVal*100).toFixed(1)}%">
+    <span class="coachnu-target-lab">${t[selKey].cible?'Cible':'Rep\u00e8re'} : ${n0(cible)} ${ax.unit}</span></div>` : '';
+  return `<div class="coachnu-chart-scroll">
+    <div class="coachnu-chart" style="width:${totalW}px;gap:${gapW}px">${ligne}${cols}</div>
+  </div>`;
+}
+
+/* Repas réellement enregistrés le jour sélectionné dans l'historique — jamais
+   de repas inventé. */
+function coachRepasHTML(iso_){
+  const es = S.hist.filter(e => e.d === iso_)
+    .sort((a,b) => MEALS.findIndex(m=>m.k===a.m) - MEALS.findIndex(m=>m.k===b.m));
+  if(!es.length) return `<div class="coachnu-repas"><div class="h"><span>Repas du ${dLabel(iso_)}</span></div>
+    <div class="small mute" style="padding:2px 0">Rien d\u2019enregistr\u00e9 ce jour-l\u00e0.</div></div>`;
+  return `<div class="coachnu-repas">
+    <div class="h"><span>Repas du ${dLabel(iso_)}</span></div>
+    ${es.map(e => `<div class="m"><b>${esc(MEAL[e.m].l)}</b><span>${esc(e.n)}</span></div>`).join('')}
+  </div>`;
+}
+
+/* Réserve de plats candidats pour les suggestions : le catalogue DB.dishes ET
+   les recettes personnelles de l'utilisateur (S.mesRec), sur un pied
+   d'égalité — jamais de menu inventé. */
+function coachDishPool(){
+  const pool = [];
+  DB.dishes.forEach(d => { if(d.l && d.l.length) pool.push({kind:'db', n:d.n, l:d.l, meals:d.m||[]}); });
+  (S.mesRec || []).forEach(r => { if(r.ing && r.ing.length) pool.push({kind:'mr', n:r.t, l:r.ing, meals:[], id:r.id}); });
+  return pool;
+}
+
+function coachProchainRepas(){
+  const t = today();
+  const fait = new Set(S.hist.filter(e => e.d === t).map(e => e.m));
+  return ['pdj','dej','din','encas'].find(m => !fait.has(m)) || 'din';
+}
+
+function coachSuggest(remKcal, remProt, meal){
+  const cible = Math.max(remKcal, 150);
+  const recents = new Set(S.hist.slice(-9).map(e => e.n));
+  const notes = [];
+  coachDishPool().forEach(d => {
+    const nu = nuOf(d.l);
+    if(!nu.poids) return;
+    const ecart = Math.abs(nu.kcal - cible) / cible;
+    const bonusProt = remProt > 0 ? Math.min(1, nu.prot/Math.max(remProt,1)) * 0.35 : 0;
+    const bonusRepas = meal && d.meals.includes(meal) ? 0.15 : 0;
+    const malusRecent = recents.has(d.n) ? 0.4 : 0;
+    notes.push(Object.assign({}, d, {nu, score: ecart - bonusProt - bonusRepas + malusRecent}));
+  });
+  notes.sort((a,b) => a.score - b.score);
+  const vus = new Set(), out = [];
+  for(const p of notes){
+    if(vus.has(p.n)) continue;
+    vus.add(p.n); out.push(p);
+    if(out.length >= 3) break;
+  }
+  return out;
+}
+
+/* Les suggestions de menu portent toujours sur AUJOURD'HUI — c'est ce qu'on
+   peut encore manger qui compte, quelle que soit la période affichée
+   au-dessus. */
+function coachMenuHTML(t){
+  if(!t.kcal.v) return '';
+  const jour = coachDonnees(1)[0];
+  const meal = coachProchainRepas();
+  const remKcal = Math.max(150, t.kcal.v - (jour.kcal||0));
+  const remProt = t.prot.v != null ? Math.max(0, t.prot.v - (jour.prot||0)) : 0;
+  const picks = coachSuggest(remKcal, remProt, meal);
+  if(!picks.length) return '';
+  return `<div class="card" style="margin-top:12px">
+    <div class="unit" style="margin-bottom:8px">Suggestions pour ${esc(MEAL[meal].l.toLowerCase())} \u00b7 ${n0(remKcal)} kcal restants aujourd\u2019hui</div>
+    ${picks.map(p => p.kind==='db'
+      ? `<button class="coachnu-dish" data-recette="${esc(p.n)}"><div class="t"><b>${esc(p.n)}</b><small>${n0(p.nu.kcal)} kcal \u00b7 ${n0(p.nu.prot)} g prot</small></div><span class="go">\u203a</span></button>`
+      : `<button class="coachnu-dish" data-cnmr="${p.id}"><div class="t"><b>${esc(p.n)}</b><small>${n0(p.nu.kcal)} kcal \u00b7 ${n0(p.nu.prot)} g prot \u00b7 Ma recette</small></div><span class="go">\u203a</span></button>`
+    ).join('')}
+    <div class="src" style="margin-top:8px">Puis\u00e9 dans le catalogue de plats et dans vos recettes, au plus pr\u00e8s de ce qu\u2019il vous reste \u00e0 manger aujourd\u2019hui.</div>
+  </div>`;
+}
+
+function coachModesHTML(mode){
+  return `<div class="seg" style="margin-bottom:8px">${Object.entries(MODES_ENTR).map(([k,m]) =>
+    `<button data-cnm="${k}" aria-pressed="${mode===k}"><b>${m.l}</b></button>`).join('')}</div>`;
+}
+
+function coachPeriodeHTML(periode){
+  return `<div class="seg" style="margin-bottom:14px">${COACH_PERIODES.map(p =>
+    `<button data-cnp="${p}" aria-pressed="${periode===p}"><b>${p} j</b></button>`).join('')}</div>`;
+}
+
+function coachBloc(){
+  if(!nuOn()) return '';
+  const mode = (S.prof && S.prof.modeEntr) || 'prepa';
+  const t = coachTargets(mode);
+  if(!t) return `<div class="card">
+    <div class="small mute">Le Coach Nutrition a besoin d\u2019une cible ou d\u2019une estimation calorique pour proposer ses rep\u00e8res. Renseignez votre profil (sexe, \u00e2ge, activit\u00e9) ou une cible calorique dans vos objectifs.</div>
+    <div class="actions" style="margin-top:10px"><button class="btn btn-1" id="cn_go">Renseigner mon profil</button></div>
+  </div>`;
+  const periode = COACH_PERIODES.includes(S.cnPeriode) ? S.cnPeriode : 7;
+  S.cnPeriode = periode;
+  const data = coachDonnees(periode);
+  S.cnKey = S.cnKey || 'kcal';
+  const selIdx = (S.cnDay == null || S.cnDay >= data.length) ? data.length - 1 : S.cnDay;
+  const moy = coachMoyenne(data);
+  const svgArcs = coachAnneauHTML(moy, t, S.cnKey);
+  const eqMoy = coachEq(moy, t);
+  return `<div class="card">
+    <div class="coachnu-wrap">
+      ${coachModesHTML(mode)}
+      ${coachPeriodeHTML(periode)}
+      <div class="coachnu-anneau">
+        <svg viewBox="0 0 200 200">${svgArcs}</svg>
+        <div class="coachnu-center"><b>${eqMoy!=null?n1(eqMoy):'\u2013'}</b><span>\u00c9quilibre /10</span></div>
+      </div>
+      ${coachLegendeHTML(moy, t, S.cnKey)}
+      <div class="coachnu-histo">
+        <div class="coachnu-histo-head">
+          <span class="small mute">Moyenne sur ${periode} jours \u00b7 ${COACH_KEYS.find(k=>k.k===S.cnKey).label}</span>
+        </div>
+        ${coachChartHTML(data, t, S.cnKey, selIdx)}
+        ${coachRepasHTML(data[selIdx].d)}
+      </div>
+      ${coachMenuHTML(t)}
+      <div class="src" style="margin-top:8px">Rep\u00e8res indicatifs (ANSES, p\u00e9riodisation sportive courante) \u2014 pas un avis m\u00e9dical. Lipides, glucides et fibres n\u2019ont pas de cible personnelle : ce sont des rep\u00e8res recalcul\u00e9s depuis votre cible calorique. \u00c9quilibre synth\u00e9tise les quatre autres axes, ce n\u2019est pas une mesure ind\u00e9pendante.</div>
+    </div>
+  </div>`;
+}
+
+function coachBind(){
+  const wrap = $('#tv'); if(!wrap) return;
+  wrap.querySelectorAll('[data-cnm]').forEach(b => b.onclick = () => {
+    S.prof = S.prof || {}; S.prof.modeEntr = b.dataset.cnm; save(); tvSante(agg());
+  });
+  wrap.querySelectorAll('[data-cnp]').forEach(b => b.onclick = () => {
+    S.cnPeriode = +b.dataset.cnp; S.cnDay = null; tvSante(agg());
+  });
+  wrap.querySelectorAll('[data-cnk]').forEach(b => b.onclick = () => { S.cnKey = b.dataset.cnk; tvSante(agg()); });
+  wrap.querySelectorAll('[data-cnd]').forEach(b => b.onclick = () => { S.cnDay = +b.dataset.cnd; tvSante(agg()); });
+  wrap.querySelectorAll('[data-cnmr]').forEach(b => b.onclick = () => mesRecSheet(b.dataset.cnmr));
+  const go = $('#cn_go'); if(go) go.onclick = objSheet;
+}
+
+/* Onglet « Santé » du Tracker : uniquement le Coach Nutrition, entre « Par
+   repas » et « Sur un an ». */
+function tvSante(a){
+  $('#tv').innerHTML = coachBloc();
+  coachBind();
 }
 
 function tvRepas(a){
