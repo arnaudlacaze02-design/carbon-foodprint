@@ -12078,6 +12078,9 @@ function coachEq(moy, t){
   let somme = 0;
   axes.forEach(k => {
     const cible = t[k].v, val = moy[k] || 0;
+    /* Protéines : un excès ne compte jamais contre le score, faute de plafond
+       défini pour cet axe (cf. coachCouleurMin). */
+    if(k === 'prot' && val >= cible) return;
     somme += cible > 0 ? Math.min(1, Math.abs(1 - val/cible)) : 0;
   });
   return Math.max(0, 10 * (1 - somme/axes.length));
@@ -12092,6 +12095,27 @@ function coachCouleur(val, cible){
   if(diff <= 0.15) return 'var(--cn-yellow)';
   if(diff <= 0.28) return 'var(--cn-orange)';
   return 'var(--cn-red)';
+}
+
+/* Variante à un seul sens, pour les protéines : au-dessus du repère, toujours
+   « bon », quelle que soit l'ampleur — il n'y a pas de plafond aux protéines
+   dans cette app, contrairement aux calories qui ont une vraie cible à deux
+   bornes. En dessous, mêmes paliers que coachCouleur. */
+function coachCouleurMin(val, cible){
+  if(!cible) return 'var(--mute)';
+  if(val >= cible) return 'var(--cn-good)';
+  const diff = (cible - val) / cible;
+  if(diff <= 0.05) return 'var(--cn-good)';
+  if(diff <= 0.15) return 'var(--cn-yellow)';
+  if(diff <= 0.28) return 'var(--cn-orange)';
+  return 'var(--cn-red)';
+}
+
+/* Sélectionne la bonne fonction de teinte selon que l'axe a un plafond ou non.
+   Seules les protéines sont un plancher pur ; calories/lipides/glucides et
+   « équilibre » gardent la lecture à deux sens. */
+function couleurPourAxe(key, val, cible){
+  return key === 'prot' ? coachCouleurMin(val, cible) : coachCouleur(val, cible);
 }
 
 function coachArc(startDeg, endDeg, cx, cy, r){
@@ -12126,11 +12150,13 @@ function coachAnneauHTML(moy, t, selKey, scale){
     const cible = t[ax.k] ? t[ax.k].v : null;
     if(val == null || !cible) return;
     const gapPct = Math.round((val - cible) / cible * 100);
+    /* Protéines : aucun badge au-dessus du repère, pas de plafond à signaler. */
+    if(ax.k === 'prot' && gapPct >= 0) return;
     if(Math.abs(gapPct) < 3) return;
     const alerte = Math.abs(gapPct) >= 15 ? (gapPct < 0 ? ' \u26a0\ufe0f' : ' \u2757') : '';
     const rb = r + 22, endRad = end*Math.PI/180;
     const bx = (cx + rb*Math.cos(endRad)) * scale, by = (cy + rb*Math.sin(endRad)) * scale;
-    overlay += `<div class="coachnu-gap" style="left:${bx}px;top:${by}px;background:${coachCouleur(val,cible)}">${gapPct>0?'+':''}${gapPct}%${alerte}</div>`;
+    overlay += `<div class="coachnu-gap" style="left:${bx}px;top:${by}px;background:${couleurPourAxe(ax.k,val,cible)}">${gapPct>0?'+':''}${gapPct}%${alerte}</div>`;
   });
   return {svg, overlay};
 }
@@ -12153,7 +12179,7 @@ function coachChartHTML(data, t, selKey, selIdx){
     const val = vals[i], h = (val/maxVal*100).toFixed(1);
     const color = isEq
       ? (val>=8.5?'var(--forest)':val>=6.5?'var(--straw)':'var(--brick)')
-      : coachCouleur(val, cible);
+      : couleurPourAxe(selKey, val, cible);
     return `<div class="coachnu-col${i===selIdx?' on':''}" data-cnd="${i}" style="width:${colW}px">
       <div class="coachnu-bwrap">
         <div class="coachnu-val">${isEq?n1(val):n0(val)}</div>
@@ -12541,10 +12567,10 @@ function tvRepas(a){
   duoBind(a);
 }
 
-/* Teinte du chiffre calories selon l'écart au minimum recommandé, dans les deux
-   sens : un jour trop bas n'est pas plus sain qu'un jour trop haut, l'écart se
-   lit pareil des deux côtés. Mêmes paliers que le Coach Nutrition (5 / 10 / 15 %),
-   pour ne pas apprendre deux échelles de couleur différentes dans la même app. */
+/* Teinte du chiffre calories selon l'écart à la cible, dans les deux sens : un
+   jour trop bas n'est pas plus sain qu'un jour trop haut, l'écart se lit pareil
+   des deux côtés. Mêmes paliers que le Coach Nutrition (5 / 10 / 15 %), pour ne
+   pas apprendre deux échelles de couleur différentes dans la même app. */
 function calCouleur(val, cible){
   if(!cible) return 'var(--axe-kcal)';
   const ecart = Math.abs(val - cible) / cible;
@@ -12552,6 +12578,19 @@ function calCouleur(val, cible){
   if(ecart >= 0.10) return 'var(--cn-orange)';
   if(ecart >= 0.05) return 'var(--cn-yellow)';
   return 'var(--axe-kcal)';
+}
+
+/* Teinte du chiffre protéines selon l'écart au minimum recommandé, dans UN SEUL
+   sens : en dessous du repère, mêmes paliers que calCouleur (5 / 10 / 15 %).
+   Au-dessus, jamais d'alerte — il n'y a pas de plafond aux protéines dans cette
+   app, contrairement aux calories qui ont une vraie cible à deux bornes. */
+function protCouleur(val, cible){
+  if(!cible || val >= cible) return 'var(--axe-prot)';
+  const ecart = (cible - val) / cible;
+  if(ecart >= 0.15) return 'var(--cn-red)';
+  if(ecart >= 0.10) return 'var(--cn-orange)';
+  if(ecart >= 0.05) return 'var(--cn-yellow)';
+  return 'var(--axe-prot)';
 }
 
 /* Les trois cartes du jour. Séparées plutôt qu'empilées dans une seule : chaque
@@ -12577,7 +12616,7 @@ function axesDuJour(a, t){
       objJ != null ? {v:objJ, c:'var(--straw)'} : null,
       {v:FR_J, c:'var(--brick)'},
     ].filter(Boolean),
-    couleur:j.kg > BUDGET_J ? 'var(--brick)' : 'var(--axe-kg)',
+    couleur:j.kg > BUDGET_J ? 'var(--cn-red)' : 'var(--axe-kg)',
     mot: rien
       ? `Rien d\u2019enregistré aujourd\u2019hui. Budget du jour : ${n0(BUDGET_J*1000)} g CO\u2082e.`
       : restCO2 >= 0
@@ -12615,44 +12654,44 @@ function axesDuJour(a, t){
   if(!nuOn()) return carbone;
 
   /* --- calories ---
-     La cible déclarée d'abord, l'estimation ANSES à défaut. Le repère est
-     présenté comme un minimum recommandé, jamais comme une cible ou un
-     plafond : « cible »/« besoin » laissaient penser qu'il fallait s'arrêter
-     pile dessus, alors que le dépasser n'a rien d'un échec — seul un écart
-     marqué, dans un sens ou dans l'autre, mérite d'être signalé (cf. calCouleur). */
+     La cible déclarée d'abord, l'estimation ANSES à défaut. Vraie cible à deux
+     bornes, contrairement aux protéines : s'en écarter dans un sens ou l'autre
+     est signalé de la même façon (cf. calCouleur). */
   const bCal   = besoinCal();
   const cCal   = S.prof.objCal != null ? S.prof.objCal : bCal;
   const choisie = S.prof.objCal != null;
   const ecartCalPct = cCal ? Math.round(Math.abs(j.kcal - cCal) / cCal * 100) : 0;
   const calories = carteAxeGrande({
     titre:'Calories', unite:'kcal', fmt:n0, total:j.kcal, par:j.par.kcal, axe:'kcal',
-    sous: cCal != null ? 'Minimum recommandé' + (choisie ? '' : ' (estimé)') + ' : ' + n0(cCal) + ' kcal/j'
+    sous: cCal != null ? 'Cible' + (choisie ? '' : ' (estimée)') + ' : ' + n0(cCal) + ' kcal/j'
                        : 'Aucune cible renseignée',
-    repere:cCal || 0, repLabel:'minimum recommandé', sens:'plancher',
+    repere:cCal || 0, repLabel:'cible', sens:'cible',
     couleur:calCouleur(j.kcal, cCal),
     mot: rien ? 'Rien d\u2019enregistré aujourd\u2019hui.'
       : cCal == null
         ? `<b>${n0(j.kcal)} kcal</b> sur la journée. <button class="backlink" id="cal_go" style="display:inline;padding:0">Renseigner une cible \u203a</button>`
         : j.kcal <= cCal
-          ? `Il manque <b>${n0(cCal - j.kcal)} kcal</b> pour atteindre le minimum recommandé${ecartCalPct >= 5 ? `, soit <b>${ecartCalPct} %</b> en dessous` : ''}.`
-          : `<b>${n0(j.kcal - cCal)} kcal</b> au-dessus du minimum recommandé${ecartCalPct >= 5 ? `, soit <b>${ecartCalPct} %</b>` : ''}.`,
+          ? `Il manque <b>${n0(cCal - j.kcal)} kcal</b> pour atteindre la cible${ecartCalPct >= 5 ? `, soit <b>${ecartCalPct} %</b> en dessous` : ''}.`
+          : `<b>${n0(j.kcal - cCal)} kcal</b> au-dessus de la cible${ecartCalPct >= 5 ? `, soit <b>${ecartCalPct} %</b>` : ''}.`,
   });
 
   /* --- protéines ---
-     Seul axe des trois où le manque est en dessous du trait, jamais au-dessus :
-     rien n'est signalé comme un excès. */
+     Minimum recommandé, pas une cible : seul axe des trois sans plafond. Le
+     manque en dessous se colore comme calories/carbone (cf. protCouleur), mais
+     rien n'est jamais signalé comme un excès, quelle que soit son ampleur. */
   const cProt = S.prof.objProt;
+  const ecartProtPct = cProt ? Math.round((cProt - j.prot) / cProt * 100) : 0;
   const proteines = carteAxeGrande({
     titre:'Protéines', unite:'g', fmt:n0, total:j.prot, par:j.par.prot, axe:'prot',
-    sous: cProt != null ? 'Cible : ' + n0(cProt) + ' g/j' : 'Aucune cible renseignée',
-    repere:cProt || 0, repLabel:'cible', sens:'plancher',
-    couleur:'var(--axe-prot)',
+    sous: cProt != null ? 'Minimum recommandé : ' + n0(cProt) + ' g/j' : 'Aucune cible renseignée',
+    repere:cProt || 0, repLabel:'minimum recommandé', sens:'plancher',
+    couleur:protCouleur(j.prot, cProt),
     mot: rien ? 'Rien d\u2019enregistré aujourd\u2019hui.'
       : cProt == null
         ? `<b>${n0(j.prot)} g</b> de protéines sur la journée. <button class="backlink" id="prot_go" style="display:inline;padding:0">Renseigner une cible \u203a</button>`
         : j.prot >= cProt
-          ? `Cible atteinte : <b>${n0(j.prot)} g</b> pour ${n0(cProt)} g visés.`
-          : `Il manque <b>${n0(cProt - j.prot)} g</b> pour atteindre les ${n0(cProt)} g visés.`,
+          ? `Minimum atteint : <b>${n0(j.prot)} g</b> pour ${n0(cProt)} g visés.`
+          : `Il manque <b>${n0(cProt - j.prot)} g</b> pour atteindre les ${n0(cProt)} g visés${ecartProtPct >= 5 ? `, soit <b>${ecartProtPct} %</b> en dessous` : ''}.`,
     /* Plus de note de méthode ici : elle reste dans la fiche repas (nuBlock),
        là où elle qualifie réellement un total qu'on est en train de lire. */
   });
