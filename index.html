@@ -84,7 +84,8 @@
      c'est le thème qui décide, et la valeur ne peut plus diverger d'un axe à
      l'autre. */
   --axe-kg:#0E4D45; --axe-kcal:#636E33; --axe-prot:#3A6E5C;
-  --axe-lip:#B08642; --axe-gluc:#4F7FA6; --axe-fib:#5C8A5A; --axe-eq:#8A5FA0;
+  --cn-cal:#F6C85F; --cn-prot:#E63946; --cn-lip:#9DBF9E; --cn-gluc:#A5C8ED; --cn-fib:#F29E74; --cn-eq:#D3A7DC;
+  --cn-good:#52B788; --cn-yellow:#F6C85F; --cn-orange:#F29E74; --cn-red:#E63946;
   --shell:#20302B;
   --tabbar:rgba(255,255,255,.94);
   --card-2-bg:var(--ink); --card-2-on:#EDF1EE;
@@ -104,7 +105,8 @@
      #1D2523 ne se lit pas. Le carbone rejoint --accent, qui existe déjà pour
      cette raison exacte ailleurs dans l'app. */
   --axe-kg:#6FC2A6; --axe-kcal:#C3CE8C; --axe-prot:#7FC3AB;
-  --axe-lip:#D9AE72; --axe-gluc:#7FB2D9; --axe-fib:#8FC58C; --axe-eq:#C79FDB;
+  --cn-cal:#F6C85F; --cn-prot:#F2626D; --cn-lip:#9DBF9E; --cn-gluc:#A5C8ED; --cn-fib:#F29E74; --cn-eq:#D3A7DC;
+  --cn-good:#52B788; --cn-yellow:#F6C85F; --cn-orange:#F29E74; --cn-red:#F2626D;
   --kpi-good:#223324;
   --shell:#0A0E0D;
   --tabbar:rgba(20,26,24,.92);
@@ -2002,32 +2004,38 @@ html[data-gate="1"] .phone{display:none}
 }
 
 /* ---------------- Coach Nutrition (onglet Santé) ----------------
-   Réutilise les jetons existants (--forest, --card, --line, .seg, .card,
-   h2.sec) plutôt qu'une palette à part. L'anneau SVG est un indicateur
-   purement visuel (couleur seulement) : aucune information n'est portée par
-   du texte positionné en absolu par-dessus, pour rester lisible quelle que
-   soit la largeur d'écran — toute la lecture précise vit dans la légende, en
-   flux normal juste en dessous. */
+   Calqué sur la maquette validée : anneau à couleurs fixes par pilier (pas
+   par écart — l'écart, lui, vit dans les badges), emoji et badge flottants
+   au-dessus de l'anneau, sélecteur de mode en pilule. Couleurs dédiées
+   (--cn-*) plutôt que les jetons --axe-kcal/--axe-prot déjà utilisés
+   ailleurs dans l'app : les toucher aurait changé d'autres écrans. */
 .coachnu-wrap{width:100%; display:flex; flex-direction:column; align-items:center}
-.coachnu-anneau{position:relative; width:172px; height:172px; margin:4px auto 14px; flex:0 0 auto}
-.coachnu-anneau svg{width:100%; height:100%}
-.coachnu-arc{fill:none; stroke-width:16; stroke-linecap:round; cursor:pointer; transition:stroke-width .15s ease}
-.coachnu-arc:hover, .coachnu-arc.sel{stroke-width:19}
+.coachnu-head{width:100%; display:flex; align-items:center; justify-content:flex-end; margin-bottom:2px}
+.coachnu-periode-btn{width:32px; height:32px; border-radius:50%; border:1px solid var(--line);
+  background:var(--card); color:var(--mute); display:flex; align-items:center; justify-content:center; flex:0 0 auto}
+.coachnu-periode-btn:active{background:var(--active)}
+.coachnu-periode-btn svg{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round}
+.coachnu-modes{width:100%; display:flex; gap:4px; background:var(--seg-bg); padding:3px; border-radius:999px; margin:6px 0 14px}
+.coachnu-modes button{flex:1; padding:8px 0; border-radius:999px; font-size:11px; font-weight:700; color:var(--mute)}
+.coachnu-modes button[aria-pressed="true"]{background:var(--card); color:var(--ink); font-weight:800;
+  box-shadow:0 2px 6px rgba(0,0,0,.08)}
+.coachnu-donut{position:relative; width:100%; max-width:280px; aspect-ratio:1/1; margin:4px auto 8px}
+.coachnu-donut svg{width:100%; height:100%; overflow:visible}
+.coachnu-arc{fill:none; stroke-width:22; stroke-linecap:round; cursor:pointer;
+  transition:stroke-dashoffset .8s cubic-bezier(.25,1,.5,1), stroke-width .2s ease}
+.coachnu-arc:hover, .coachnu-arc.sel{stroke-width:26}
+.coachnu-icons{position:absolute; inset:0; pointer-events:none}
+.coachnu-icon{position:absolute; transform:translate(-50%,-50%) scale(1); font-size:18px; line-height:1;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.25)); z-index:5}
+.coachnu-gap{position:absolute; transform:translate(-50%,-50%) scale(1); padding:2px 6px; border-radius:8px;
+  color:#fff; font-size:10px; font-weight:800; white-space:nowrap; border:1.5px solid var(--card);
+  box-shadow:0 2px 5px rgba(0,0,0,.15); z-index:4}
 .coachnu-center{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none}
-.coachnu-center b{display:block; font-family:var(--display); font-weight:800; font-size:26px; color:var(--ink); line-height:1}
-.coachnu-center span{display:block; font-family:var(--mono); font-size:8.5px; letter-spacing:.05em;
-  text-transform:uppercase; color:var(--mute); margin-top:3px}
-.coachnu-legende{width:100%; display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px}
-.coachnu-leg{display:flex; align-items:center; gap:7px; background:var(--card); border:1px solid var(--line);
-  border-radius:10px; padding:8px 9px; text-align:left; min-width:0}
-.coachnu-leg.sel{border-color:var(--forest)}
-.coachnu-leg .ic{font-size:15px; flex:0 0 auto; line-height:1}
-.coachnu-leg .lb{flex:1 1 auto; min-width:0; font-size:10.5px; font-weight:700; color:var(--mute);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-.coachnu-leg .vv{flex:0 0 auto; font-family:var(--mono); font-size:11.5px; font-weight:800; white-space:nowrap}
-.coachnu-leg .gp{flex:0 0 auto; font-family:var(--mono); font-size:9.5px; font-weight:700; white-space:nowrap; min-width:30px; text-align:right}
-.coachnu-histo{width:100%; margin-top:2px}
-.coachnu-histo-head{margin-bottom:8px}
+.coachnu-center b{display:block; font-family:var(--display); font-weight:800; font-size:44px; color:var(--ink); line-height:1}
+.coachnu-center span{display:block; font-size:10px; letter-spacing:.05em;
+  text-transform:uppercase; color:var(--mute); font-weight:700; margin-top:3px}
+.coachnu-histo{width:100%; margin-top:6px}
+.coachnu-histo-head{margin-bottom:8px; display:flex; align-items:center; gap:6px}
 /* Le défilement horizontal, plutôt que des colonnes qui rétrécissent, garde
    chaque barre lisible que la période affichée soit 7, 14 ou 30 jours. */
 .coachnu-chart-scroll{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px}
@@ -2058,7 +2066,10 @@ html[data-gate="1"] .phone{display:none}
   overflow:hidden; text-overflow:ellipsis}
 .coachnu-dish .t small{display:block; font-family:var(--mono); font-size:10px; color:var(--mute); margin-top:2px}
 .coachnu-dish .go{flex:0 0 auto; color:var(--mute); font-size:16px}
-@media(max-width:359px){ .coachnu-legende{grid-template-columns:1fr} }
+.coachnu-periode-sheet button{width:100%; text-align:left; padding:14px 4px; font-size:15px; font-weight:700;
+  color:var(--ink); border-bottom:1px solid var(--line-soft); display:flex; justify-content:space-between; align-items:center}
+.coachnu-periode-sheet button:last-child{border-bottom:0}
+.coachnu-periode-sheet button[aria-pressed="true"]{color:var(--forest)}
 </style>
 </head>
 <body>
@@ -11929,12 +11940,12 @@ function objProfilBlock(){
    valeur, repère, écart — passe par une légende en flux normal, robuste à
    toutes les tailles d'écran. */
 const COACH_KEYS = [
-  {k:'kcal', label:'Calories',  unit:'kcal', icon:'\u{1F525}'},
-  {k:'prot', label:'Prot\u00e9ines', unit:'g',    icon:'\u{1F357}'},
-  {k:'lip',  label:'Lipides',   unit:'g',    icon:'\u{1F951}'},
-  {k:'gluc', label:'Glucides',  unit:'g',    icon:'\u{1F35A}'},
-  {k:'fib',  label:'Fibres',    unit:'g',    icon:'\u{1F33E}'},
-  {k:'eq',   label:'\u00c9quilibre', unit:'/10', icon:'\u2696\uFE0F'}
+  {k:'kcal', label:'Calories',  unit:'kcal', icon:'\u{1F525}', color:'var(--cn-cal)'},
+  {k:'prot', label:'Prot\u00e9ines', unit:'g',    icon:'\u{1F357}', color:'var(--cn-prot)'},
+  {k:'lip',  label:'Lipides',   unit:'g',    icon:'\u{1F951}', color:'var(--cn-lip)'},
+  {k:'gluc', label:'Glucides',  unit:'g',    icon:'\u{1F35A}', color:'var(--cn-gluc)'},
+  {k:'fib',  label:'Fibres',    unit:'g',    icon:'\u{1F33E}', color:'var(--cn-fib)'},
+  {k:'eq',   label:'\u00c9quilibre', unit:'/10', icon:'\u2696\uFE0F', color:'var(--cn-eq)'}
 ];
 const MODES_ENTR = {
   chill:  {l:'Chill',          kcal:0.85, prot:0.90, lip:0.90, gluc:0.75, fib:1.00},
@@ -11943,6 +11954,12 @@ const MODES_ENTR = {
   compet: {l:'J-3 Comp\u00e9t\u2019', kcal:1.20, prot:0.90, lip:0.75, gluc:1.60, fib:0.65}
 };
 const COACH_PERIODES = [7, 14, 30];
+
+/* Repère d'équilibre par mode : sert uniquement à colorer/chiffrer le badge de
+   « Équilibre » sur l'anneau, jamais à calculer le score lui-même (qui reste
+   la synthèse des quatre axes réels, cf. coachEq). Ce sont des repères
+   indicatifs de périodisation, pas des cibles personnelles. */
+const EQ_REPERE = {chill:8.0, prepa:8.5, peak:8.8, compet:9.0};
 
 /* Cibles/repères du mode courant, dérivées de la cible calorique choisie (ou
    du besoin estimé ANSES à défaut). null si l'app ne peut encore rien
@@ -11961,7 +11978,8 @@ function coachTargets(mode){
     prot: {v: protBase != null ? protBase * M.prot : null, cible: protBase != null},
     lip:  {v: lipBase * M.lip, cible: false},
     gluc: {v: glucBase * M.gluc, cible: false},
-    fib:  {v: fibBase * M.fib, cible: false}
+    fib:  {v: fibBase * M.fib, cible: false},
+    eq:   {v: EQ_REPERE[mode] || EQ_REPERE.prepa, cible: false}
   };
 }
 
@@ -12007,12 +12025,15 @@ function coachEq(moy, t){
   return Math.max(0, 10 * (1 - somme/axes.length));
 }
 
+/* Quatre paliers d'écart (bon / léger / moyen / fort), mêmes seuils que la
+   maquette de référence : 5 %, 15 %, 28 %. */
 function coachCouleur(val, cible){
   if(!cible) return 'var(--mute)';
   const diff = Math.abs(1 - val/cible);
-  if(diff <= 0.08) return 'var(--forest)';
-  if(diff <= 0.20) return 'var(--straw)';
-  return 'var(--brick)';
+  if(diff <= 0.05) return 'var(--cn-good)';
+  if(diff <= 0.15) return 'var(--cn-yellow)';
+  if(diff <= 0.28) return 'var(--cn-orange)';
+  return 'var(--cn-red)';
 }
 
 function coachArc(startDeg, endDeg, cx, cy, r){
@@ -12023,53 +12044,40 @@ function coachArc(startDeg, endDeg, cx, cy, r){
   return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
 }
 
-/* Anneau purement visuel : six arcs colorés, cliquables, sans aucun texte en
-   position flottante par-dessus. La lecture précise vit dans la légende. */
-function coachAnneauHTML(moy, t, selKey){
-  const cx = 100, cy = 100, r = 65, gap = 14;
+/* Anneau à six arcs de couleur FIXE (identité du pilier, pas son écart —
+   l'écart vit dans le badge). Emoji au milieu de l'arc, badge d'écart près de
+   son extrémité, comme sur la maquette validée. Le badge n'apparaît que si
+   l'écart dépasse 3 %, et porte un ⚠️/❗ au-delà de 15 % — mêmes seuils que la
+   maquette. Pour « Équilibre », le badge compare la synthèse (coachEq) au
+   repère de p\u00e9riodisation du mode (EQ_REPERE) — jamais utilis\u00e9 pour calculer
+   la synth\u00e8se elle-m\u00eame. */
+function coachAnneauHTML(moy, t, selKey, scale){
+  const cx = 100, cy = 100, r = 65, gap = 20;
   const arcLen = 360/COACH_KEYS.length - gap;
-  let svg = '';
+  let svg = '', overlay = '';
   COACH_KEYS.forEach((ax, i) => {
     const start = i*(arcLen+gap) - 90 + gap/2, end = start + arcLen;
-    let val, cible, color;
-    if(ax.k === 'eq'){
-      val = coachEq(moy, t); cible = null;
-      color = val == null ? 'var(--mute)' : val >= 8.5 ? 'var(--forest)' : val >= 6.5 ? 'var(--straw)' : 'var(--brick)';
-    } else {
-      val = moy[ax.k] || 0;
-      cible = t[ax.k] ? t[ax.k].v : null;
-      color = coachCouleur(val, cible);
-    }
     const sel = ax.k === selKey ? ' sel' : '';
-    svg += `<path class="coachnu-arc${sel}" d="${coachArc(start,end,cx,cy,r)}" stroke="${color}" data-cnk="${ax.k}"></path>`;
+    svg += `<path class="coachnu-arc${sel}" d="${coachArc(start,end,cx,cy,r)}" stroke="${ax.color}" data-cnk="${ax.k}"></path>`;
+
+    const midRad = (start + arcLen/2) * Math.PI/180;
+    const ix = (cx + r*Math.cos(midRad)) * scale, iy = (cy + r*Math.sin(midRad)) * scale;
+    overlay += `<div class="coachnu-icon" style="left:${ix}px;top:${iy}px">${ax.icon}</div>`;
+
+    const val = ax.k === 'eq' ? coachEq(moy, t) : (moy[ax.k] || 0);
+    const cible = t[ax.k] ? t[ax.k].v : null;
+    if(val == null || !cible) return;
+    const gapPct = Math.round((val - cible) / cible * 100);
+    if(Math.abs(gapPct) < 3) return;
+    const alerte = Math.abs(gapPct) >= 15 ? (gapPct < 0 ? ' \u26a0\ufe0f' : ' \u2757') : '';
+    const rb = r + 22, endRad = end*Math.PI/180;
+    const bx = (cx + rb*Math.cos(endRad)) * scale, by = (cy + rb*Math.sin(endRad)) * scale;
+    overlay += `<div class="coachnu-gap" style="left:${bx}px;top:${by}px;background:${coachCouleur(val,cible)}">${gapPct>0?'+':''}${gapPct}%${alerte}</div>`;
   });
-  return svg;
+  return {svg, overlay};
 }
 
-/* Légende en flux normal : icône, libellé, valeur moyenne/jour et écart à la
-   cible. C'est ici, pas sur l'anneau, que se lit vraiment le chiffre. */
-function coachLegendeHTML(moy, t, selKey){
-  return `<div class="coachnu-legende">${COACH_KEYS.map(ax => {
-    let val, cible, color;
-    if(ax.k === 'eq'){
-      val = coachEq(moy, t); cible = null;
-      color = val == null ? 'var(--mute)' : val >= 8.5 ? 'var(--forest)' : val >= 6.5 ? 'var(--straw)' : 'var(--brick)';
-    } else {
-      val = moy[ax.k] || 0;
-      cible = t[ax.k] ? t[ax.k].v : null;
-      color = coachCouleur(val, cible);
-    }
-    const gapTxt = cible ? `${val>cible?'+':''}${Math.round((val-cible)/cible*100)}%` : '\u2014';
-    const valTxt = ax.k === 'eq' ? (val != null ? n1(val) : '\u2014') : `${n0(val)} ${ax.unit}`;
-    const sel = ax.k === selKey ? ' sel' : '';
-    return `<button class="coachnu-leg${sel}" data-cnk="${ax.k}">
-      <span class="ic">${ax.icon}</span>
-      <span class="lb">${ax.label}</span>
-      <span class="vv" style="color:${color}">${valTxt}</span>
-      <span class="gp" style="color:${color}">${gapTxt}</span>
-    </button>`;
-  }).join('')}</div>`;
-}
+
 
 /* Historique en colonnes de largeur fixe, dans un conteneur qui défile
    horizontalement au-delà de sept jours : sur 14 ou 30 jours, des colonnes qui
@@ -12177,13 +12185,26 @@ function coachMenuHTML(t){
 }
 
 function coachModesHTML(mode){
-  return `<div class="seg" style="margin-bottom:8px">${Object.entries(MODES_ENTR).map(([k,m]) =>
+  return `<div class="coachnu-modes">${Object.entries(MODES_ENTR).map(([k,m]) =>
     `<button data-cnm="${k}" aria-pressed="${mode===k}"><b>${m.l}</b></button>`).join('')}</div>`;
 }
 
-function coachPeriodeHTML(periode){
-  return `<div class="seg" style="margin-bottom:14px">${COACH_PERIODES.map(p =>
-    `<button data-cnp="${p}" aria-pressed="${periode===p}"><b>${p} j</b></button>`).join('')}</div>`;
+/* Icône « réglages » (deux curseurs), en haut à droite du bloc : elle ouvre la
+   feuille de choix de période. Plus de sélecteur en dur dans l'écran — la
+   période reste réglable, juste rangée derrière un clic pour laisser toute la
+   place à l'anneau, comme demandé. */
+const COACHNU_ICON_TUNE = '<path d="M4 7h10M17 7h3M4 17h3M9 17h11"/><circle cx="14" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/>';
+
+function coachPeriodeSheet(){
+  const periode = COACH_PERIODES.includes(S.cnPeriode) ? S.cnPeriode : 7;
+  openSheet(`
+    <h3>P\u00e9riode d\u2019\u00e9valuation</h3>
+    <div class="small mute" style="margin-bottom:10px">L\u2019anneau et l\u2019historique affichent la moyenne par jour sur cette p\u00e9riode glissante.</div>
+    <div class="coachnu-periode-sheet">${COACH_PERIODES.map(p =>
+      `<button data-cnp="${p}" aria-pressed="${periode===p}"><span>${p} jours</span>${periode===p?'\u2713':''}</button>`).join('')}</div>`);
+  $('#sheet').querySelectorAll('[data-cnp]').forEach(b => b.onclick = () => {
+    S.cnPeriode = +b.dataset.cnp; S.cnDay = null; closeSheet(); tvSante(agg());
+  });
 }
 
 function coachBloc(){
@@ -12200,26 +12221,31 @@ function coachBloc(){
   S.cnKey = S.cnKey || 'kcal';
   const selIdx = (S.cnDay == null || S.cnDay >= data.length) ? data.length - 1 : S.cnDay;
   const moy = coachMoyenne(data);
-  const svgArcs = coachAnneauHTML(moy, t, S.cnKey);
+  const scale = 280/200;
+  const {svg, overlay} = coachAnneauHTML(moy, t, S.cnKey, scale);
   const eqMoy = coachEq(moy, t);
   return `<div class="card">
     <div class="coachnu-wrap">
-      ${coachModesHTML(mode)}
-      ${coachPeriodeHTML(periode)}
-      <div class="coachnu-anneau">
-        <svg viewBox="0 0 200 200">${svgArcs}</svg>
-        <div class="coachnu-center"><b>${eqMoy!=null?n1(eqMoy):'\u2013'}</b><span>\u00c9quilibre /10</span></div>
+      <div class="coachnu-head">
+        <button class="coachnu-periode-btn" id="cn_periode" aria-label="Choisir la p\u00e9riode d\u2019\u00e9valuation">
+          <svg viewBox="0 0 24 24">${COACHNU_ICON_TUNE}</svg>
+        </button>
       </div>
-      ${coachLegendeHTML(moy, t, S.cnKey)}
+      ${coachModesHTML(mode)}
+      <div class="coachnu-donut">
+        <svg viewBox="0 0 200 200">${svg}</svg>
+        <div class="coachnu-icons">${overlay}</div>
+        <div class="coachnu-center"><b>${eqMoy!=null?n1(eqMoy):'\u2013'}</b><span>Score actuel</span></div>
+      </div>
       <div class="coachnu-histo">
         <div class="coachnu-histo-head">
-          <span class="small mute">Moyenne sur ${periode} jours \u00b7 ${COACH_KEYS.find(k=>k.k===S.cnKey).label}</span>
+          <span class="small mute">${COACH_KEYS.find(k=>k.k===S.cnKey).icon} ${COACH_KEYS.find(k=>k.k===S.cnKey).label} \u00b7 moyenne sur ${periode} jours</span>
         </div>
         ${coachChartHTML(data, t, S.cnKey, selIdx)}
         ${coachRepasHTML(data[selIdx].d)}
       </div>
       ${coachMenuHTML(t)}
-      <div class="src" style="margin-top:8px">Rep\u00e8res indicatifs (ANSES, p\u00e9riodisation sportive courante) \u2014 pas un avis m\u00e9dical. Lipides, glucides et fibres n\u2019ont pas de cible personnelle : ce sont des rep\u00e8res recalcul\u00e9s depuis votre cible calorique. \u00c9quilibre synth\u00e9tise les quatre autres axes, ce n\u2019est pas une mesure ind\u00e9pendante.</div>
+      <div class="src" style="margin-top:8px">Rep\u00e8res indicatifs (ANSES, p\u00e9riodisation sportive courante) \u2014 pas un avis m\u00e9dical. Lipides, glucides, fibres et \u00c9quilibre n\u2019ont pas de cible personnelle : ce sont des rep\u00e8res recalcul\u00e9s depuis votre cible calorique et votre mode d\u2019entra\u00eenement. \u00c9quilibre reste une synth\u00e8se des quatre autres axes, pas une mesure ind\u00e9pendante.</div>
     </div>
   </div>`;
 }
@@ -12229,12 +12255,10 @@ function coachBind(){
   wrap.querySelectorAll('[data-cnm]').forEach(b => b.onclick = () => {
     S.prof = S.prof || {}; S.prof.modeEntr = b.dataset.cnm; save(); tvSante(agg());
   });
-  wrap.querySelectorAll('[data-cnp]').forEach(b => b.onclick = () => {
-    S.cnPeriode = +b.dataset.cnp; S.cnDay = null; tvSante(agg());
-  });
   wrap.querySelectorAll('[data-cnk]').forEach(b => b.onclick = () => { S.cnKey = b.dataset.cnk; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnd]').forEach(b => b.onclick = () => { S.cnDay = +b.dataset.cnd; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnmr]').forEach(b => b.onclick = () => mesRecSheet(b.dataset.cnmr));
+  const per = $('#cn_periode'); if(per) per.onclick = coachPeriodeSheet;
   const go = $('#cn_go'); if(go) go.onclick = objSheet;
 }
 
