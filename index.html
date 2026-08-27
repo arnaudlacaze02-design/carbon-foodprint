@@ -196,6 +196,8 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; color:var(--mute)}
 .rgl .rgll span{display:inline-flex; align-items:center; gap:5px; white-space:nowrap}
 .rgl .rgll i{width:2.5px; height:11px; border-radius:2px; flex:0 0 auto}
+.rgl-pct{display:inline-flex; padding:1px 6px; border-radius:999px; color:#fff;
+  font-size:9.5px; font-weight:800; font-family:var(--mono); line-height:1.5}
 .rgl .rgll b{font-family:var(--display); font-weight:800; font-size:12px; color:var(--ink);
   font-variant-numeric:tabular-nums}
 /* `.rgl .cap` a été retiré avec la légende toujours visible qu'il habillait :
@@ -11319,10 +11321,18 @@ function donut(o){
    raconte l'essentiel : le budget 2050 vaut un peu plus du tiers de ce qu'un
    Français consomme aujourd'hui. C'est le rapport qu'on veut voir. */
 function reglRefs(o){
+  /* Écart en % du réalisé (o.tot) par rapport à chaque repère, affiché en badge
+     uniquement pour la moyenne française — c'est le seul repère que l'échelle
+     écrase visuellement (cf. regletteLegende). Rouge au-dessus, vert en dessous :
+     mêmes tokens d'alerte que le reste de l'app (cn-red / cn-good), pas de teinte
+     à part inventée pour ce seul badge. */
+  const pctVs = ref => (o.tot != null && ref) ? Math.round((o.tot - ref) / ref * 100) : null;
+  const frPct = pctVs(o.fr);
   return [
     {v:o.bud, l:'Budget 2050', c:'var(--ink)'},
     o.obj != null ? {v:o.obj, l:'Objectif', c:'var(--straw)'} : null,
-    o.fr ? {v:o.fr, l:'Français moyen', c:'var(--brick)'} : null,
+    o.fr ? {v:o.fr, l:'Français moyen', c:'var(--brick)',
+            pct:frPct, pctColor:frPct != null && frPct > 0 ? 'var(--cn-red)' : 'var(--cn-good)'} : null,
   ].filter(Boolean);
 }
 
@@ -11337,8 +11347,11 @@ function reglette(o){
       <div class="bar"><i style="width:${pos(o.tot)}%;background:${col}"></i></div>
       ${refs.map(r => `<div class="mk" style="left:${pos(r.v)}%;background:${r.c}"></div>`).join('')}
     </div>
-    <div class="rgll">${refs.map(r => `<span><i style="background:${r.c}"></i>${
-      r.l} <b>${n2(r.v)}</b></span>`).join('')}</div>
+    <div class="rgll">${refs.map(r => {
+      const badge = (r.pct != null)
+        ? ` <span class="rgl-pct" style="background:${r.pctColor}">${r.pct > 0 ? '+' : ''}${r.pct}%</span>` : '';
+      return `<span><i style="background:${r.c}"></i>${r.l} <b>${n2(r.v)}</b>${badge}</span>`;
+    }).join('')}</div>
     ${infoCap(o.cap)}
   </div>`;
 }
@@ -11347,12 +11360,21 @@ function reglette(o){
    propres traits de repère (Objectif, Français moyen — cf. refTicks dans
    carteAxeGrande), une réglette complète en dessous ferait doublon. Il ne
    reste que la légende qui nomme chaque trait et affiche sa valeur, plus
-   l'explication repliée derrière le « i ». */
+   l'explication repliée derrière le « i ».
+
+   Le badge d'écart à côté de « Français moyen » existe pour une raison précise :
+   l'échelle du bandeau va jusqu'à la moyenne française (cf. reglRefs), ce qui
+   écrase visuellement l'écart réel de la journée — un dépassement de 30 % se
+   voit à peine sur une barre calée sur une valeur trois fois plus grande. Le
+   badge donne le nombre que l'œil ne peut pas lire sur l'échelle. */
 function regletteLegende(o){
   const refs = reglRefs(o);
   return `<div class="rgl">
-    <div class="rgll">${refs.map(r => `<span><i style="background:${r.c}"></i>${
-      r.l} <b>${n2(r.v)}</b></span>`).join('')}</div>
+    <div class="rgll">${refs.map(r => {
+      const badge = (r.pct != null)
+        ? ` <span class="rgl-pct" style="background:${r.pctColor}">${r.pct > 0 ? '+' : ''}${r.pct}%</span>` : '';
+      return `<span><i style="background:${r.c}"></i>${r.l} <b>${n2(r.v)}</b>${badge}</span>`;
+    }).join('')}</div>
     ${infoCap(o.cap)}
   </div>`;
 }
@@ -12644,10 +12666,11 @@ function axesDuJour(a, t){
                <span class="go" aria-hidden="true">&#8250;</span></button>`
           : `<div class="tip ${b.cls}"><span class="ic">${b.ic}</span><span class="tx">${b.tx}</span></div>`;
       })();
-      return tip + regletteLegende({bud:BUDGET_J, obj:objJ, fr:FR_J,
+      return tip + regletteLegende({tot:j.kg, bud:BUDGET_J, obj:objJ, fr:FR_J,
         cap:'Les trois traits verticaux du bandeau ci-dessus, dans l’ordre : budget 2050, ' +
             'objectif personnel, moyenne française. L’échelle du bandeau va jusqu’à la moyenne ' +
-            'française, ce qui donne sa mesure au budget 2050 — un peu plus du tiers.'});
+            'française, ce qui donne sa mesure au budget 2050 — un peu plus du tiers. Le badge ' +
+            'à côté de la moyenne française indique l’écart réel, que l’échelle écrase visuellement.'});
     })(),
   });
 
