@@ -3060,7 +3060,14 @@ function jourAxes(d){
    d'abord. */
 function carteAxeGrande(o){
   const rep = o.repere || 0;
-  const scale = (Math.max(rep, o.total) * 1.02) || 1;
+  /* Repères secondaires optionnels (objectif perso, moyenne française…) :
+     mêmes traits verticaux que le repère principal, mais sans étiquette sur le
+     graphique — à trois traits proches, les libellés se chevaucheraient. Le nom
+     et la valeur de chacun vivent dans la légende juste en dessous (cf. l'appel
+     de carbone dans axesDuJour). L'échelle doit les englober, sinon un repère
+     élevé (la moyenne française) sortirait du cadre. */
+  const refTicks = o.refTicks || [];
+  const scale = (Math.max(rep, o.total, ...refTicks.map(r => r.v)) * 1.02) || 1;
   const pc = v => clamp(v / scale * 100, 0, 100).toFixed(2);
   const vus = MEALS.filter(m => (o.par[m.k] || 0) > 0);
   const ax = o.axe || '';
@@ -3072,9 +3079,12 @@ function carteAxeGrande(o){
   const tick = rep > 0
     ? `<span class="tk${tp < 34 ? ' tkr' : ''}" data-label="${o.repLabel} ${o.fmt(rep)}"
          style="left:${tp.toFixed(2)}%"></span>` : '';
+  const refTickSpans = refTicks.filter(r => r.v > 0).map(r =>
+    `<span class="tk" style="left:${clamp(r.v / scale * 100, 0, 99).toFixed(2)}%;background:${r.c};opacity:.85"></span>`
+  ).join('');
   return `<div class="card axeb"${o.premier ? '' : ' style="margin-top:10px"'}>
     <div class="hero">
-      <div class="bg">${segs}</div>${tick}
+      <div class="bg">${segs}</div>${tick}${refTickSpans}
       <div class="fg">
         <div class="ttl">${o.titre}</div>
         <div class="figs"${o.couleur ? ` style="color:${o.couleur}"` : ''}>${o.fmt(o.total)} <small>${o.unite}</small></div>
@@ -11308,12 +11318,16 @@ function donut(o){
    L'échelle englobe la moyenne française, ce qui écrase la partie gauche mais
    raconte l'essentiel : le budget 2050 vaut un peu plus du tiers de ce qu'un
    Français consomme aujourd'hui. C'est le rapport qu'on veut voir. */
-function reglette(o){
-  const refs = [
+function reglRefs(o){
+  return [
     {v:o.bud, l:'Budget 2050', c:'var(--ink)'},
     o.obj != null ? {v:o.obj, l:'Objectif', c:'var(--straw)'} : null,
     o.fr ? {v:o.fr, l:'Français moyen', c:'var(--brick)'} : null,
   ].filter(Boolean);
+}
+
+function reglette(o){
+  const refs = reglRefs(o);
   const sc = Math.max(o.tot, ...refs.map(r => r.v)) * 1.06;
   const pos = v => Math.max(1.5, Math.min(98.5, v / sc * 100));
   const col = o.tot <= (o.obj != null ? Math.min(o.obj, o.bud) : o.bud) ? 'var(--forest)'
@@ -11323,6 +11337,20 @@ function reglette(o){
       <div class="bar"><i style="width:${pos(o.tot)}%;background:${col}"></i></div>
       ${refs.map(r => `<div class="mk" style="left:${pos(r.v)}%;background:${r.c}"></div>`).join('')}
     </div>
+    <div class="rgll">${refs.map(r => `<span><i style="background:${r.c}"></i>${
+      r.l} <b>${n2(r.v)}</b></span>`).join('')}</div>
+    ${infoCap(o.cap)}
+  </div>`;
+}
+
+/* Version sans barre pleine : le bandeau carbone du jour porte désormais ses
+   propres traits de repère (Objectif, Français moyen — cf. refTicks dans
+   carteAxeGrande), une réglette complète en dessous ferait doublon. Il ne
+   reste que la légende qui nomme chaque trait et affiche sa valeur, plus
+   l'explication repliée derrière le « i ». */
+function regletteLegende(o){
+  const refs = reglRefs(o);
+  return `<div class="rgl">
     <div class="rgll">${refs.map(r => `<span><i style="background:${r.c}"></i>${
       r.l} <b>${n2(r.v)}</b></span>`).join('')}</div>
     ${infoCap(o.cap)}
@@ -12513,6 +12541,19 @@ function tvRepas(a){
   duoBind(a);
 }
 
+/* Teinte du chiffre calories selon l'écart au minimum recommandé, dans les deux
+   sens : un jour trop bas n'est pas plus sain qu'un jour trop haut, l'écart se
+   lit pareil des deux côtés. Mêmes paliers que le Coach Nutrition (5 / 10 / 15 %),
+   pour ne pas apprendre deux échelles de couleur différentes dans la même app. */
+function calCouleur(val, cible){
+  if(!cible) return 'var(--axe-kcal)';
+  const ecart = Math.abs(val - cible) / cible;
+  if(ecart >= 0.15) return 'var(--cn-red)';
+  if(ecart >= 0.10) return 'var(--cn-orange)';
+  if(ecart >= 0.05) return 'var(--cn-yellow)';
+  return 'var(--axe-kcal)';
+}
+
 /* Les trois cartes du jour. Séparées plutôt qu'empilées dans une seule : chaque
    axe a son repère, son unité et son sens de lecture, et les mêler dans une même
    jauge obligerait à choisir une échelle commune qui n'a aucun sens physique.
@@ -12525,10 +12566,17 @@ function axesDuJour(a, t){
   /* --- carbone --- */
   const restCO2 = BUDGET_J - j.kg;
   const pctCO2  = Math.round(Math.abs(restCO2) / BUDGET_J * 100);
+  const objJ = objDay();
   const carbone = carteAxeGrande({
     premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : whenWord() === 'demain' ? 'journée close' : 'journée en cours',
     total:j.kg, unite:'kg', fmt:n2, par:j.par.kg, axe:'kg',
     repere:BUDGET_J, repLabel:'budget', sens:'plafond',
+    /* Objectif perso et moyenne française rejoignent le budget sur le même
+       bandeau : plus de barre à part pour les situer, cf. suite ci-dessous. */
+    refTicks:[
+      objJ != null ? {v:objJ, c:'var(--straw)'} : null,
+      {v:FR_J, c:'var(--brick)'},
+    ].filter(Boolean),
     couleur:j.kg > BUDGET_J ? 'var(--brick)' : 'var(--axe-kg)',
     mot: rien
       ? `Rien d\u2019enregistré aujourd\u2019hui. Budget du jour : ${n0(BUDGET_J*1000)} g CO\u2082e.`
@@ -12557,32 +12605,37 @@ function axesDuJour(a, t){
                <span class="go" aria-hidden="true">&#8250;</span></button>`
           : `<div class="tip ${b.cls}"><span class="ic">${b.ic}</span><span class="tx">${b.tx}</span></div>`;
       })();
-      return tip + reglette({tot:j.kg, bud:BUDGET_J, obj:objDay(), fr:FR_J,
-        cap:'Barre pleine : votre journée. L’échelle va jusqu’à la moyenne française, ' +
-            'ce qui donne sa mesure au budget 2050 — un peu plus du tiers.'});
+      return tip + regletteLegende({bud:BUDGET_J, obj:objJ, fr:FR_J,
+        cap:'Les trois traits verticaux du bandeau ci-dessus, dans l’ordre : budget 2050, ' +
+            'objectif personnel, moyenne française. L’échelle du bandeau va jusqu’à la moyenne ' +
+            'française, ce qui donne sa mesure au budget 2050 — un peu plus du tiers.'});
     })(),
   });
 
   if(!nuOn()) return carbone;
 
   /* --- calories ---
-     La cible déclarée d'abord, l'estimation ANSES à défaut : dire « besoin » là
-     où l'utilisateur n'a rien choisi évite de lui prêter un objectif. */
+     La cible déclarée d'abord, l'estimation ANSES à défaut. Le repère est
+     présenté comme un minimum recommandé, jamais comme une cible ou un
+     plafond : « cible »/« besoin » laissaient penser qu'il fallait s'arrêter
+     pile dessus, alors que le dépasser n'a rien d'un échec — seul un écart
+     marqué, dans un sens ou dans l'autre, mérite d'être signalé (cf. calCouleur). */
   const bCal   = besoinCal();
   const cCal   = S.prof.objCal != null ? S.prof.objCal : bCal;
   const choisie = S.prof.objCal != null;
+  const ecartCalPct = cCal ? Math.round(Math.abs(j.kcal - cCal) / cCal * 100) : 0;
   const calories = carteAxeGrande({
     titre:'Calories', unite:'kcal', fmt:n0, total:j.kcal, par:j.par.kcal, axe:'kcal',
-    sous: cCal != null ? (choisie ? 'Cible : ' + n0(cCal) + ' kcal/j' : 'Besoin estimé : ' + n0(cCal) + ' kcal/j')
+    sous: cCal != null ? 'Minimum recommandé' + (choisie ? '' : ' (estimé)') + ' : ' + n0(cCal) + ' kcal/j'
                        : 'Aucune cible renseignée',
-    repere:cCal || 0, repLabel:choisie ? 'cible' : 'besoin', sens:'neutre',
-    couleur:'var(--axe-kcal)',
+    repere:cCal || 0, repLabel:'minimum recommandé', sens:'plancher',
+    couleur:calCouleur(j.kcal, cCal),
     mot: rien ? 'Rien d\u2019enregistré aujourd\u2019hui.'
       : cCal == null
         ? `<b>${n0(j.kcal)} kcal</b> sur la journée. <button class="backlink" id="cal_go" style="display:inline;padding:0">Renseigner une cible \u203a</button>`
         : j.kcal <= cCal
-          ? `Il reste <b>${n0(cCal - j.kcal)} kcal</b> avant ${choisie ? 'votre cible' : 'le besoin estimé'}.`
-          : `<b>${n0(j.kcal - cCal)} kcal</b> au-dessus ${choisie ? 'de votre cible' : 'du besoin estimé'}, soit <b>${Math.round((j.kcal/cCal-1)*100)} %</b>.`,
+          ? `Il manque <b>${n0(cCal - j.kcal)} kcal</b> pour atteindre le minimum recommandé${ecartCalPct >= 5 ? `, soit <b>${ecartCalPct} %</b> en dessous` : ''}.`
+          : `<b>${n0(j.kcal - cCal)} kcal</b> au-dessus du minimum recommandé${ecartCalPct >= 5 ? `, soit <b>${ecartCalPct} %</b>` : ''}.`,
   });
 
   /* --- protéines ---
