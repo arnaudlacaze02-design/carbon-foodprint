@@ -12140,27 +12140,75 @@ function coachProchainRepas(){
   return ['pdj','dej','din','encas'].find(m => !fait.has(m)) || 'din';
 }
 
-function coachSuggest(remKcal, remProt, meal){
-  const cible = Math.max(remKcal, 150);
+/* Budget carbone du jour, part\u00e9 par nuOn()/objBlock() sur le m\u00eame calcul :
+   BUDGET_J (repère annuel /365) moins ce qui a déjà été mangé aujourd'hui. */
+function carbBudgetRestant(){
+  const j = agg().days[today()] || {tot:0};
+  return BUDGET_J - j.tot;
+}
+
+/* Couverture nutritionnelle d'un plat par rapport à ce qu'il reste à combler
+   sur CHAQUE axe (calories, protéines, lipides, glucides, fibres) — c'est ce
+   qui « maximise chaque valeur nutritionnelle », pas seulement les calories et
+   les protéines. 1 = comble exactement le besoin restant sur tous les axes
+   pris en compte, 0 = totalement à côté. */
+function coachAjustement(nu, remaining){
+  const axes = ['kcal','prot','lip','gluc','fib'].filter(k => remaining[k] > 0);
+  if(!axes.length) return 0;
+  let s = 0;
+  axes.forEach(k => { s += 1 - Math.min(1, Math.abs(remaining[k] - (nu[k]||0)) / remaining[k]); });
+  return s / axes.length;
+}
+
+/* Note d'équilibre du plat lui-même (indépendante des objectifs du jour) :
+   répartition énergétique lipides/glucides/protéines rapprochée des
+   fourchettes ANSES usuelles, avec un petit bonus de densité en fibres. */
+function noteEquilibree(nu){
+  if(!nu || !nu.kcal) return null;
+  const kLip = nu.lip*9, kGluc = nu.gluc*4, kProt = nu.prot*4;
+  const total = kLip + kGluc + kProt;
+  if(!total) return null;
+  const pLip = kLip/total, pGluc = kGluc/total, pProt = kProt/total;
+  const dLip  = pLip  < 0.20 ? 0.20-pLip  : pLip  > 0.40 ? pLip-0.40  : 0;
+  const dGluc = pGluc < 0.40 ? 0.40-pGluc : pGluc > 0.60 ? pGluc-0.60 : 0;
+  const dProt = pProt < 0.10 ? 0.10-pProt : pProt > 0.30 ? pProt-0.30 : 0;
+  const fibBonus = Math.min(1, (nu.fib||0)/8) * 1.2;
+  return Math.max(0, Math.min(10, 10*(1 - (dLip+dGluc+dProt)*1.4) + fibBonus));
+}
+
+/* Sélection en deux temps, conforme à la consigne :
+   1) sous contrainte carbone (le plat ne dépasse pas le budget carbone
+      restant du jour), on retient les plats qui couvrent le mieux CHAQUE
+      valeur nutritionnelle restante ;
+   2) parmi ces meilleurs choix nutritionnels, priorité affichée au carbone
+      le plus faible — le tri final se fait sur l'empreinte, pas sur la note
+      nutritionnelle, qui n'a servi qu'à présélectionner.
+   Si le budget du jour est déjà dépassé, la contrainte est assouplie à un
+   plafond bas plutôt que de ne plus rien proposer du tout. */
+function coachSuggest(remaining, meal){
+  const restant = carbBudgetRestant();
+  const plafond = restant > 0.15 ? restant : 0.35;
   const recents = new Set(S.hist.slice(-9).map(e => e.n));
   const notes = [];
   coachDishPool().forEach(d => {
     const nu = nuOf(d.l);
     if(!nu.poids) return;
-    const ecart = Math.abs(nu.kcal - cible) / cible;
-    const bonusProt = remProt > 0 ? Math.min(1, nu.prot/Math.max(remProt,1)) * 0.35 : 0;
-    const bonusRepas = meal && d.meals.includes(meal) ? 0.15 : 0;
-    const malusRecent = recents.has(d.n) ? 0.4 : 0;
-    notes.push(Object.assign({}, d, {nu, score: ecart - bonusProt - bonusRepas + malusRecent}));
+    const kg = kgOf(d.l);
+    if(kg > plafond) return;
+    const bonusRepas = meal && d.meals.includes(meal) ? 0.08 : 0;
+    const malusRecent = recents.has(d.n) ? 0.2 : 0;
+    const fit = Math.max(0, coachAjustement(nu, remaining) + bonusRepas - malusRecent);
+    notes.push(Object.assign({}, d, {nu, kg, fit}));
   });
-  notes.sort((a,b) => a.score - b.score);
-  const vus = new Set(), out = [];
+  notes.sort((a,b) => b.fit - a.fit);
+  const vus = new Set(), shortlist = [];
   for(const p of notes){
     if(vus.has(p.n)) continue;
-    vus.add(p.n); out.push(p);
-    if(out.length >= 3) break;
+    vus.add(p.n); shortlist.push(p);
+    if(shortlist.length >= 8) break;
   }
-  return out;
+  shortlist.sort((a,b) => a.kg - b.kg);
+  return shortlist.slice(0, 3);
 }
 
 /* Les suggestions de menu portent toujours sur AUJOURD'HUI — c'est ce qu'on
@@ -12170,17 +12218,35 @@ function coachMenuHTML(t){
   if(!t.kcal.v) return '';
   const jour = coachDonnees(1)[0];
   const meal = coachProchainRepas();
-  const remKcal = Math.max(150, t.kcal.v - (jour.kcal||0));
-  const remProt = t.prot.v != null ? Math.max(0, t.prot.v - (jour.prot||0)) : 0;
-  const picks = coachSuggest(remKcal, remProt, meal);
+  const remaining = {
+    kcal: Math.max(150, t.kcal.v - (jour.kcal||0)),
+    prot: t.prot.v != null ? Math.max(0, t.prot.v - (jour.prot||0)) : 0,
+    lip:  Math.max(0, t.lip.v  - (jour.lip ||0)),
+    gluc: Math.max(0, t.gluc.v - (jour.gluc||0)),
+    fib:  Math.max(0, t.fib.v  - (jour.fib ||0))
+  };
+  const picks = coachSuggest(remaining, meal);
   if(!picks.length) return '';
+  const mois = new Date().getMonth();
+  const restant = carbBudgetRestant();
   return `<div class="card" style="margin-top:12px">
-    <div class="unit" style="margin-bottom:8px">Suggestions pour ${esc(MEAL[meal].l.toLowerCase())} \u00b7 ${n0(remKcal)} kcal restants aujourd\u2019hui</div>
-    ${picks.map(p => p.kind==='db'
-      ? `<button class="coachnu-dish" data-recette="${esc(p.n)}"><div class="t"><b>${esc(p.n)}</b><small>${n0(p.nu.kcal)} kcal \u00b7 ${n0(p.nu.prot)} g prot</small></div><span class="go">\u203a</span></button>`
-      : `<button class="coachnu-dish" data-cnmr="${p.id}"><div class="t"><b>${esc(p.n)}</b><small>${n0(p.nu.kcal)} kcal \u00b7 ${n0(p.nu.prot)} g prot \u00b7 Ma recette</small></div><span class="go">\u203a</span></button>`
-    ).join('')}
-    <div class="src" style="margin-top:8px">Puis\u00e9 dans le catalogue de plats et dans vos recettes, au plus pr\u00e8s de ce qu\u2019il vous reste \u00e0 manger aujourd\u2019hui.</div>
+    <div class="unit" style="margin-bottom:2px">Suggestions pour ${esc(MEAL[meal].l.toLowerCase())}</div>
+    <div class="small mute" style="margin-bottom:8px">${n0(remaining.kcal)} kcal restants \u00b7 ${restant>0.15
+      ? `${n1(restant)} kg CO\u2082e restants aujourd\u2019hui`
+      : `budget carbone du jour d\u00e9j\u00e0 d\u00e9pass\u00e9 \u2014 options les plus sobres propos\u00e9es`}</div>
+    ${picks.map(p => {
+      const eq = noteEquilibree(p.nu);
+      const sais = saisPart(p.l, mois);
+      const chips = [`${n0(p.nu.kcal)} kcal`, `${n0(p.nu.prot)} g prot`, `${n2(p.kg)} kg CO\u2082e`,
+        eq  != null ? `\u00e9quilibre ${n1(eq)}/10` : null,
+        sais!= null ? `saison ${n0(sais)} %` : null,
+        p.kind==='mr' ? 'Ma recette' : null
+      ].filter(Boolean).join(' \u00b7 ');
+      return p.kind==='db'
+        ? `<button class="coachnu-dish" data-recette="${esc(p.n)}"><div class="t"><b>${esc(p.n)}</b><small>${chips}</small></div><span class="go">\u203a</span></button>`
+        : `<button class="coachnu-dish" data-cnmr="${p.id}"><div class="t"><b>${esc(p.n)}</b><small>${chips}</small></div><span class="go">\u203a</span></button>`;
+    }).join('')}
+    <div class="src" style="margin-top:8px">S\u00e9lectionn\u00e9es pour combler au mieux calories, prot\u00e9ines, lipides, glucides et fibres qu\u2019il vous reste aujourd\u2019hui sans d\u00e9passer votre budget carbone, puis class\u00e9es de la plus sobre \u00e0 la moins sobre. Note d\u2019\u00e9quilibre = r\u00e9partition lipides / glucides / prot\u00e9ines du plat, ind\u00e9pendante de vos objectifs. Saison = part des l\u00e9gumes et fruits du plat effectivement de saison ce mois-ci.</div>
   </div>`;
 }
 
