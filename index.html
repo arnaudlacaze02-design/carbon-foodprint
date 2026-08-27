@@ -2010,11 +2010,15 @@ html[data-gate="1"] .phone{display:none}
    (--cn-*) plutôt que les jetons --axe-kcal/--axe-prot déjà utilisés
    ailleurs dans l'app : les toucher aurait changé d'autres écrans. */
 .coachnu-wrap{width:100%; display:flex; flex-direction:column; align-items:center}
-.coachnu-head{width:100%; display:flex; align-items:center; justify-content:flex-end; margin-bottom:2px}
+.coachnu-head{width:100%; display:flex; align-items:center; justify-content:space-between; margin-bottom:2px; gap:8px}
 .coachnu-periode-btn{width:32px; height:32px; border-radius:50%; border:1px solid var(--line);
   background:var(--card); color:var(--mute); display:flex; align-items:center; justify-content:center; flex:0 0 auto}
 .coachnu-periode-btn:active{background:var(--active)}
 .coachnu-periode-btn svg{width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round}
+.coachnu-profil-btn{display:flex; align-items:center; gap:5px; padding:5px 10px 5px 8px; border-radius:999px;
+  border:1px solid var(--line); background:var(--card); color:var(--ink); font-size:11px; font-weight:700; flex:0 0 auto}
+.coachnu-profil-btn:active{background:var(--active)}
+.coachnu-profil-btn svg{width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; opacity:.55; flex:0 0 auto}
 .coachnu-modes{width:100%; display:flex; gap:4px; background:var(--seg-bg); padding:3px; border-radius:999px; margin:6px 0 14px}
 .coachnu-modes button{flex:1; padding:8px 0; border-radius:999px; font-size:11px; font-weight:700; color:var(--mute)}
 .coachnu-modes button[aria-pressed="true"]{background:var(--card); color:var(--ink); font-weight:800;
@@ -12336,6 +12340,24 @@ function coachModesHTML(mode){
    place à l'anneau, comme demandé. */
 const COACHNU_ICON_TUNE = '<path d="M4 7h10M17 7h3M4 17h3M9 17h11"/><circle cx="14" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/>';
 
+/* Icône crayon, en haut à gauche du bloc : le badge de profil d'activité n'est
+   pas qu'un rappel, c'est une invite à corriger si le profil ne correspond
+   plus. */
+const COACHNU_ICON_PENCIL = '<path d="M14.06 4.94 3 16v5h5L19.06 9.94M14.06 4.94 17 2l4 4-2.94 3.06M14.06 4.94 19.06 9.94"/>';
+
+const ACT_ICON = {sed:'\u{1F6CB}\uFE0F', actif:'\u{1F6B6}', sportif:'\u{1F3C3}'};
+
+/* Badge « profil d'activité » : rappelle en un coup d'œil quel profil est
+   pris en compte (sédentaire/actif/sportif) et, via le crayon, invite à le
+   corriger — c'est ce profil, et lui seul, qui décide si le sélecteur de mode
+   d'entraînement a un sens à afficher (cf. coachBloc). */
+function coachProfilBadgeHTML(act){
+  return `<button class="coachnu-profil-btn" id="cn_profil" aria-label="Modifier mon profil d\u2019activit\u00e9">
+    <span>${ACT_ICON[act] || ACT_ICON.actif}</span><span>${esc(ACT_LAB[act] || ACT_LAB.actif)}</span>
+    <svg viewBox="0 0 24 24">${COACHNU_ICON_PENCIL}</svg>
+  </button>`;
+}
+
 function coachPeriodeSheet(){
   const periode = COACH_PERIODES.includes(S.cnPeriode) ? S.cnPeriode : 7;
   openSheet(`
@@ -12348,9 +12370,35 @@ function coachPeriodeSheet(){
   });
 }
 
+/* Feuille dédiée au seul champ « activité quotidienne » du profil : pas besoin
+   de rouvrir tout le questionnaire pour ce réglage, accessible directement
+   depuis le badge du Coach Nutrition. Sédentaire/Actif masquent le sélecteur
+   de mode d'entraînement (coefficients de périodisation sportive hors sujet
+   pour ces profils) ; Sportif l'affiche. */
+function coachProfilSheet(){
+  const act = (S.prof && S.prof.act) || 'actif';
+  openSheet(`
+    <h3>Mon activit\u00e9 quotidienne</h3>
+    <div class="small mute" style="margin-bottom:10px">Ajuste le besoin calorique et prot\u00e9ique estim\u00e9, et d\u00e9cide si le mode d\u2019entra\u00eenement (Chill/Pr\u00e9pa/Peak/Compét) a un sens \u00e0 afficher.</div>
+    <div class="coachnu-periode-sheet">${['sed','actif','sportif'].map(k =>
+      `<button data-cnact="${k}" aria-pressed="${act===k}"><span>${ACT_ICON[k]} ${ACT_LAB[k]}</span>${act===k?'\u2713':''}</button>`).join('')}</div>`);
+  $('#sheet').querySelectorAll('[data-cnact]').forEach(b => b.onclick = () => {
+    S.prof = S.prof || {}; S.prof.act = b.dataset.cnact; save(); closeSheet(); tvSante(agg());
+  });
+}
+
 function coachBloc(){
   if(!nuOn()) return '';
-  const mode = (S.prof && S.prof.modeEntr) || 'prepa';
+  const act = (S.prof && S.prof.act) || 'actif';
+  const sportif = act === 'sportif';
+  /* Le sélecteur de mode d'entraînement n'a de sens que pour un profil
+     sportif : Chill/Prépa/Peak/Compét sont des coefficients de périodisation
+     pensés pour absorber une charge d'entraînement, pas des repères
+     pertinents pour un quotidien sédentaire ou actif. Pour ces deux profils,
+     le mode reste figé sur Prépa (coefficients neutres, 1.0) sans que le
+     choix soit exposé, plutôt que de laisser un ancien modeEntr d'inflation
+     s'appliquer silencieusement. */
+  const mode = sportif ? ((S.prof && S.prof.modeEntr) || 'prepa') : 'prepa';
   const t = coachTargets(mode);
   if(!t) return `<div class="card">
     <div class="small mute">Le Coach Nutrition a besoin d\u2019une cible ou d\u2019une estimation calorique pour proposer ses rep\u00e8res. Renseignez votre profil (sexe, \u00e2ge, activit\u00e9) ou une cible calorique dans vos objectifs.</div>
@@ -12368,11 +12416,12 @@ function coachBloc(){
   return `<div class="card">
     <div class="coachnu-wrap">
       <div class="coachnu-head">
+        ${coachProfilBadgeHTML(act)}
         <button class="coachnu-periode-btn" id="cn_periode" aria-label="Choisir la p\u00e9riode d\u2019\u00e9valuation">
           <svg viewBox="0 0 24 24">${COACHNU_ICON_TUNE}</svg>
         </button>
       </div>
-      ${coachModesHTML(mode)}
+      ${sportif ? coachModesHTML(mode) : ''}
       <div class="coachnu-donut">
         <svg viewBox="0 0 200 200">${svg}</svg>
         <div class="coachnu-icons">${overlay}</div>
@@ -12412,6 +12461,7 @@ function coachBind(){
     }
   });
   const per = $('#cn_periode'); if(per) per.onclick = coachPeriodeSheet;
+  const pro = $('#cn_profil'); if(pro) pro.onclick = coachProfilSheet;
   const go = $('#cn_go'); if(go) go.onclick = objSheet;
 }
 
