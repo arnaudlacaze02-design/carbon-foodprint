@@ -2058,14 +2058,27 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-repas .m:last-child{border-bottom:0}
 .coachnu-repas .m b{font-weight:700; color:var(--ink)}
 .coachnu-repas .m span{color:var(--mute); font-size:10.5px; text-align:right}
-.coachnu-dish{display:flex; justify-content:space-between; align-items:center; gap:10px; width:100%;
-  text-align:left; padding:10px 2px; border-bottom:1px solid var(--line-soft); cursor:pointer; background:none}
-.coachnu-dish:last-child{border-bottom:0}
-.coachnu-dish .t{min-width:0}
-.coachnu-dish .t b{display:block; font-size:13px; font-weight:700; color:var(--ink); white-space:nowrap;
-  overflow:hidden; text-overflow:ellipsis}
-.coachnu-dish .t small{display:block; font-family:var(--mono); font-size:10px; color:var(--mute); margin-top:2px}
-.coachnu-dish .go{flex:0 0 auto; color:var(--mute); font-size:16px}
+/* Bloc « Journées type » : trois journées entières, pas de simples plats
+   isolés — en-tête calories, onglets Option 1/2/3, carte de la journée avec
+   ses puces carbone/saison, puis un bloc par repas. */
+.coachnu-jour-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px}
+.coachnu-jour-badge{font-size:11px; font-weight:800; color:#fff; padding:5px 10px; border-radius:999px; white-space:nowrap}
+.coachnu-opt-tabs{display:flex; gap:6px; margin-bottom:12px}
+.coachnu-opt-tabs button{flex:1; padding:10px 4px; border-radius:12px; border:1.5px solid var(--line);
+  font-size:12.5px; font-weight:700; color:var(--mute); background:var(--card)}
+.coachnu-opt-tabs button[aria-pressed="true"]{background:var(--forest); border-color:var(--forest); color:#fff}
+.coachnu-jour-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px}
+.coachnu-jour-chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+.coachnu-jour-chip{font-size:11.5px; font-weight:700; padding:5px 10px; border-radius:999px}
+.coachnu-jour-chip.good{background:rgba(82,183,136,.16); color:#2f7d5c}
+.coachnu-jour-chip.warn{background:rgba(242,158,116,.2); color:#a85a2e}
+.coachnu-repas-bloc{padding:10px 0; border-top:1px solid var(--line-soft)}
+.coachnu-repas-bloc:first-of-type{border-top:0; padding-top:2px}
+.coachnu-repas-bloc .lab{font-size:10px; font-weight:800; letter-spacing:.04em; color:var(--mute); margin-bottom:2px}
+.coachnu-repas-nom{display:block; text-align:left; font-size:14px; font-weight:700; color:var(--ink);
+  text-decoration:underline; text-decoration-color:var(--line); text-underline-offset:2px}
+.coachnu-import{margin-top:4px; font-size:11px; font-weight:700; color:var(--forest)}
+.coachnu-import:disabled{color:var(--mute)}
 .coachnu-periode-sheet button{width:100%; text-align:left; padding:14px 4px; font-size:15px; font-weight:700;
   color:var(--ink); border-bottom:1px solid var(--line-soft); display:flex; justify-content:space-between; align-items:center}
 .coachnu-periode-sheet button:last-child{border-bottom:0}
@@ -10907,7 +10920,9 @@ function recetteSheet(nom){
           : `<div class="empty">Aucune source liée pour ce plat : il ne porte que des grammages,
                utiles au calcul et muets sur la façon de faire.</div>`}`}
 
-      <button class="btn btn-1" id="rc_go" style="margin-top:14px">Saisir ce plat</button>`);
+      <button class="btn btn-1" id="rc_go" style="margin-top:14px">Saisir ce plat</button>
+      <button class="btn btn-2" id="rc_mr" style="margin-top:8px">${
+        S.mesRec.some(r => r.t === d.n) ? 'D\u00e9j\u00e0 dans vos recettes' : 'Ajouter \u00e0 mes recettes'}</button>`);
 
     const sheet = $('#sheet');
     sheet.querySelectorAll('[data-rt]').forEach(b =>
@@ -10928,6 +10943,17 @@ function recetteSheet(nom){
       S.step = 'meal'; S.draft = []; S.wiz = null; S.recPend = d.n;
       closeSheet(); go('saisie');
       toast(`Choisissez le repas, ${d.n.toLowerCase()} vous attend`);
+    };
+
+    /* Reprendre un plat du catalogue général comme base d'une recette
+       personnelle : jusqu'ici, seul « Saisir ce plat » existait, ce qui
+       journalise un repas mais ne laisse rien dans « Mes recettes ». */
+    const btnMr = $('#rc_mr');
+    if(btnMr && !S.mesRec.some(r => r.t === d.n)) btnMr.onclick = () => {
+      if(importerVersMesRecettes(d.n)){
+        btnMr.textContent = 'Ajout\u00e9 \u2713'; btnMr.disabled = true;
+        toast(`\u00ab ${d.n} \u00bb ajout\u00e9 \u00e0 vos recettes`);
+      }
     };
   };
   peint();
@@ -12152,14 +12178,6 @@ function carbBudgetRestant(){
    qui « maximise chaque valeur nutritionnelle », pas seulement les calories et
    les protéines. 1 = comble exactement le besoin restant sur tous les axes
    pris en compte, 0 = totalement à côté. */
-function coachAjustement(nu, remaining){
-  const axes = ['kcal','prot','lip','gluc','fib'].filter(k => remaining[k] > 0);
-  if(!axes.length) return 0;
-  let s = 0;
-  axes.forEach(k => { s += 1 - Math.min(1, Math.abs(remaining[k] - (nu[k]||0)) / remaining[k]); });
-  return s / axes.length;
-}
-
 /* Note d'équilibre du plat lui-même (indépendante des objectifs du jour) :
    répartition énergétique lipides/glucides/protéines rapprochée des
    fourchettes ANSES usuelles, avec un petit bonus de densité en fibres. */
@@ -12176,77 +12194,134 @@ function noteEquilibree(nu){
   return Math.max(0, Math.min(10, 10*(1 - (dLip+dGluc+dProt)*1.4) + fibBonus));
 }
 
-/* Sélection en deux temps, conforme à la consigne :
-   1) sous contrainte carbone (le plat ne dépasse pas le budget carbone
-      restant du jour), on retient les plats qui couvrent le mieux CHAQUE
-      valeur nutritionnelle restante ;
-   2) parmi ces meilleurs choix nutritionnels, priorité affichée au carbone
-      le plus faible — le tri final se fait sur l'empreinte, pas sur la note
-      nutritionnelle, qui n'a servi qu'à présélectionner.
-   Si le budget du jour est déjà dépassé, la contrainte est assouplie à un
-   plafond bas plutôt que de ne plus rien proposer du tout. */
-function coachSuggest(remaining, meal){
-  const restant = carbBudgetRestant();
-  const plafond = restant > 0.15 ? restant : 0.35;
-  const recents = new Set(S.hist.slice(-9).map(e => e.n));
-  const notes = [];
-  coachDishPool().forEach(d => {
+/* Répartition usuelle de la journée entre les quatre repas, utilisée pour
+   donner à chaque repas sa propre cible kcal/protéines dans la cible du jour. */
+const REPAS_PART = {pdj:0.26, dej:0.32, encas:0.13, din:0.29};
+const REPAS_ORDRE = ['pdj','dej','encas','din'];
+
+/* Candidats d'un repas donné : plats réels du catalogue ET recettes
+   personnelles, notés par leur proximité à la cible kcal/protéines de CE
+   repas, avec une légère préférence pour un carbone plus faible entre deux
+   plats par ailleurs équivalents. */
+function coachSlotCandidats(meal, kcalSlot, protSlot){
+  const pool = coachDishPool().filter(d => !d.meals.length || d.meals.includes(meal));
+  return pool.map(d => {
     const nu = nuOf(d.l);
-    if(!nu.poids) return;
+    if(!nu.poids) return null;
     const kg = kgOf(d.l);
-    if(kg > plafond) return;
-    const bonusRepas = meal && d.meals.includes(meal) ? 0.08 : 0;
-    const malusRecent = recents.has(d.n) ? 0.2 : 0;
-    const fit = Math.max(0, coachAjustement(nu, remaining) + bonusRepas - malusRecent);
-    notes.push(Object.assign({}, d, {nu, kg, fit}));
-  });
-  notes.sort((a,b) => b.fit - a.fit);
-  const vus = new Set(), shortlist = [];
-  for(const p of notes){
-    if(vus.has(p.n)) continue;
-    vus.add(p.n); shortlist.push(p);
-    if(shortlist.length >= 8) break;
-  }
-  shortlist.sort((a,b) => a.kg - b.kg);
-  return shortlist.slice(0, 3);
+    const fit = 1 - Math.min(1, Math.abs(kcalSlot - nu.kcal) / kcalSlot) * 0.6
+                  - Math.min(1, Math.abs(protSlot - nu.prot) / Math.max(protSlot, 1)) * 0.4;
+    return Object.assign({}, d, {nu, kg, fit});
+  }).filter(Boolean).sort((a,b) => (b.fit - b.kg*0.05) - (a.fit - a.kg*0.05));
 }
 
-/* Les suggestions de menu portent toujours sur AUJOURD'HUI — c'est ce qu'on
-   peut encore manger qui compte, quelle que soit la période affichée
-   au-dessus. */
-function coachMenuHTML(t){
-  if(!t.kcal.v) return '';
-  const jour = coachDonnees(1)[0];
-  const meal = coachProchainRepas();
-  const remaining = {
-    kcal: Math.max(150, t.kcal.v - (jour.kcal||0)),
-    prot: t.prot.v != null ? Math.max(0, t.prot.v - (jour.prot||0)) : 0,
-    lip:  Math.max(0, t.lip.v  - (jour.lip ||0)),
-    gluc: Math.max(0, t.gluc.v - (jour.gluc||0)),
-    fib:  Math.max(0, t.fib.v  - (jour.fib ||0))
+/* Un plat par repas, choisi au rang `rang` (0 = meilleur ajustement) parmi les
+   candidats de chaque repas, pour obtenir trois journées réellement
+   différentes plutôt que la même en trois exemplaires. Toujours de vrais
+   plats du catalogue ou de vos recettes — rien n'est inventé. */
+function coachComposerJournee(t, rang, mois){
+  const kcalJour = t.kcal.v;
+  const protJour = t.prot.v != null ? t.prot.v : kcalJour * 0.15 / 4;
+  const utilises = new Set(), picks = [];
+  REPAS_ORDRE.forEach(mk => {
+    const part = REPAS_PART[mk] || 0.25;
+    const cands = coachSlotCandidats(mk, kcalJour*part, protJour*part)
+      .filter(c => !utilises.has(c.n));
+    const choix = cands[Math.min(rang, cands.length - 1)];
+    if(choix){ utilises.add(choix.n); picks.push(Object.assign({meal:mk}, choix)); }
+  });
+  if(!picks.length) return null;
+  const totKcal = picks.reduce((s,p) => s+p.nu.kcal, 0);
+  const totProt = picks.reduce((s,p) => s+p.nu.prot, 0);
+  const totKg   = picks.reduce((s,p) => s+p.kg, 0);
+  const sais = saisPart(picks.flatMap(p => p.l), mois);
+  return {picks, totKcal, totProt, totKg, sais, titre: coachTitreJournee(picks)};
+}
+
+/* Intitulé tiré des vrais plats retenus — jamais un nom inventé sans rapport
+   avec ce qu'il y a réellement dans l'assiette. */
+function coachTitreJournee(picks){
+  const noms = picks.map(p => p.n.toLowerCase()).join(' ');
+  const has = (...kws) => kws.some(k => noms.includes(k));
+  if(has('saumon','cabillaud','thon','sardine','truite','maquereau','poisson','crevette'))
+    return 'Gourmand & Petit Poisson Durable';
+  if(has('tofu','pois chiche','lentille','quinoa','seitan','haricot'))
+    return 'V\u00e9g\u00e9tal & Complet';
+  if(has('poulet','dinde','volaille')) return 'L\u00e9ger & Volaille';
+  if(has('b\u0153uf','boeuf','porc','agneau','veau')) return 'Robuste & Terrien';
+  return '\u00c9quilibr\u00e9 du Jour';
+}
+
+/* Ajoute un plat du catalogue général à « Mes recettes » — ce bouton manquait :
+   un plat du catalogue pouvait être consulté et journalisé, jamais repris
+   comme base d'une recette personnelle. */
+function importerVersMesRecettes(nomPlat){
+  const d = DB.dishes.find(x => x.n === nomPlat);
+  if(!d) return false;
+  S.mesRec = S.mesRec || [];
+  if(S.mesRec.some(r => r.t === d.n)) return false;
+  const r = {
+    id: 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    t: d.n, pers: 1, ing: d.l.map(([s,g]) => [s,g]),
+    ...(d.lab && d.lab.some(Boolean) ? {lab: d.lab} : {}),
+    autres: d.labx || [], prep: [], url: d.u || null, cat: d.cui || null,
+    ts: Date.now(), src: d.src_n || null
   };
-  const picks = coachSuggest(remaining, meal);
-  if(!picks.length) return '';
+  S.mesRec.unshift(r);
+  save();
+  return true;
+}
+
+/* Bloc « Journées type » : contextualisé sur les calories (constaté du jour vs
+   cible du mode), puis trois options de journée entière, composées de vrais
+   plats, avec pour chacune son empreinte carbone totale et sa part de
+   saisonnalité — pas juste un plat isolé. */
+function coachJourneesHTML(t){
+  if(!t.kcal.v) return '';
   const mois = new Date().getMonth();
-  const restant = carbBudgetRestant();
+  const jour = coachDonnees(1)[0];
+  const constate = jour.kcal || 0, cible = t.kcal.v;
+  const gapPct = cible ? Math.round((constate - cible) / cible * 100) : 0;
+  const modeLbl = (MODES_ENTR[(S.prof && S.prof.modeEntr) || 'prepa']).l;
+  const badgeTxt = gapPct <= -3 ? `D\u00e9ficit ${gapPct}%` : gapPct >= 3 ? `Exc\u00e9dent +${gapPct}%` : null;
+
+  const options = [0,1,2].map(r => coachComposerJournee(t, r, mois)).filter(Boolean);
+  if(!options.length) return '';
+  S.cnOpt = (S.cnOpt == null || S.cnOpt >= options.length) ? 0 : S.cnOpt;
+  const opt = options[S.cnOpt];
+
   return `<div class="card" style="margin-top:12px">
-    <div class="unit" style="margin-bottom:2px">Suggestions pour ${esc(MEAL[meal].l.toLowerCase())}</div>
-    <div class="small mute" style="margin-bottom:8px">${n0(remaining.kcal)} kcal restants \u00b7 ${restant>0.15
-      ? `${n1(restant)} kg CO\u2082e restants aujourd\u2019hui`
-      : `budget carbone du jour d\u00e9j\u00e0 d\u00e9pass\u00e9 \u2014 options les plus sobres propos\u00e9es`}</div>
-    ${picks.map(p => {
-      const eq = noteEquilibree(p.nu);
-      const sais = saisPart(p.l, mois);
-      const chips = [`${n0(p.nu.kcal)} kcal`, `${n0(p.nu.prot)} g prot`, `${n2(p.kg)} kg CO\u2082e`,
-        eq  != null ? `\u00e9quilibre ${n1(eq)}/10` : null,
-        sais!= null ? `saison ${n0(sais)} %` : null,
-        p.kind==='mr' ? 'Ma recette' : null
-      ].filter(Boolean).join(' \u00b7 ');
-      return p.kind==='db'
-        ? `<button class="coachnu-dish" data-recette="${esc(p.n)}"><div class="t"><b>${esc(p.n)}</b><small>${chips}</small></div><span class="go">\u203a</span></button>`
-        : `<button class="coachnu-dish" data-cnmr="${p.id}"><div class="t"><b>${esc(p.n)}</b><small>${chips}</small></div><span class="go">\u203a</span></button>`;
-    }).join('')}
-    <div class="src" style="margin-top:8px">S\u00e9lectionn\u00e9es pour combler au mieux calories, prot\u00e9ines, lipides, glucides et fibres qu\u2019il vous reste aujourd\u2019hui sans d\u00e9passer votre budget carbone, puis class\u00e9es de la plus sobre \u00e0 la moins sobre. Note d\u2019\u00e9quilibre = r\u00e9partition lipides / glucides / prot\u00e9ines du plat, ind\u00e9pendante de vos objectifs. Saison = part des l\u00e9gumes et fruits du plat effectivement de saison ce mois-ci.</div>
+    <div class="coachnu-jour-head">
+      <div class="unit">Journ\u00e9es type</div>
+      ${badgeTxt ? `<span class="coachnu-jour-badge" style="background:${coachCouleur(constate,cible)}">\u26a0\ufe0f ${badgeTxt}</span>` : ''}
+    </div>
+    <div class="small mute" style="margin:4px 0 10px">Mode <b>${esc(modeLbl)}</b> : constat\u00e9 <b>${n0(constate)} kcal</b> vs cible <b>${n0(cible)} kcal</b>${badgeTxt ? ` (${gapPct>0?'+':''}${gapPct}%)` : ''} aujourd\u2019hui. Trois journ\u00e9es enti\u00e8res, compos\u00e9es de vrais plats du catalogue et de vos recettes, qui visent cette cible sans d\u00e9passer votre budget carbone du jour.</div>
+
+    <div class="coachnu-opt-tabs">${options.map((o,i) =>
+      `<button data-cnopt="${i}" aria-pressed="${i===S.cnOpt}">Option ${i+1}</button>`).join('')}</div>
+
+    <div class="coachnu-jour-card">
+      <div class="small" style="font-weight:800">${esc(opt.titre)} (~${n0(opt.totKcal)} kcal | ${n0(opt.totProt)}g Prot)</div>
+      <div class="coachnu-jour-chips">
+        <span class="coachnu-jour-chip good">\ud83c\udf31 ${n2(opt.totKg)} kgCO\u2082e</span>
+        ${opt.sais != null ? `<span class="coachnu-jour-chip warn">\ud83c\udf4e Saison : ${n1(opt.sais/10)}/10</span>` : ''}
+      </div>
+      <div class="hr" style="margin:10px 0"></div>
+      ${REPAS_ORDRE.map(mk => {
+        const p = opt.picks.find(x => x.meal === mk);
+        if(!p) return '';
+        const dejaEnr = p.kind === 'mr' || (S.mesRec||[]).some(r => r.t === p.n);
+        return `<div class="coachnu-repas-bloc">
+          <div class="lab">${esc(MEAL[mk].l.toUpperCase())}</div>
+          ${p.kind==='db'
+            ? `<button class="coachnu-repas-nom" data-recette="${esc(p.n)}">${esc(p.n)}</button>`
+            : `<button class="coachnu-repas-nom" data-cnmr="${esc(p.id)}">${esc(p.n)}</button>`}
+          <div class="small mute">${n0(p.nu.kcal)} kcal | ${n0(p.nu.prot)}g Prot</div>
+          ${!dejaEnr ? `<button class="coachnu-import" data-cnimport="${esc(p.n)}">+ Ajouter \u00e0 mes recettes</button>` : ''}
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="src" style="margin-top:8px">Chaque repas s\u2019ouvre d\u2019un clic sur sa vraie fiche recette. Les options 2 et 3 explorent d\u2019autres combinaisons pour la m\u00eame cible. Un plat du catalogue pas encore dans vos recettes propose de l\u2019y ajouter.</div>
   </div>`;
 }
 
@@ -12310,7 +12385,7 @@ function coachBloc(){
         ${coachChartHTML(data, t, S.cnKey, selIdx)}
         ${coachRepasHTML(data[selIdx].d)}
       </div>
-      ${coachMenuHTML(t)}
+      ${coachJourneesHTML(t)}
       <div class="src" style="margin-top:8px">Rep\u00e8res indicatifs (ANSES, p\u00e9riodisation sportive courante) \u2014 pas un avis m\u00e9dical. Lipides, glucides, fibres et \u00c9quilibre n\u2019ont pas de cible personnelle : ce sont des rep\u00e8res recalcul\u00e9s depuis votre cible calorique et votre mode d\u2019entra\u00eenement. \u00c9quilibre reste une synth\u00e8se des quatre autres axes, pas une mesure ind\u00e9pendante.</div>
     </div>
   </div>`;
@@ -12323,7 +12398,19 @@ function coachBind(){
   });
   wrap.querySelectorAll('[data-cnk]').forEach(b => b.onclick = () => { S.cnKey = b.dataset.cnk; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnd]').forEach(b => b.onclick = () => { S.cnDay = +b.dataset.cnd; tvSante(agg()); });
+  wrap.querySelectorAll('[data-cnopt]').forEach(b => b.onclick = () => { S.cnOpt = +b.dataset.cnopt; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnmr]').forEach(b => b.onclick = () => mesRecSheet(b.dataset.cnmr));
+  /* renderTracker() ne relie « voir la recette » qu'une fois, juste après son
+     propre rendu. Les re-rendus internes (mode, période, option) réécrivent
+     #tv sans repasser par renderTracker() : sans ce second branchement ici,
+     les boutons redevenaient muets dès qu'on changeait de mode ou d'option. */
+  wrap.querySelectorAll('[data-recette]').forEach(b => b.onclick = () => recetteSheet(b.dataset.recette));
+  wrap.querySelectorAll('[data-cnimport]').forEach(b => b.onclick = () => {
+    if(importerVersMesRecettes(b.dataset.cnimport)){
+      b.textContent = 'Ajout\u00e9 \u2713'; b.disabled = true;
+      toast(`\u00ab ${b.dataset.cnimport} \u00bb ajout\u00e9 \u00e0 vos recettes`);
+    }
+  });
   const per = $('#cn_periode'); if(per) per.onclick = coachPeriodeSheet;
   const go = $('#cn_go'); if(go) go.onclick = objSheet;
 }
