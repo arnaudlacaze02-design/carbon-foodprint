@@ -452,6 +452,8 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   font-family:var(--mono); font-size:9px; letter-spacing:.04em; color:var(--ink);
   opacity:.8; white-space:nowrap}
 .axeb .hero .tk.tkr::after{right:auto; left:5px}
+.axeb .hero .over{position:absolute; top:0; bottom:0; z-index:1; opacity:.6; pointer-events:none;
+  background:repeating-linear-gradient(118deg,var(--cn-red) 0 4px,rgba(0,0,0,0) 4px 9px)}
 .axeb .hero .fg{position:relative; z-index:2;
   /* Le bandeau était inerte au toucher. Les segments portaient bien `data-gm` et
      le branchement les visait déjà, mais ce calque — titre et grand chiffre — est
@@ -1506,6 +1508,14 @@ button.tip:active{transform:scale(.995)}
 .dayleg .budkey{width:12px; height:0; border-top:2px dashed var(--brick); display:inline-block}
 .dayscard{background:var(--card)}
 .dayscard:active{background:var(--active)}
+/* Variante défilante : historique complet, colonnes de largeur fixe plutôt
+   que flex:1 — au-delà de quelques semaines, des colonnes qui se contractent
+   pour tenir dans l'écran deviendraient illisibles. Un défilement horizontal
+   les garde lisibles quel que soit le nombre de jours ; la vue s'ouvre sur
+   aujourd'hui (à droite), l'historique plus ancien se découvre en glissant. */
+.hist-scroll{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch}
+.days.scroll{gap:2px}
+.days.scroll .d{flex:0 0 8px; min-width:8px}
 .wkday{display:grid; grid-template-columns:52px 1fr auto; gap:4px 10px; align-items:center; padding:8px 0;
   border-bottom:1px solid var(--line-soft)}
 .wkday:last-child{border-bottom:0}
@@ -2044,12 +2054,14 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-histo-head{margin-bottom:8px; display:flex; align-items:center; gap:6px}
 /* Le défilement horizontal, plutôt que des colonnes qui rétrécissent, garde
    chaque barre lisible que la période affichée soit 7, 14 ou 30 jours. */
+.coachnu-chart-wrap{width:100%}
+.coachnu-target-head{display:flex; justify-content:flex-end; margin-bottom:4px}
 .coachnu-chart-scroll{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px}
 .coachnu-chart{position:relative; height:112px; display:flex; align-items:flex-end;
   padding:0 0 20px; border-bottom:1px dashed var(--line)}
 .coachnu-target{position:absolute; left:0; right:0; border-top:1.5px dashed var(--ink-soft); opacity:.55; z-index:1}
-.coachnu-target-lab{position:absolute; right:0; top:-10px; font-size:9px; font-weight:800; color:var(--ink-soft);
-  background:var(--paper); padding:1px 6px; border-radius:4px; white-space:nowrap}
+.coachnu-target-lab{font-size:9px; font-weight:800; color:var(--ink-soft);
+  background:var(--paper); padding:2px 7px; border-radius:6px; white-space:nowrap; border:1px solid var(--line-soft)}
 .coachnu-col{flex:0 0 auto; display:flex; flex-direction:column; align-items:center; height:100%;
   justify-content:flex-end; cursor:pointer; position:relative; z-index:2}
 .coachnu-bwrap{width:15px; height:100%; display:flex; align-items:flex-end; position:relative; margin:0 auto}
@@ -3084,9 +3096,16 @@ function carteAxeGrande(o){
   const refTickSpans = refTicks.filter(r => r.v > 0).map(r =>
     `<span class="tk" style="left:${clamp(r.v / scale * 100, 0, 99).toFixed(2)}%;background:${r.c};opacity:.85"></span>`
   ).join('');
+  /* Zone hachurée du dépassement, en option (o.hachureAuDela) : uniquement pour
+     le carbone, dont le repère est un vrai plafond. Sans elle, une échelle
+     étirée par un repère secondaire élevé (la moyenne française) peut faire
+     paraître raisonnable une barre déjà loin au-delà du budget — le chiffre
+     seul (o.couleur) ne suffit pas si l'œil s'arrête d'abord sur la barre. */
+  const overZone = (o.hachureAuDela && rep > 0 && o.total > rep)
+    ? `<span class="over" style="left:${pc(rep)}%;width:${(pc(o.total) - pc(rep)).toFixed(2)}%"></span>` : '';
   return `<div class="card axeb"${o.premier ? '' : ' style="margin-top:10px"'}>
     <div class="hero">
-      <div class="bg">${segs}</div>${tick}${refTickSpans}
+      <div class="bg">${segs}</div>${tick}${refTickSpans}${overZone}
       <div class="fg">
         <div class="ttl">${o.titre}</div>
         <div class="figs"${o.couleur ? ` style="color:${o.couleur}"` : ''}>${o.fmt(o.total)} <small>${o.unite}</small></div>
@@ -12108,36 +12127,42 @@ function coachEq(moy, t){
   return Math.max(0, 10 * (1 - somme/axes.length));
 }
 
-/* Quatre paliers d'écart (bon / léger / moyen / fort), mêmes seuils que la
-   maquette de référence : 5 %, 15 %, 28 %. */
+/* Quatre paliers d'écart (bon / léger / moyen / fort), mêmes seuils que
+   calCouleur/protCouleur ailleurs dans l'app : 5 %, 10 %, 15 %. Les deux
+   échelles doivent rester identiques pour ne pas apprendre deux codes
+   couleur différents dans la même application. */
 function coachCouleur(val, cible){
   if(!cible) return 'var(--mute)';
   const diff = Math.abs(1 - val/cible);
   if(diff <= 0.05) return 'var(--cn-good)';
-  if(diff <= 0.15) return 'var(--cn-yellow)';
-  if(diff <= 0.28) return 'var(--cn-orange)';
+  if(diff <= 0.10) return 'var(--cn-yellow)';
+  if(diff <= 0.15) return 'var(--cn-orange)';
   return 'var(--cn-red)';
 }
 
-/* Variante à un seul sens, pour les protéines : au-dessus du repère, toujours
-   « bon », quelle que soit l'ampleur — il n'y a pas de plafond aux protéines
-   dans cette app, contrairement aux calories qui ont une vraie cible à deux
-   bornes. En dessous, mêmes paliers que coachCouleur. */
+/* Variante à un seul sens (plancher) : protéines, glucides et fibres n'ont
+   pas de plafond réel dans cette app — un excès n'est pas un problème tant
+   qu'il reste raisonnable. Seul un déficit est noté, avec les mêmes paliers
+   que coachCouleur (5 / 10 / 15 %). Au-delà du double de l'objectif
+   (dépassement de plus de 100 %), l'excès devient lui aussi signalé : ce
+   n'est plus un simple bonus, c'est un écart qui mérite d'être vu. */
 function coachCouleurMin(val, cible){
   if(!cible) return 'var(--mute)';
+  if(val > cible * 2) return 'var(--cn-red)';
   if(val >= cible) return 'var(--cn-good)';
   const diff = (cible - val) / cible;
   if(diff <= 0.05) return 'var(--cn-good)';
-  if(diff <= 0.15) return 'var(--cn-yellow)';
-  if(diff <= 0.28) return 'var(--cn-orange)';
+  if(diff <= 0.10) return 'var(--cn-yellow)';
+  if(diff <= 0.15) return 'var(--cn-orange)';
   return 'var(--cn-red)';
 }
 
-/* Sélectionne la bonne fonction de teinte selon que l'axe a un plafond ou non.
-   Seules les protéines sont un plancher pur ; calories/lipides/glucides et
-   « équilibre » gardent la lecture à deux sens. */
+/* Sélectionne la bonne fonction de teinte selon que l'axe a un plafond ou
+   non. Protéines, glucides et fibres sont des planchers purs (coachCouleurMin) ;
+   calories, lipides et « équilibre » gardent la lecture à deux sens. */
 function couleurPourAxe(key, val, cible){
-  return key === 'prot' ? coachCouleurMin(val, cible) : coachCouleur(val, cible);
+  return (key === 'prot' || key === 'gluc' || key === 'fib')
+    ? coachCouleurMin(val, cible) : coachCouleur(val, cible);
 }
 
 function coachArc(startDeg, endDeg, cx, cy, r){
@@ -12192,16 +12217,16 @@ function coachAnneauHTML(moy, t, selKey, scale){
 function coachChartHTML(data, t, selKey, selIdx){
   const ax = COACH_KEYS.find(k => k.k === selKey);
   const isEq = selKey === 'eq';
+  /* Repère fixe de 9,5/10 pour l'Équilibre : même lecture à deux sens que les
+     calories (coachCouleur), pas les seuils arbitraires 8,5/6,5 d'avant. */
+  const cible = isEq ? 9.5 : (t[selKey] ? t[selKey].v : null);
   const vals = data.map(d => isEq ? (coachEq(d, t) || 0) : (d[selKey] || 0));
-  const cible = isEq ? null : (t[selKey] ? t[selKey].v : null);
-  const maxVal = Math.max(cible || 0, ...vals, isEq ? 10 : 1) * (isEq ? 1.05 : 1.25);
+  const maxVal = Math.max(cible || 0, ...vals, isEq ? 10 : 1) * 1.25;
   const colW = 30, gapW = 8, n = data.length;
   const totalW = n * colW + (n - 1) * gapW;
   const cols = data.map((d, i) => {
     const val = vals[i], h = (val/maxVal*100).toFixed(1);
-    const color = isEq
-      ? (val>=8.5?'var(--forest)':val>=6.5?'var(--straw)':'var(--brick)')
-      : couleurPourAxe(selKey, val, cible);
+    const color = isEq ? coachCouleur(val, cible) : couleurPourAxe(selKey, val, cible);
     return `<div class="coachnu-col${i===selIdx?' on':''}" data-cnd="${i}" style="width:${colW}px">
       <div class="coachnu-bwrap">
         <div class="coachnu-val">${isEq?n1(val):n0(val)}</div>
@@ -12210,10 +12235,18 @@ function coachChartHTML(data, t, selKey, selIdx){
       <div class="coachnu-day">${coachJourLabel(d.d)}</div>
     </div>`;
   }).join('');
-  const ligne = cible ? `<div class="coachnu-target" style="bottom:${(cible/maxVal*100).toFixed(1)}%">
-    <span class="coachnu-target-lab">${t[selKey].cible?'Cible':'Rep\u00e8re'} : ${n0(cible)} ${ax.unit}</span></div>` : '';
-  return `<div class="coachnu-chart-scroll">
-    <div class="coachnu-chart" style="width:${totalW}px;gap:${gapW}px">${ligne}${cols}</div>
+  /* La ligne pointillée reste dans le contenu défilant (elle doit traverser
+     tous les jours) ; le libellé, lui, sort du flux défilant et vit dans un
+     bandeau fixe au-dessus, aligné à droite — il ne peut plus scroller sous
+     une barre ni se retrouver caché derrière un pic (cf. captures montrant
+     le libellé illisible, coincé entre deux barres). */
+  const ligne = cible ? `<div class="coachnu-target" style="bottom:${(cible/maxVal*100).toFixed(1)}%"></div>` : '';
+  const lab = cible ? `<div class="coachnu-target-head"><span class="coachnu-target-lab">
+    ${t[selKey].cible?'Cible':'Rep\u00e8re'} : ${isEq?n1(cible):n0(cible)} ${ax.unit}</span></div>` : '';
+  return `<div class="coachnu-chart-wrap">${lab}
+    <div class="coachnu-chart-scroll">
+      <div class="coachnu-chart" style="width:${totalW}px;gap:${gapW}px">${ligne}${cols}</div>
+    </div>
   </div>`;
 }
 
@@ -12631,7 +12664,7 @@ function axesDuJour(a, t){
   const carbone = carteAxeGrande({
     premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : whenWord() === 'demain' ? 'journée close' : 'journée en cours',
     total:j.kg, unite:'kg', fmt:n2, par:j.par.kg, axe:'kg',
-    repere:BUDGET_J, repLabel:'budget', sens:'plafond',
+    repere:BUDGET_J, repLabel:'budget', sens:'plafond', hachureAuDela:true,
     /* Objectif perso et moyenne française rejoignent le budget sur le même
        bandeau : plus de barre à part pour les situer, cf. suite ci-dessous. */
     refTicks:[
@@ -13029,7 +13062,8 @@ function tvCumule(a){
     return;
   }
   /* fenêtre CALENDAIRE : lundi de la semaine en cours moins 14 jours, jusqu'à aujourd'hui.
-     Trois semaines ISO exactes, jours vides compris — sinon le bloc mentirait sur sa période. */
+     Trois semaines ISO exactes, jours vides compris — sinon le bloc mentirait sur sa période.
+     Sert toujours de fenêtre aux cumuls calories/protéines ci-dessous. */
   const last = (() => {
     const start = new Date(monday(today()) + 'T12:00');
     start.setDate(start.getDate() - 14);
@@ -13037,8 +13071,18 @@ function tvCumule(a){
     for(let d = new Date(start); iso(d) <= end; d.setDate(d.getDate() + 1)) out.push(iso(d));
     return out;
   })();
+  /* Historique complet, du tout premier jour renseigné à aujourd'hui, jours
+     vides compris — c'est cette fenêtre-là, et non les trois dernières
+     semaines, qui alimente le graphique carbone défilant plus bas. */
+  const allDays = (() => {
+    if(!a.keys.length) return [];
+    const out = [], end = today();
+    for(let d = new Date(a.keys[0] + 'T12:00'); iso(d) <= end; d.setDate(d.getDate() + 1)) out.push(iso(d));
+    return out;
+  })();
   const vals = last.map(k => a.days[k] ? a.days[k].tot : 0);
   const mx = Math.max(BUDGET_J * 1.35, ...vals);
+  const mxAll = Math.max(BUDGET_J * 1.35, ...allDays.map(k => a.days[k] ? a.days[k].tot : 0));
   let cum = 0;
   const pts = a.keys.map((k,i) => { cum += a.days[k].tot; return {x:i, y:cum}; });
   const W = 100, H = 96, cmax = cum || 1;
@@ -13075,26 +13119,28 @@ function tvCumule(a){
         <span>${n0(a.tot)} kg</span></div>
     </div>
 
-    <h2 class="sec">Trois dernières semaines</h2>
+    <h2 class="sec">Historique</h2>
     <button class="card dayscard" id="weeksBtn" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer">
-      <div class="daysgrid" style="position:relative">
-        <div class="budline" style="bottom:${(Math.min(1, BUDGET_J/mx)*78).toFixed(1)}px"></div>
-        <div class="days">
-        ${last.map(k => { const d = a.days[k];
-          if(!d) return `<div class="d" title="${dLabel(k)} · aucune saisie">
-            <i style="height:2px;background:var(--line)"></i></div>`;
-          return `<div class="d" title="${dLabel(k)} · ${n2(d.tot)} kg">
-            ${MEALS.filter(m => d.byMeal[m.k]).map(m =>
-              `<i style="height:${(d.byMeal[m.k]/mx*78).toFixed(1)}px;background:${m.c}"></i>`).join('')}
-          </div>`; }).join('')}
+      <div class="hist-scroll" id="histScroll">
+        <div class="daysgrid" style="position:relative;width:${Math.max(1, allDays.length) * 10 - 2}px">
+          <div class="budline" style="bottom:${(Math.min(1, BUDGET_J/mxAll)*78).toFixed(1)}px"></div>
+          <div class="days scroll" style="width:${Math.max(1, allDays.length) * 10 - 2}px">
+          ${allDays.map(k => { const d = a.days[k];
+            if(!d) return `<div class="d" title="${dLabel(k)} · aucune saisie">
+              <i style="height:2px;background:var(--line)"></i></div>`;
+            return `<div class="d" title="${dLabel(k)} · ${n2(d.tot)} kg">
+              ${MEALS.filter(m => d.byMeal[m.k]).map(m =>
+                `<i style="height:${(d.byMeal[m.k]/mxAll*78).toFixed(1)}px;background:${m.c}"></i>`).join('')}
+            </div>`; }).join('')}
+          </div>
         </div>
       </div>
-      <div class="axis"><span>${last.length?dLabel(last[0]):''}</span><span>${last.length?dLabel(last[last.length-1]):''}</span></div>
+      <div class="axis"><span>${allDays.length?dLabel(allDays[0]):''}</span><span>${allDays.length?dLabel(allDays[allDays.length-1]):''}</span></div>
       <div class="dayleg">
         ${MEALS.map(m => `<span><i class="dot" style="background:${m.c}"></i>${m.l}</span>`).join('')}
         <span><i class="budkey"></i>budget/j</span>
       </div>
-      <div class="src" style="margin-top:9px">Toucher pour le détail jour par jour ›</div>
+      <div class="src" style="margin-top:9px">Glissez pour l’historique complet · toucher pour le détail jour par jour ›</div>
     </button>
     ${/* Le « i » ne peut pas vivre dans le graphique : celui-ci est lui-même un
           bouton, et un bouton dans un bouton n'est pas du HTML valide — le
@@ -13102,8 +13148,8 @@ function tvCumule(a){
           mauvaise cible. L'explication est donc posée juste après la carte, et
           l'invitation à toucher reste visible puisqu'elle n'explique rien : elle
           dit ce que fait le geste. */''}
-    ${infoCap('Chaque colonne est un jour, empilée par repas. Le trait horizontal est le '
-      + 'budget quotidien : une colonne qui le dépasse sort du cadre clair.')}
+    ${infoCap('Chaque colonne est un jour, empilée par repas, depuis votre toute première saisie. '
+      + 'Le trait horizontal est le budget quotidien : une colonne qui le dépasse sort du cadre clair.')}
 
     ${nuOn() ? nutCumul(a, last) : ''}
 
@@ -13117,8 +13163,13 @@ function tvCumule(a){
       <div class="src">kg CO₂e cumulés par groupe d’aliments, sur ${a.nd} jours.</div>
     </div>`;
 
+  /* Le graphique s'ouvre sur aujourd'hui, à droite — pas sur le tout premier
+     jour de l'historique, qui n'intéresse personne au premier coup d'œil.
+     L'historique plus ancien reste à un glissement de doigt vers la gauche. */
+  const hs = $('#histScroll');
+  if(hs) hs.scrollLeft = hs.scrollWidth;
   const wb = $('#weeksBtn');
-  if(wb) wb.onclick = () => weeksSheet(a, last);
+  if(wb) wb.onclick = () => weeksSheet(a, allDays);
 }
 
 /* Calories et protéines cumulées, sur la même fenêtre que le carbone. Affiché
@@ -13156,13 +13207,13 @@ function nutCumul(a, last){
         + (S.prof.objProt != null ? ' Trait horizontal : votre cible journalière.' : '')})}`;
 }
 
-function weeksSheet(a, last){
+function weeksSheet(a, days){
   const wBud = 7 * BUDGET_J;
   // regrouper par semaine (lundi)
   const wk = {};
-  last.forEach(k => { const w = monday(k); (wk[w] = wk[w] || []).push(k); });
+  days.forEach(k => { const w = monday(k); (wk[w] = wk[w] || []).push(k); });
   const weeks = Object.keys(wk).sort().reverse();
-  const dmax = Math.max(BUDGET_J * 1.35, ...last.map(k => a.days[k] ? a.days[k].tot : 0));
+  const dmax = Math.max(BUDGET_J * 1.35, ...days.map(k => a.days[k] ? a.days[k].tot : 0));
 
   const body = weeks.map(w => {
     const dk = wk[w].sort();
@@ -13186,7 +13237,9 @@ function weeksSheet(a, last){
   }).join('');
 
   openSheet(`
-    <h3>Trois dernières semaines</h3>
+    <h3>Historique complet</h3>
+    <p class="small mute">${weeks.length} semaine${weeks.length>1?'s':''} enregistrée${weeks.length>1?'s':''},
+    la plus récente en premier.</p>
     <p class="small mute">Chaque barre est une journée, découpée par repas. Le total de la semaine est
     comparé au budget hebdomadaire de ${n1(wBud)} kg.</p>
     <div class="dayleg" style="margin:2px 0 4px">
