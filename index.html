@@ -454,8 +454,8 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   font-family:var(--mono); font-size:9px; letter-spacing:.04em; color:var(--ink);
   opacity:.8; white-space:nowrap}
 .axeb .hero .tk.tkr::after{right:auto; left:5px}
-.axeb .hero .over{position:absolute; top:0; bottom:0; z-index:1; opacity:.6; pointer-events:none;
-  background:repeating-linear-gradient(118deg,var(--cn-red) 0 4px,rgba(0,0,0,0) 4px 9px)}
+.axeb .hero .over{position:absolute; top:0; bottom:0; z-index:1; opacity:.35; pointer-events:none;
+  background:var(--cn-red)}
 .axeb .hero .fg{position:relative; z-index:2;
   /* Le bandeau était inerte au toucher. Les segments portaient bien `data-gm` et
      le branchement les visait déjà, mais ce calque — titre et grand chiffre — est
@@ -10994,9 +10994,21 @@ function renderTracker(){
 function mainDishes(){
   /* On écarte les plats de restaurant : le conseil du soir propose ce qui rentre
      encore dans le budget, et suggérer une pizza d'une enseigne précise à
-     quelqu'un qui dîne chez lui n'aurait pas de sens. */
+     quelqu'un qui dîne chez lui n'aurait pas de sens. `!d.src` couvre les
+     enseignes nommées (Oxymore, Gruppomimo, Urban Bagel) ; `cat` couvre les
+     chaînes de restauration rapide qui n'ont pas ce champ (McDo, Pepe Chicken)
+     — sans ce second filtre, cheeseburger, kebab et French tacos passaient
+     tous comme suggestions « maison ».
+     Plafond de carbone à part, sur `d.k` et non sur le budget restant : un
+     plat ne doit jamais dépasser l'objectif personnel de l'utilisateur, ou
+     2,5 kg s'il n'en a pas fixé (ou en a fixé un plus large) — sans quoi un
+     début de journée au budget encore intact pourrait suggérer un plat déjà
+     hors de portée de l'objectif. */
   const mois = new Date().getMonth();
-  return DISHES().filter(d => !d.src && d.m.some(m => m === 'dej' || m === 'din'))
+  const plafond = Math.min(objDay() || 2.5, 2.5);
+  const JUNK = new Set(['mcdo', 'pouletfrit']);
+  return DISHES().filter(d => !d.src && !JUNK.has(d.cat)
+      && d.m.some(m => m === 'dej' || m === 'din') && kgOf(d.l) <= plafond)
     .map(d => ({d, n:d.n, k:kgOf(d.l),
                 /* Part de saison au mois courant, et `rec` pour dire si le plat
                    est ouvrable : seul un plat qui porte ses libellés source et
