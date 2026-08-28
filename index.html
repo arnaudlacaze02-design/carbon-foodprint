@@ -3103,13 +3103,11 @@ function carteAxeGrande(o){
   const refTickSpans = refTicks.filter(r => r.v > 0).map(r =>
     `<span class="tk" style="left:${clamp(r.v / scale * 100, 0, 99).toFixed(2)}%;background:${r.c};opacity:.85"></span>`
   ).join('');
-  /* Zone hachurée du dépassement, en option (o.hachureAuDela) : uniquement pour
-     le carbone, dont le repère est un vrai plafond. Sans elle, une échelle
-     étirée par un repère secondaire élevé (la moyenne française) peut faire
-     paraître raisonnable une barre déjà loin au-delà du budget — le chiffre
-     seul (o.couleur) ne suffit pas si l'œil s'arrête d'abord sur la barre. */
-  const overZone = (o.hachureAuDela && rep > 0 && o.total > rep)
-    ? `<span class="over" style="left:${pc(rep)}%;width:${(pc(o.total) - pc(rep)).toFixed(2)}%"></span>` : '';
+  /* Zone de dépassement retirée : le trait « budget » et le chiffre en rouge
+     (o.couleur) suffisent à signaler un dépassement, sans teinte superposée
+     sur le bandeau. `hachureAuDela` reste accepté en paramètre pour ne pas
+     casser l'appelant, mais n'a plus d'effet visuel. */
+  const overZone = '';
   return `<div class="card axeb"${o.premier ? '' : ' style="margin-top:10px"'}>
     <div class="hero">
       <div class="bg">${segs}</div>${tick}${refTickSpans}${overZone}
@@ -12453,12 +12451,25 @@ function coachAnneauHTML(moy, t, selKey, scale){
     const cible = t[ax.k] ? t[ax.k].v : null;
     if(val == null || !cible) return;
     const gapPct = Math.round((val - cible) / cible * 100);
-    /* Protéines : aucun badge au-dessus du repère, pas de plafond à signaler. */
-    if(ax.k === 'prot' && gapPct >= 0) return;
-    if(Math.abs(gapPct) < 3) return;
-    const alerte = Math.abs(gapPct) >= 15 ? (gapPct < 0 ? ' \u26a0\ufe0f' : ' \u2757') : '';
     const rb = r + 22, endRad = end*Math.PI/180;
     const bx = (cx + rb*Math.cos(endRad)) * scale, by = (cy + rb*Math.sin(endRad)) * scale;
+    /* Protéines : aucun plafond à signaler, un dépassement n'est jamais un
+       problème — mais c'est un « bien » qui mérite le badge vert, pas le
+       silence d'avant : un pouce seul, sans pourcentage puisqu'il n'y a pas
+       de repère haut auquel le comparer. */
+    if(ax.k === 'prot' && gapPct >= 0){
+      overlay += `<div class="coachnu-gap good" style="left:${bx}px;top:${by}px;background:var(--cn-good)">\u{1F44D}</div>`;
+      return;
+    }
+    /* Dans la zone cible (moins de 3 % d'écart) : même logique inverse — un
+       badge vert plutôt qu'une absence de badge, pour que « c'est bon » se
+       voie sans avoir à comparer soi-même le chiffre au repère. */
+    if(Math.abs(gapPct) < 3){
+      overlay += `<div class="coachnu-gap good" style="left:${bx}px;top:${by}px;background:var(--cn-good)">${
+        gapPct>0?'+':''}${gapPct}% \u{1F44D}</div>`;
+      return;
+    }
+    const alerte = Math.abs(gapPct) >= 15 ? (gapPct < 0 ? ' \u26a0\ufe0f' : ' \u2757') : '';
     overlay += `<div class="coachnu-gap" style="left:${bx}px;top:${by}px;background:${couleurPourAxe(ax.k,val,cible)}">${gapPct>0?'+':''}${gapPct}%${alerte}</div>`;
   });
   return {svg, overlay};
