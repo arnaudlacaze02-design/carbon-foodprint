@@ -13082,7 +13082,8 @@ function tvCumule(a){
   })();
   const vals = last.map(k => a.days[k] ? a.days[k].tot : 0);
   const mx = Math.max(BUDGET_J * 1.35, ...vals);
-  const mxAll = Math.max(BUDGET_J * 1.35, ...allDays.map(k => a.days[k] ? a.days[k].tot : 0));
+  const objJ = objDay();
+  const mxAll = Math.max(BUDGET_J * 1.35, objJ ? objJ * 1.1 : 0, ...allDays.map(k => a.days[k] ? a.days[k].tot : 0));
   let cum = 0;
   const pts = a.keys.map((k,i) => { cum += a.days[k].tot; return {x:i, y:cum}; });
   const W = 100, H = 96, cmax = cum || 1;
@@ -13122,9 +13123,10 @@ function tvCumule(a){
     <h2 class="sec">Historique</h2>
     <button class="card dayscard" id="weeksBtn" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer">
       <div class="hist-scroll" id="histScroll">
-        <div class="daysgrid" style="position:relative;width:${Math.max(1, allDays.length) * 10 - 2}px">
+        <div class="daysgrid" id="histGrid" style="position:relative;width:${Math.max(1, allDays.length) * 10 - 2}px">
           <div class="budline" style="bottom:${(Math.min(1, BUDGET_J/mxAll)*78).toFixed(1)}px"></div>
-          <div class="days scroll" style="width:${Math.max(1, allDays.length) * 10 - 2}px">
+          ${objJ != null ? `<div class="budline" style="bottom:${(Math.min(1, objJ/mxAll)*78).toFixed(1)}px;border-top-color:var(--straw)"></div>` : ''}
+          <div class="days scroll" id="histDays" style="width:${Math.max(1, allDays.length) * 10 - 2}px">
           ${allDays.map(k => { const d = a.days[k];
             if(!d) return `<div class="d" title="${dLabel(k)} · aucune saisie">
               <i style="height:2px;background:var(--line)"></i></div>`;
@@ -13139,6 +13141,7 @@ function tvCumule(a){
       <div class="dayleg">
         ${MEALS.map(m => `<span><i class="dot" style="background:${m.c}"></i>${m.l}</span>`).join('')}
         <span><i class="budkey"></i>budget/j</span>
+        ${objJ != null ? `<span><i class="budkey" style="border-top-color:var(--straw)"></i>votre objectif</span>` : ''}
       </div>
       <div class="src" style="margin-top:9px">Glissez pour l’historique complet · toucher pour le détail jour par jour ›</div>
     </button>
@@ -13149,7 +13152,8 @@ function tvCumule(a){
           l'invitation à toucher reste visible puisqu'elle n'explique rien : elle
           dit ce que fait le geste. */''}
     ${infoCap('Chaque colonne est un jour, empilée par repas, depuis votre toute première saisie. '
-      + 'Le trait horizontal est le budget quotidien : une colonne qui le dépasse sort du cadre clair.')}
+      + 'Le pointillé sombre est le budget quotidien' + (objJ != null ? ', le pointillé clair votre objectif personnel' : '')
+      + ' : une colonne qui dépasse sort du cadre clair.')}
 
     ${nuOn() ? nutCumul(a, last) : ''}
 
@@ -13165,9 +13169,25 @@ function tvCumule(a){
 
   /* Le graphique s'ouvre sur aujourd'hui, à droite — pas sur le tout premier
      jour de l'historique, qui n'intéresse personne au premier coup d'œil.
-     L'historique plus ancien reste à un glissement de doigt vers la gauche. */
+     L'historique plus ancien reste à un glissement de doigt vers la gauche.
+     Largeur de colonne calculée pour qu'une vingtaine de jours remplissent
+     l'écran visible : des colonnes bien plus grosses qu'une largeur fixe,
+     sans jamais renoncer au défilement au-delà de ces vingt jours. */
   const hs = $('#histScroll');
-  if(hs) hs.scrollLeft = hs.scrollWidth;
+  if(hs){
+    const VISIBLES = 20, GAP = 2;
+    const n = Math.max(1, allDays.length);
+    const cw = hs.clientWidth || 320;
+    const colW = Math.max(8, Math.floor((cw - GAP * (Math.min(n, VISIBLES) - 1)) / Math.min(n, VISIBLES)));
+    const totalW = n * colW + (n - 1) * GAP;
+    const grid = $('#histGrid'), daysEl = $('#histDays');
+    if(grid) grid.style.width = totalW + 'px';
+    if(daysEl){
+      daysEl.style.width = totalW + 'px';
+      daysEl.querySelectorAll('.d').forEach(d => { d.style.flex = `0 0 ${colW}px`; d.style.minWidth = colW + 'px'; });
+    }
+    hs.scrollLeft = hs.scrollWidth;
+  }
   const wb = $('#weeksBtn');
   if(wb) wb.onclick = () => weeksSheet(a, allDays);
 }
