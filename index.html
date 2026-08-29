@@ -2050,6 +2050,8 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-col.on .coachnu-bar{outline:2px solid var(--forest); outline-offset:1px}
 .coachnu-val{position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:9.5px; font-weight:800;
   color:var(--ink); white-space:nowrap; font-family:var(--mono)}
+.coachnu-col.on .coachnu-val{font-size:12.5px; top:-22px; color:var(--forest);
+  background:var(--card); padding:1px 6px; border-radius:6px; border:1px solid var(--line)}
 .coachnu-day{font-size:9.5px; font-weight:700; color:var(--mute); margin-top:4px}
 .coachnu-repas{margin-top:10px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px}
 .coachnu-repas .h{font-size:11px; font-weight:800; color:var(--ink); display:flex; justify-content:space-between; margin-bottom:6px}
@@ -12401,8 +12403,25 @@ function coachCouleurMin(val, cible){
 
 /* Sélectionne la bonne fonction de teinte selon que l'axe a un plafond ou
    non. Protéines, glucides et fibres sont des planchers purs (coachCouleurMin) ;
-   calories, lipides et « équilibre » gardent la lecture à deux sens. */
+   calories et lipides gardent la lecture à deux sens (coachCouleur).
+   Équilibre est un cas à part : c'est déjà un score borné 0–10, pas une
+   quantité physique. Lui appliquer un écart RELATIF au repère (comme aux
+   calories) écrase la tolérance — 5 % de 9,5 ne fait que 0,475 point, si
+   bien qu'un score pourtant très correct (9,0) tombe déjà hors du vert.
+   Les mêmes paliers 5/10/15 % s'appliquent donc à l'échelle complète
+   (0–10) plutôt qu'au repère, ce qui donne des paliers de 0,5 / 1,0 / 1,5
+   point — nettement plus proche de ce qu'on perçoit comme « bon ». */
+function coachCouleurEq(val, cible){
+  if(cible == null) return 'var(--mute)';
+  const diff = Math.abs(cible - val) / 10;
+  if(diff <= 0.05) return 'var(--cn-good)';
+  if(diff <= 0.10) return 'var(--cn-yellow)';
+  if(diff <= 0.15) return 'var(--cn-orange)';
+  return 'var(--cn-red)';
+}
+
 function couleurPourAxe(key, val, cible){
+  if(key === 'eq') return coachCouleurEq(val, cible);
   return (key === 'prot' || key === 'gluc' || key === 'fib')
     ? coachCouleurMin(val, cible) : coachCouleur(val, cible);
 }
@@ -12481,10 +12500,10 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
   const totalW = n * colW + (n - 1) * gapW;
   const cols = data.map((d, i) => {
     const val = vals[i], h = (val/maxVal*100).toFixed(1);
-    const color = isEq ? coachCouleur(val, cible) : couleurPourAxe(selKey, val, cible);
+    const color = couleurPourAxe(selKey, val, cible);
     return `<div class="coachnu-col${i===selIdx?' on':''}" data-cnd="${i}" style="width:${colW}px">
       <div class="coachnu-bwrap">
-        <div class="coachnu-val">${isEq?n1(val):n0(val)}</div>
+        <div class="coachnu-val">${isEq?n1(val):n0(val)}${i===selIdx?' '+ax.unit:''}</div>
         <div class="coachnu-bar" style="height:${h}%;background:${color}"></div>
       </div>
       <div class="coachnu-day">${coachJourLabel(d.d)}</div>
@@ -12502,7 +12521,7 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
   const cibleLab = cible ? `<span class="coachnu-target-lab">
     ${t[selKey].cible?'Cible':'Rep\u00e8re'} : ${isEq?n1(cible):n0(cible)} ${ax.unit}</span>` : '';
   const moyCouleur = (cible && moyVal != null)
-    ? (isEq ? coachCouleur(moyVal, cible) : couleurPourAxe(selKey, moyVal, cible)) : null;
+    ? couleurPourAxe(selKey, moyVal, cible) : null;
   const moyLab = moyCouleur ? `<span class="coachnu-target-lab" style="background:${moyCouleur};color:#fff;border-color:transparent">
     Moyenne : ${isEq?n1(moyVal):n0(moyVal)} ${ax.unit}</span>` : '';
   const lab = (cibleLab || moyLab) ? `<div class="coachnu-target-head">${cibleLab}${moyLab}</div>` : '';
@@ -12522,11 +12541,22 @@ function coachRepasHTML(iso_){
     .sort((a,b) => MEALS.findIndex(m=>m.k===a.m) - MEALS.findIndex(m=>m.k===b.m));
   if(!es.length) return `<div class="coachnu-repas"><div class="h"><span>Repas du ${dLabel(iso_)}</span></div>
     <div class="small mute" style="padding:2px 0">Rien d\u2019enregistr\u00e9 ce jour-l\u00e0.</div></div>`;
+  /* La valeur affichée suit l'axe sélectionné dans l'anneau/l'histogramme au-
+     dessus (calories par défaut) : le repas du jour raconte toujours la même
+     histoire que ce qu'on regarde déjà. Équilibre n'est pas décomposable par
+     repas (c'est une synthèse du jour entier), donc on retombe sur les
+     calories pour cet axe plutôt que d'afficher un score qui n'existe qu'au
+     niveau du jour. */
+  const cle = (S.cnKey && S.cnKey !== 'eq') ? S.cnKey : 'kcal';
+  const ax = COACH_KEYS.find(x => x.k === cle);
   return `<div class="coachnu-repas">
     <div class="h"><span>Repas du ${dLabel(iso_)}</span></div>
-    ${es.map(e => `<button type="button" class="m" data-crmeal="${esc(e.m)}" data-crday="${esc(iso_)}">
-      <b>${esc(MEAL[e.m].l)}</b><span>${esc(e.n)} <i class="coachnu-repas-plus">+</i></span>
-    </button>`).join('')}
+    ${es.map(e => {
+      const val = nuOf(e.l)[cle] || 0;
+      return `<button type="button" class="m" data-crmeal="${esc(e.m)}" data-crday="${esc(iso_)}">
+        <b>${esc(MEAL[e.m].l)}</b><span>${n0(val)} ${ax.unit} <i class="coachnu-repas-plus">+</i></span>
+      </button>`;
+    }).join('')}
   </div>`;
 }
 
@@ -13508,9 +13538,16 @@ function axesDuJour(a, t){
    contient pas 15 % de calories de plus. */
 const AXES = {
   kg:   {l:'kg CO\u2082e',  u:'kg',   fmt:n2, c:'var(--forest)'},
-  kcal: {l:'calories',      u:'kcal', fmt:n0, c:'var(--s4)'},
-  prot: {l:'protéines',     u:'g',    fmt:n1, c:'var(--forest-2)'},
+  kcal: {l:'calories',      u:'kcal', fmt:n0, c:'var(--cn-cal)'},
+  prot: {l:'protéines',     u:'g',    fmt:n1, c:'var(--cn-prot)'},
+  lip:  {l:'lipides',       u:'g',    fmt:n1, c:'var(--cn-lip)'},
+  gluc: {l:'glucides',      u:'g',    fmt:n1, c:'var(--cn-gluc)'},
+  fib:  {l:'fibres',        u:'g',    fmt:n1, c:'var(--cn-fib)'},
 };
+
+/* Indice du nutriment dans le tableau nu[] de chaque aliment (cf. nuOf) :
+   kcal, protéines, lipides, glucides, fibres, dans cet ordre. */
+const NU_IDX = {kcal:0, prot:1, lip:2, gluc:3, fib:4};
 
 function splitAliment(lignes, axe){
   const m = new Map();
@@ -13519,7 +13556,7 @@ function splitAliment(lignes, axe){
     if(!f) return;
     let v = 0;
     if(axe === 'kg') v = f.t * l[1] / 1000 * modeK(l[3]);
-    else if(f.nu)    v = f.nu[axe === 'kcal' ? 0 : 1] * l[1] / 100;
+    else if(f.nu)    v = f.nu[NU_IDX[axe]] * l[1] / 100;
     const o = m.get(l[0]) || {n:f.n, g:0, v:0};
     o.g += l[1]; o.v += v; m.set(l[0], o);
   });
@@ -13561,9 +13598,10 @@ function mealSheet(mk, d, axe){
       ${dLabel(d)}</div>
     <h3>${MEAL[mk].l}</h3>
     <div class="small mute" style="margin-bottom:10px">${es.length} repas${es.length>1?'s':''} \u00b7 ${lignes.length} aliment${lignes.length>1?'s':''}</div>
-    <div class="nutri" style="grid-template-columns:repeat(${nuOn() ? 3 : 1},1fr)">
+    <div class="nutri" style="grid-template-columns:repeat(3,1fr)">
       ${kpi('kg', n2(kg), 'kg CO\u2082e')}
-      ${nuOn() ? kpi('kcal', n0(n.kcal), 'kcal') + kpi('prot', n0(n.prot), 'protéines <i>g</i>') : ''}
+      ${nuOn() ? kpi('kcal', n0(n.kcal), 'kcal') + kpi('prot', n1(n.prot), 'protéines <i>g</i>') : ''}
+      ${nuOn() ? kpi('lip', n1(n.lip), 'lipides <i>g</i>') + kpi('gluc', n1(n.gluc), 'glucides <i>g</i>') + kpi('fib', n1(n.fib), 'fibres <i>g</i>') : ''}
     </div>
     <div id="ms_split"></div>
     <div class="hr"></div>
@@ -13573,7 +13611,9 @@ function mealSheet(mk, d, axe){
       <span>${esc(e.n)}</span>
       <span class="unit" style="opacity:.45">\u203a</span>
     </button>`).join('')}</div>
-    ${nuOn() ? nuBlock(lignes) : ''}`);
+    ${nuOn() && n.poids ? `<div class="hr"></div><div class="src" style="margin-top:2px">Pour ${n0(n.poids)} g tels qu\u2019achet\u00e9s, base
+      ${n0(n.part)} % en valeurs propres${n.part < 99 ? ', le reste par recette ou report' : ''}.
+      Source : table CIQUAL 2025 de l\u2019ANSES, jointe par aliment.</div>` : ''}`);
   $('#sheet').querySelectorAll('[data-entry]').forEach(b =>
     b.onclick = () => entrySheet(b.dataset.entry));
 
