@@ -2079,6 +2079,76 @@ html[data-gate="1"] .phone{display:none}
   color:var(--ink); border-bottom:1px solid var(--line-soft); display:flex; justify-content:space-between; align-items:center}
 .coachnu-periode-sheet button:last-child{border-bottom:0}
 .coachnu-periode-sheet button[aria-pressed="true"]{color:var(--forest)}
+
+/* ---------------- Carences & excès (onglet Santé) ----------------
+   S'appuie sur les classes déjà en place : .card, .rgl (réglette à seuils
+   déjà utilisée pour le budget carbone dans reglette()), .seg. Seules les
+   pièces propres à ce bloc sont ajoutées ici, toutes scopées sous .cx-body
+   ou nommées .cx-* pour ne rien croiser avec le reste de l'app — .note en
+   particulier est déjà pris par le centre de notifications, d'où .cx-note. */
+.cx-wrap{margin-top:12px}
+.cx-head{display:flex; align-items:center; justify-content:space-between; cursor:pointer;
+  background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px}
+.cx-head:active{background:var(--active)}
+.cx-title{display:flex; align-items:center; gap:9px}
+.cx-title::before{content:''; flex:0 0 auto; width:4px; height:.9em; border-radius:2px; background:var(--straw)}
+.cx-name{font-family:var(--display); font-weight:800; font-size:17px; letter-spacing:-.005em; color:var(--ink)}
+.cx-sub{font-size:11.5px; color:var(--mute); margin:1px 0 0 13px}
+.cx-flags{display:flex; gap:4px; align-items:center; flex:0 0 auto}
+.cx-dot{width:8px; height:8px; border-radius:50%}
+.cx-chev{margin-left:8px; font-size:13px; color:var(--mute); transition:transform .2s ease}
+.cx-wrap.open .cx-chev{transform:rotate(180deg)}
+.cx-body{display:none; margin-top:12px}
+.cx-wrap.open .cx-body{display:block}
+
+.cx-note{display:flex; gap:10px; align-items:flex-start; background:var(--note-bg);
+  border:1px solid var(--note-line); border-radius:10px; padding:11px 12px; margin-bottom:16px}
+.cx-note .em{flex:0 0 auto; font-size:17px; line-height:1.25}
+.cx-note .tx{min-width:0; flex:1}
+.cx-note .tx b{display:block; font-size:13.5px; font-weight:700; line-height:1.35; color:var(--note-ink)}
+.cx-note .tx span{display:block; font-size:12px; color:var(--note-ink); opacity:.85; line-height:1.5; margin-top:2px}
+
+.cx-body .n-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; cursor:pointer}
+.cx-body .n-name{font-family:var(--display); font-weight:800; font-size:16px; letter-spacing:-.005em;
+  display:flex; align-items:center; gap:7px; color:var(--ink)}
+.cx-body .n-ref{font-family:var(--mono); font-size:11px; color:var(--mute); margin-bottom:12px}
+.cx-body .pill{font-family:var(--mono); font-size:10px; font-weight:700; padding:3px 9px; border-radius:999px;
+  color:#fff; text-transform:uppercase; letter-spacing:.03em; white-space:nowrap}
+.cx-body .chevron{font-size:11px; color:var(--mute); margin-left:4px; transition:transform .2s ease}
+.cx-body .card.expanded .chevron{transform:rotate(180deg)}
+.cx-body .n-detail{display:none; font-size:12.5px; line-height:1.55; color:var(--ink-soft);
+  padding-top:10px; margin-top:12px; border-top:1px dashed var(--line)}
+.cx-body .card.expanded .n-detail{display:block}
+.cx-body .src{font-family:var(--mono); font-size:9.5px; color:var(--mute); display:block; margin-top:6px}
+
+.cx-body .target-btn{display:flex; align-items:center; justify-content:center; gap:6px; width:100%; margin-top:12px;
+  padding:10px; border-radius:10px; border:1px solid var(--forest-2); background:var(--card);
+  color:var(--forest); font-family:inherit; font-size:13px; font-weight:700; cursor:pointer}
+.cx-body .target-btn.open{background:var(--active)}
+.cx-body .food-box{display:none; margin-top:10px; padding:11px 12px; background:var(--paper);
+  border:1px solid var(--line); border-radius:10px}
+.cx-body .food-box.open{display:block}
+.cx-body .fs-label{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--mute); margin-bottom:8px}
+.cx-body .food-item{display:flex; align-items:center; justify-content:space-between; padding:7px 0;
+  border-bottom:1px solid var(--line-soft); font-size:13px}
+.cx-body .food-item:last-child{border-bottom:none}
+.cx-body .fi-impact{font-family:var(--mono); font-size:11px; font-weight:700; color:var(--forest); margin:0 8px}
+.cx-body .fi-add{font-family:inherit; font-size:10.5px; font-weight:700; color:var(--forest); background:var(--card);
+  border:1px solid var(--forest-2); padding:4px 10px; border-radius:999px; cursor:pointer; flex:0 0 auto}
+
+.cx-body .more-info{margin-top:12px}
+.cx-body .mi-label{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--mute); margin-bottom:8px}
+.cx-body .mi-links{display:flex; flex-direction:column; gap:8px}
+.cx-body .mi-link{display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card);
+  text-decoration:none; color:var(--ink)}
+.cx-body .mi-link:active{background:var(--active)}
+.cx-body .mi-tx{display:flex; flex-direction:column; gap:1px}
+.cx-body .mi-link b{font-size:13px; font-weight:700}
+.cx-body .mi-link span{font-size:11px; color:var(--mute)}
+.cx-body .mi-arrow{flex:0 0 auto; font-size:14px; color:var(--mute)}
 </style>
 </head>
 <body>
@@ -12730,11 +12800,217 @@ function coachBind(){
   const go = $('#cn_go'); if(go) go.onclick = objSheet;
 }
 
-/* Onglet « Santé » du Tracker : uniquement le Coach Nutrition, entre « Par
-   repas » et « Sur un an ». */
+/* ==================== Carences & excès ====================
+   Fibres et viande rouge sont les deux seuls axes que la base alimentaire
+   sait déjà chiffrer sérieusement : nu[4] porte les fibres de chaque
+   aliment, et RED (déjà utilisé par le badge « semaine sans viande rouge »,
+   cf. onglet Jeux) dit lesquels comptent comme viande rouge au sens
+   ANSES/CIRC. Fer, sel et oméga-3 ne le sont PAS : aucun aliment de
+   DB.foods ne porte ces valeurs aujourd'hui. Les afficher quand même
+   donnerait un chiffre l'air d'un repère ANSES alors que ce serait
+   inventé — ce bloc les laisse donc de côté tant que ces champs
+   n'existent pas réellement dans la base, plutôt que d'en simuler un.
+
+   Réglette et code couleur repris tels quels de l'app : .rgl (reglette(),
+   budget carbone) pour la jauge, coachCouleurMin (Coach Nutrition) pour
+   les fibres qui n'ont qu'un plancher. La viande rouge n'a que faire d'un
+   plancher — 0 g n'est jamais un problème — d'où cxCouleurMax, son miroir
+   côté plafond, mêmes trois paliers 5/10/15 %. */
+let CX_OPEN = false;
+const CX_PERIODES = [7, 14, 30];
+
+/* Repère fibres : le même calcul que coachTargets (30 g pour 2600 kcal,
+   mis à l'échelle du besoin réel) plutôt qu'un flat 30 g — cohérent avec
+   ce que Coach Nutrition affiche déjà pour ce même nutriment. */
+function cxFibreCible(){
+  const P = S.prof || {};
+  const calBase = P.objCal != null ? P.objCal : besoinCal();
+  return calBase ? 30 * (calBase / 2600) : 30;
+}
+
+/* Grammes de viande rouge sur la période, ramenés à une moyenne hebdo :
+   c'est à la semaine que l'ANSES exprime son repère (500 g max), jamais au
+   jour, un seul steak un jour donné ne veut rien dire seul. */
+function cxRedSemaine(periode){
+  let total = 0;
+  for(let i = 0; i < periode; i++){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const iso_ = iso(d);
+    S.hist.filter(e => e.d === iso_).forEach(e =>
+      e.l.forEach(([slug, g]) => { if(RED.has(slug)) total += g; }));
+  }
+  return periode ? total / periode * 7 : 0;
+}
+
+/* Miroir de coachCouleurMin : ici seul un dépassement compte, jamais un
+   apport bas. Mêmes trois paliers (5/10/15 %) pour rester sur le même
+   langage de couleur que le reste de l'app. */
+function cxCouleurMax(val, cible){
+  if(!cible) return 'var(--mute)';
+  if(val <= cible) return 'var(--cn-good)';
+  const diff = (val - cible) / cible;
+  if(diff <= 0.05) return 'var(--cn-good)';
+  if(diff <= 0.10) return 'var(--cn-yellow)';
+  if(diff <= 0.15) return 'var(--cn-orange)';
+  return 'var(--cn-red)';
+}
+
+/* Jauge à un repère, même markup que reglette() (budget carbone) : .rgl >
+   .wrap > .bar/.mk, puis .rgll pour la légende. Un second langage visuel de
+   jauge n'aurait rien apporté ici. */
+function cxJauge(val, cible, couleur, valLab, cibleLab, pct){
+  const sc = Math.max(val, cible, 0.001) * 1.2;
+  const pos = v => Math.max(1.5, Math.min(98.5, v / sc * 100));
+  const badge = pct != null ? ` <span class="rgl-pct" style="background:${couleur}">${pct>0?'+':''}${pct}%</span>` : '';
+  return `<div class="rgl">
+    <div class="wrap">
+      <div class="bar"><i style="width:${pos(val)}%;background:${couleur}"></i></div>
+      <div class="mk" style="left:${pos(cible)}%;background:var(--ink)"></div>
+    </div>
+    <div class="rgll">
+      <span><i style="background:var(--ink)"></i>Réalisé <b>${esc(valLab)}</b></span>
+      <span><i style="background:var(--mute)"></i>Repère <b>${esc(cibleLab)}</b></span>${badge}
+    </div>
+  </div>`;
+}
+
+/* Suggestions calculées depuis la vraie base, jamais des grammes posés à la
+   main : si un jour la table CIQUAL change, ces chiffres suivent. */
+function cxSuggestionsFibres(){
+  return ['lentilles', 'haricotsrouges', 'poischiches'].map(sl => {
+    const f = F.get(sl);
+    if(!f) return '';
+    const g = f.nu[4] * f.p / 100;
+    return `<div class="food-item"><span>🫘 ${esc(f.n)} (${f.p} g)</span>
+      <span class="fi-impact">+${n1(g)}g</span>
+      <button class="fi-add" data-cxadd="${sl}">Ajouter</button></div>`;
+  }).join('');
+}
+
+function cxBloc(){
+  const periode = CX_PERIODES.includes(S.cxPeriode) ? S.cxPeriode : 14;
+  S.cxPeriode = periode;
+
+  const cibleFib = cxFibreCible();
+  const moyFib = coachMoyenne(coachDonnees(periode)).fib;
+  const fibCouleur = coachCouleurMin(moyFib, cibleFib);
+  const fibBad = moyFib < cibleFib;
+  const fibPill = fibBad
+    ? `<span class="pill" style="background:${fibCouleur}">Sous repère</span>`
+    : `<span class="pill" style="background:var(--cn-good)">Dans la cible</span>`;
+
+  const redMax = 500;
+  const redSem = cxRedSemaine(periode);
+  const redCouleur = cxCouleurMax(redSem, redMax);
+  const redBad = redSem > redMax;
+  const redPct = redBad ? Math.round((redSem - redMax) / redMax * 100) : null;
+  const redPill = redBad
+    ? `<span class="pill" style="background:${redCouleur}">Au-dessus du repère max</span>`
+    : `<span class="pill" style="background:var(--cn-good)">Dans la cible</span>`;
+
+  const flags = (fibBad ? 1 : 0) + (redBad ? 1 : 0);
+
+  return `<div class="cx-wrap${CX_OPEN ? ' open' : ''}" id="cxWrap">
+    <div class="cx-head" id="cxHead">
+      <div>
+        <div class="cx-title"><span class="cx-name">Carences & excès</span></div>
+        <div class="cx-sub">${flags ? `${flags} point${flags>1?'s':''} d’attention` : 'Tout est dans la cible'} · ${periode} jours</div>
+      </div>
+      <div class="cx-flags">
+        ${fibBad ? `<span class="cx-dot" style="background:${fibCouleur}"></span>` : ''}
+        ${redBad ? `<span class="cx-dot" style="background:${redCouleur}"></span>` : ''}
+        <span class="cx-chev">▾</span>
+      </div>
+    </div>
+
+    <div class="cx-body">
+      <div class="seg" role="tablist">
+        ${CX_PERIODES.map(p => `<button data-cxp="${p}" aria-pressed="${p===periode}">${p} jours</button>`).join('')}
+      </div>
+
+      <div class="cx-note">
+        <span class="em">ⓘ</span>
+        <span class="tx"><b>Ceci n’est pas un diagnostic médical.</b>
+        <span>Sur la base de vos saisies des ${periode} derniers jours, certains apports peuvent sembler en dessous ou au-dessus des repères de l’ANSES. Seul un bilan sanguin permet de confirmer une carence réelle.</span></span>
+      </div>
+
+      <div class="card">
+        <div class="n-top" data-cxcard="1">
+          <div class="n-name">🌾 Fibres <span class="chevron">▾</span></div>
+          ${fibPill}
+        </div>
+        <div class="n-ref">Moy. ${periode}j : ${n1(moyFib)} g/j</div>
+        ${cxJauge(moyFib, cibleFib, fibCouleur, `${n1(moyFib)}g`, `${n0(cibleFib)}g`, null)}
+        ${fibBad ? `<button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
+        <div class="food-box">
+          <div class="fs-label">Aliments qui comblent l’écart</div>
+          ${cxSuggestionsFibres()}
+        </div>` : ''}
+        <div class="n-detail">Sur la base de vos saisies, vos apports en fibres semblent ${fibBad ? 'en dessous du' : 'conformes au'} repère ANSES sur la période.
+          <span class="src">Source : ANSES, références nutritionnelles</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="n-top" data-cxcard="1">
+          <div class="n-name">🥩 Viande rouge <span class="chevron">▾</span></div>
+          ${redPill}
+        </div>
+        <div class="n-ref">Moy. ${periode}j, ramené / semaine : ${n0(redSem)} g/sem</div>
+        ${cxJauge(redSem, redMax, redCouleur, `${n0(redSem)}g`, `${redMax}g`, redPct)}
+        ${redBad ? `<button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
+        <div class="food-box">
+          <div class="fs-label">Leviers pour repasser sous ${redMax} g/sem</div>
+          <div class="food-item"><span>🐔 Remplacer une portion par de la volaille</span></div>
+          <div class="food-item"><span>🐟 Remplacer une portion par du poisson</span></div>
+          <div class="food-item"><span>🫘 Un repas végétarien de plus dans la semaine</span></div>
+        </div>` : ''}
+        <div class="n-detail">L’ANSES ne fixe pas de valeur minimale : la viande rouge n’est pas un nutriment essentiel, seulement un plafond à ne pas dépasser — viandes rouges et charcuterie sont classées cancérogènes probables/certaines par le CIRC (OMS) au-delà de certaines quantités.
+          <span class="src">Source : ANSES, repère max 500g/semaine ; CIRC (OMS), classification viande rouge/transformée</span>
+        </div>
+      </div>
+
+      <div class="more-info">
+        <div class="mi-label">+ d’infos</div>
+        <div class="mi-links">
+          <a class="mi-link" href="https://www.anses.fr/fr/content/les-references-nutritionnelles-en-vitamines-et-mineraux" target="_blank" rel="noopener">
+            <span class="mi-tx"><b>ANSES · Références nutritionnelles</b><span>Valeurs officielles détaillées, vitamine par vitamine, minéral par minéral</span></span>
+            <span class="mi-arrow">↗</span>
+          </a>
+          <a class="mi-link" href="https://www.mangerbouger.fr/manger-mieux/se-faire-plaisir-en-mangeant-equilibre/cuisiner-maison" target="_blank" rel="noopener">
+            <span class="mi-tx"><b>Manger Bouger · Cuisiner maison</b><span>Des idées concrètes pour rééquilibrer l’assiette</span></span>
+            <span class="mi-arrow">↗</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function cxBind(){
+  const head = $('#cxHead');
+  if(head) head.onclick = () => { CX_OPEN = !CX_OPEN; tvSante(); };
+  if(!CX_OPEN) return; // rien d'autre à brancher tant que le bloc est replié
+  $('#tv').querySelectorAll('[data-cxp]').forEach(b => b.onclick = () => {
+    S.cxPeriode = Number(b.dataset.cxp); tvSante();
+  });
+  $('#tv').querySelectorAll('[data-cxcard]').forEach(top => top.onclick = () =>
+    top.closest('.card').classList.toggle('expanded'));
+  $('#tv').querySelectorAll('[data-cxtarget]').forEach(btn => btn.onclick = (ev) => {
+    ev.stopPropagation();
+    btn.nextElementSibling.classList.toggle('open');
+    btn.classList.toggle('open');
+  });
+  $('#tv').querySelectorAll('[data-cxadd]').forEach(btn => btn.onclick = (ev) => {
+    ev.stopPropagation(); quickAdd(btn.dataset.cxadd);
+  });
+}
+
+/* Onglet « Santé » du Tracker : Coach Nutrition, puis Carences & excès. */
 function tvSante(a){
-  $('#tv').innerHTML = coachBloc();
+  $('#tv').innerHTML = coachBloc() + cxBloc();
   coachBind();
+  cxBind();
 }
 
 function tvRepas(a){
