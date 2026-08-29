@@ -2022,7 +2022,12 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-gap{position:absolute; transform:translate(-50%,-50%) scale(1); padding:2px 6px; border-radius:8px;
   color:#fff; font-size:10px; font-weight:800; white-space:nowrap; border:1.5px solid var(--card);
   box-shadow:0 2px 5px rgba(0,0,0,.15); z-index:4}
-.coachnu-center{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; pointer-events:none}
+.coachnu-center{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center;
+  pointer-events:auto; border:none; background:transparent; font-family:inherit; padding:0; cursor:pointer}
+.coachnu-score-row{display:flex; align-items:center; justify-content:space-between; padding:8px 0;
+  border-bottom:1px solid var(--line); font-size:13.5px}
+.coachnu-score-row:last-child{border-bottom:none}
+.coachnu-score-row .v{font-family:var(--mono); font-weight:700}
 .coachnu-center b{display:block; font-family:var(--display); font-weight:800; font-size:44px; color:var(--ink); line-height:1}
 .coachnu-center span{display:block; font-size:10px; letter-spacing:.05em;
   text-transform:uppercase; color:var(--mute); font-weight:700; margin-top:3px}
@@ -2054,10 +2059,15 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-repas .m:last-child{border-bottom:0}
 .coachnu-repas .m b{font-weight:700; color:var(--ink)}
 .coachnu-repas .m span{color:var(--mute); font-size:10.5px; text-align:right}
+.coachnu-repas-plus{font-style:normal; display:inline-flex; align-items:center; justify-content:center;
+  width:15px; height:15px; border-radius:50%; background:var(--forest); color:#fff; font-weight:800;
+  font-size:11px; line-height:1; margin-left:4px; vertical-align:middle}
 /* Bloc « Journées type » : trois journées entières, pas de simples plats
    isolés — en-tête calories, onglets Option 1/2/3, carte de la journée avec
    ses puces carbone/saison, puis un bloc par repas. */
-.coachnu-jour-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px}
+.coachnu-jour-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px;
+  padding:6px 2px}
+.coachnu-jour-title{font-family:var(--display); font-weight:800; font-size:17px; letter-spacing:-.005em; color:var(--ink)}
 .coachnu-jour-badge{font-size:11px; font-weight:800; color:#fff; padding:5px 10px; border-radius:999px; white-space:nowrap}
 .coachnu-opt-tabs{display:flex; gap:6px; margin-bottom:12px}
 .coachnu-opt-tabs button{flex:1; padding:10px 4px; border-radius:12px; border:1.5px solid var(--line);
@@ -2101,9 +2111,9 @@ html[data-gate="1"] .phone{display:none}
 .cx-body{display:none; margin-top:12px}
 .cx-wrap.open .cx-body{display:block}
 
-.cx-note{display:flex; gap:10px; align-items:flex-start; background:var(--note-bg);
-  border:1px solid var(--note-line); border-radius:10px; padding:11px 12px; margin-bottom:16px}
-.cx-note .em{flex:0 0 auto; font-size:17px; line-height:1.25}
+.cx-note{display:flex; gap:12px; align-items:flex-start; background:var(--note-bg);
+  border:1px solid var(--note-line); border-radius:10px; padding:12px 14px; margin:14px 0 16px}
+.cx-note .em{flex:0 0 auto; font-size:17px; line-height:1.25; margin-top:1px; margin-right:2px}
 .cx-note .tx{min-width:0; flex:1}
 .cx-note .tx b{display:block; font-size:13.5px; font-weight:700; line-height:1.35; color:var(--note-ink)}
 .cx-note .tx span{display:block; font-size:12px; color:var(--note-ink); opacity:.85; line-height:1.5; margin-top:2px}
@@ -12515,7 +12525,7 @@ function coachRepasHTML(iso_){
   return `<div class="coachnu-repas">
     <div class="h"><span>Repas du ${dLabel(iso_)}</span></div>
     ${es.map(e => `<button type="button" class="m" data-crmeal="${esc(e.m)}" data-crday="${esc(iso_)}">
-      <b>${esc(MEAL[e.m].l)}</b><span>${esc(e.n)}</span>
+      <b>${esc(MEAL[e.m].l)}</b><span>${esc(e.n)} <i class="coachnu-repas-plus">+</i></span>
     </button>`).join('')}
   </div>`;
 }
@@ -12748,7 +12758,7 @@ function coachJourneesHTML(t){
 
   return `<div class="card" style="margin-top:12px">
     <div class="coachnu-jour-head" id="cnJourHead" style="cursor:pointer">
-      <div class="unit">Journ\u00e9es type</div>
+      <div class="coachnu-jour-title">Id\u00e9e recette</div>
       <div style="display:flex; align-items:center; gap:6px">
         ${badgeTxt ? `<span class="coachnu-jour-badge" style="background:${coachCouleur(constate,cible)}">\u26a0\ufe0f ${badgeTxt}</span>` : ''}
         <span class="cx-chev" style="transform:rotate(${JOUR_OPEN?180:0}deg)">\u25be</span>
@@ -12816,6 +12826,38 @@ function coachProfilSheet(){
   });
 }
 
+/* Feuille d'explication du score central : jamais un nombre affiché seul,
+   sans dire ce qu'il mesure ni pourquoi il est là où il est. Recalcule tout
+   depuis l'état courant (mode, période) plutôt que de recevoir des valeurs
+   en paramètre, pour rester juste même si l'utilisateur a changé de période
+   juste avant de cliquer. */
+function coachScoreSheet(){
+  const act = (S.prof && S.prof.act) || 'actif';
+  const mode = act === 'sportif' ? ((S.prof && S.prof.modeEntr) || 'prepa') : 'prepa';
+  const t = coachTargets(mode);
+  if(!t) return;
+  const periode = COACH_PERIODES.includes(S.cnPeriode) ? S.cnPeriode : 7;
+  const moy = coachMoyenne(coachDonnees(periode));
+  const eq = coachEq(moy, t);
+  const axes = ['kcal','prot','lip','gluc'].filter(k => t[k] && t[k].v);
+  const lignes = axes.map(k => {
+    const ax = COACH_KEYS.find(x => x.k === k);
+    const cible = t[k].v, val = moy[k] || 0;
+    const gapPct = Math.round((val - cible) / cible * 100);
+    const bonus = k === 'prot' && gapPct >= 0;
+    const couleur = bonus ? 'var(--cn-good)' : couleurPourAxe(k, val, cible);
+    return `<div class="coachnu-score-row">
+      <span class="l">${ax.icon} ${ax.label}</span>
+      <span class="v" style="color:${couleur}">${gapPct>0?'+':''}${gapPct}%</span>
+    </div>`;
+  }).join('');
+  openSheet(`
+    <h3>Score actuel : ${eq!=null?n1(eq):'\u2013'}/10</h3>
+    <div class="small mute" style="margin-bottom:10px">Une note sur 10 qui résume en un seul chiffre à quel point vos calories, protéines, lipides et glucides des ${periode} derniers jours collent aux repères de votre profil. 10 = tout est pile dans la cible ; le calcul fait la moyenne des écarts de chaque axe (un excès de protéines n'est jamais compté contre vous, faute de plafond utile pour cet axe).</div>
+    ${lignes}
+    <div class="small mute" style="margin-top:10px">Un score bas ne veut pas dire « mauvais » — juste que vous vous éloignez de la cible calculée pour votre profil sur cette période. Changez la période d'évaluation (icône réglage en haut de l'anneau) pour voir si c'est ponctuel ou installé.</div>`);
+}
+
 function coachBloc(){
   if(!nuOn()) return '';
   const act = (S.prof && S.prof.act) || 'actif';
@@ -12854,7 +12896,7 @@ function coachBloc(){
       <div class="coachnu-donut">
         <svg viewBox="0 0 200 200">${svg}</svg>
         <div class="coachnu-icons">${overlay}</div>
-        <div class="coachnu-center"><b>${eqMoy!=null?n1(eqMoy):'\u2013'}</b><span>Score actuel</span></div>
+        <button type="button" class="coachnu-center" id="coachScoreBtn"><b>${eqMoy!=null?n1(eqMoy):'\u2013'}</b><span>Score actuel</span></button>
       </div>
       <div class="coachnu-histo">
         <div class="coachnu-histo-head">
@@ -12877,6 +12919,19 @@ function coachBind(){
   wrap.querySelectorAll('[data-cnk]').forEach(b => b.onclick = () => { S.cnKey = b.dataset.cnk; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnd]').forEach(b => b.onclick = () => { S.cnDay = +b.dataset.cnd; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnopt]').forEach(b => b.onclick = () => { S.cnOpt = +b.dataset.cnopt; tvSante(agg()); });
+  const scoreBtn = $('#coachScoreBtn');
+  if(scoreBtn) scoreBtn.onclick = coachScoreSheet;
+  /* Le graphe défile horizontalement (coachnu-chart-scroll) ; comme tout
+     #tv est reconstruit à chaque clic sur une colonne, un nouveau conteneur
+     naît à scrollLeft=0 et le graphe « saute » visuellement au début —
+     ce n'est pas la colonne qui bouge, c'est le cadre qui se réinitialise.
+     On recale le défilement sur la colonne sélectionnée juste après le
+     rendu pour que le point cliqué reste sous les yeux. */
+  const scrollWrap = wrap.querySelector('.coachnu-chart-scroll');
+  const selCol = wrap.querySelector('.coachnu-col.on');
+  if(scrollWrap && selCol){
+    scrollWrap.scrollLeft = Math.max(0, selCol.offsetLeft - scrollWrap.clientWidth/2 + selCol.offsetWidth/2);
+  }
   const jh = $('#cnJourHead');
   if(jh) jh.onclick = () => { JOUR_OPEN = !JOUR_OPEN; tvSante(agg()); };
   wrap.querySelectorAll('[data-cnmr]').forEach(b => b.onclick = () => mesRecSheet(b.dataset.cnmr));
@@ -17419,6 +17474,40 @@ return {ouvrir, fermer, verifier, carteProfil, blocTrous, trous,
 </script>
 <!-- ═══ fin du bloc RÉCAP ═══ -->
 
+<script>
+/* ---------------- tabbar : recalage anti-clavier iOS ----------------
+   Bug iOS Safari/PWA connu : dès qu'un champ de saisie a été focus (clavier
+   ouvert), la position d'un élément `position:fixed` peut rester calée sur
+   la disposition qu'avait la page CLAVIER OUVERT au lieu de revenir au bas
+   du vrai viewport visible une fois le clavier fermé — la barre atterrit
+   alors "flottante" au milieu de l'écran plutôt qu'en bas. Plus fréquent
+   sur les iPhone récents (Dynamic Island, safe-area) que sur Android, ce
+   qui explique que ça ne se voie pas forcément sur tous les téléphones.
+   Le correctif : ignorer le `fixed` natif pour le `bottom` et le recalculer
+   nous-mêmes depuis window.visualViewport, qui reflète toujours le vrai
+   viewport visible, clavier ouvert ou non. */
+if(window.visualViewport){
+  const tb = document.getElementById('tabbar');
+  if(tb){
+    const recalerTabbar = () => {
+      const vv = window.visualViewport;
+      const decalageBas = window.innerHeight - (vv.height + vv.offsetTop);
+      /* Pas d'écart mesurable : on efface le style inline et on laisse le
+         CSS d'origine gérer la marge de 10px + zone de sécurité. Un écart
+         réel (le bug) force alors un recalage exact. */
+      if(decalageBas > 2) tb.style.bottom = decalageBas + 'px';
+      else tb.style.removeProperty('bottom');
+    };
+    window.visualViewport.addEventListener('resize', recalerTabbar);
+    window.visualViewport.addEventListener('scroll', recalerTabbar);
+    /* Le clavier se ferme parfois sans déclencher resize/scroll avant que
+       le focus n'ait vraiment quitté le champ : un recalage différé après
+       tout blur rattrape ce cas. */
+    document.addEventListener('focusout', () => setTimeout(recalerTabbar, 50), true);
+    recalerTabbar();
+  }
+}
+</script>
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
