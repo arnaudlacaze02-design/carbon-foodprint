@@ -2038,29 +2038,42 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-chart-wrap{width:100%}
 .coachnu-target-head{display:flex; justify-content:flex-end; gap:6px; margin-bottom:4px; flex-wrap:wrap}
 .coachnu-chart-scroll{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px}
-.coachnu-chart{position:relative; height:112px; display:flex; align-items:flex-end;
-  padding:0 0 20px; border-bottom:1px dashed var(--line)}
+/* Barres et ligne de repère vivent dans LA MÊME boîte, sans marge interne :
+   avant, un padding-bottom de 20px sur .coachnu-chart faisait que le repère
+   (positionné en % de la boîte pleine, padding compris — c'est ainsi que
+   les % resolvent pour un enfant en position absolute) et les barres
+   (positionnées en % de leur propre conteneur, réduit par ce même padding)
+   ne mesuraient PAS le même 100 % : la ligne flottait bien plus haut que sa
+   vraie valeur ne le justifiait, au point qu'une barre 24 % au-dessus de la
+   cible pouvait apparaître EN DESSOUS de la ligne. Les jours de semaine ont
+   été sortis dans leur propre rangée (.coachnu-days) sous le graphique pour
+   que .coachnu-chart ne contienne plus que des éléments mesurés sur un seul
+   et même 100 % : barres, repère, label de valeur. */
+.coachnu-chart{position:relative; height:92px; display:flex; align-items:flex-end;
+  border-bottom:1px dashed var(--line)}
 .coachnu-target{position:absolute; left:0; right:0; border-top:1.5px dashed var(--ink-soft); opacity:.55; z-index:1}
 .coachnu-target-lab{font-size:9px; font-weight:800; color:var(--ink-soft);
   background:var(--paper); padding:2px 7px; border-radius:6px; white-space:nowrap; border:1px solid var(--line-soft)}
-.coachnu-col{flex:0 0 auto; display:flex; flex-direction:column; align-items:center; height:100%;
-  justify-content:flex-end; cursor:pointer; position:relative; z-index:2}
-.coachnu-bwrap{width:15px; height:100%; display:flex; align-items:flex-end; position:relative; margin:0 auto}
-.coachnu-bar{width:100%; border-radius:5px 5px 2px 2px; transition:height .5s cubic-bezier(.25,1,.5,1)}
+.coachnu-col{flex:0 0 auto; height:100%; display:flex; align-items:flex-end; justify-content:center;
+  cursor:pointer; position:relative; z-index:2}
+.coachnu-bar{width:15px; border-radius:5px 5px 2px 2px; transition:height .5s cubic-bezier(.25,1,.5,1)}
 .coachnu-col.on .coachnu-bar{outline:2px solid var(--forest); outline-offset:1px}
 /* Le label vit à l'intérieur de la boîte : positionné en `top` (jamais
    négatif) et clampé via max() pour ne jamais dépasser le haut de
-   .coachnu-bwrap, qui démarre pile au bord de .coachnu-chart-scroll — sans
-   la moindre marge au-dessus. Indispensable : .coachnu-chart-scroll a un
-   défilement horizontal (overflow-x:auto), et la spec CSS force alors
-   overflow-y à se comporter en 'auto' lui aussi, quoi qu'on lui demande
-   explicitement ; tout ce qui dépasse la boîte par le haut est rogné et
-   invisible, sans qu'aucune propriété ne le signale dans l'inspecteur. */
+   .coachnu-col, qui EST maintenant .coachnu-chart pleine hauteur — plus de
+   sous-conteneur réduit par un padding ou un label de jour à partager.
+   Indispensable : .coachnu-chart-scroll a un défilement horizontal
+   (overflow-x:auto), et la spec CSS force alors overflow-y à se comporter
+   en 'auto' lui aussi, quoi qu'on lui demande explicitement ; tout ce qui
+   dépasse la boîte par le haut est rogné et invisible, sans qu'aucune
+   propriété ne le signale dans l'inspecteur. */
 .coachnu-val{position:absolute; left:50%; transform:translateX(-50%); font-size:9.5px; font-weight:800;
   color:var(--ink); white-space:nowrap; font-family:var(--mono)}
 .coachnu-col.on .coachnu-val{font-size:12.5px; color:var(--forest);
   background:var(--card); padding:1px 6px; border-radius:6px; border:1px solid var(--line)}
-.coachnu-day{font-size:9.5px; font-weight:700; color:var(--mute); margin-top:4px}
+.coachnu-days{display:flex; margin-top:4px}
+.coachnu-day{flex:0 0 auto; text-align:center; cursor:pointer;
+  font-size:9.5px; font-weight:700; color:var(--mute)}
 .coachnu-repas{margin-top:10px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px}
 .coachnu-repas .h{font-size:11px; font-weight:800; color:var(--ink); display:flex; justify-content:space-between; margin-bottom:6px}
 .coachnu-repas .m{font-size:11.5px; padding:4px 0; border-bottom:1px dotted var(--line-soft); display:flex; justify-content:space-between; gap:8px;
@@ -12544,18 +12557,22 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
        hauteur du label + une marge, sans jamais descendre sous 2px : au
        pire (barre proche du maximum), le label se recale juste sous le
        bord de la boîte plutôt que de la déborder. Le mélange % / px dans
-       max()/calc() se résout à la taille réelle de .coachnu-bwrap, pas
+       max()/calc() se résout à la taille réelle de .coachnu-col, pas
        besoin de connaître sa hauteur en pixels ici. */
     const place = i === selIdx ? 26 : 17; // hauteur du label + marge, par variante
     const valTop = `max(2px, calc((100% - ${h}%) - ${place}px))`;
     return `<div class="coachnu-col${i===selIdx?' on':''}" data-cnd="${i}" style="width:${colW}px">
-      <div class="coachnu-bwrap">
-        <div class="coachnu-val" style="top:${valTop}">${isEq?n1(val):n0(val)}${i===selIdx?' '+ax.unit:''}</div>
-        <div class="coachnu-bar" style="height:${h}%;background:${color}"></div>
-      </div>
-      <div class="coachnu-day">${coachJourLabel(d.d)}</div>
+      <div class="coachnu-val" style="top:${valTop}">${isEq?n1(val):n0(val)}${i===selIdx?' '+ax.unit:''}</div>
+      <div class="coachnu-bar" style="height:${h}%;background:${color}"></div>
     </div>`;
   }).join('');
+  /* Les jours de la semaine vivent dans leur propre rangée, sous le
+     graphique : voir la note sur .coachnu-chart, les mélanger dans le même
+     conteneur que les barres est ce qui cassait l'alignement avec la ligne
+     de repère. Même largeurs de colonne, même gap, donc toujours alignés
+     avec leur barre malgré le défilement horizontal partagé. */
+  const days = data.map((d, i) =>
+    `<div class="coachnu-day" data-cnd="${i}" style="width:${colW}px">${coachJourLabel(d.d)}</div>`).join('');
   /* La ligne pointillée reste dans le contenu défilant (elle doit traverser
      tous les jours) ; le libellé, lui, sort du flux défilant et vit dans un
      bandeau fixe au-dessus, aligné à droite — il ne peut plus scroller sous
@@ -12576,6 +12593,7 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
   return `<div class="coachnu-chart-wrap">${lab}
     <div class="coachnu-chart-scroll">
       <div class="coachnu-chart" style="width:${totalW}px;gap:${gapW}px">${ligne}${cols}</div>
+      <div class="coachnu-days" style="width:${totalW}px;gap:${gapW}px">${days}</div>
     </div>
   </div>`;
 }
