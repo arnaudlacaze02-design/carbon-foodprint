@@ -2706,7 +2706,7 @@ function tabRead(){
    annoncer du tout. */
 const NOTIF0 = () => ({on:false, vu:{}, lastPost:null, luPost:null,
                        vuLikes:null, vuAmis:null, vuDefis:null,
-                       pushOn:false, demande:null, vuTro:null});
+                       pushOn:false, demande:null, vuTro:null, vuSept26:false});
 
 let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false, drinkMore:false,
@@ -5805,7 +5805,7 @@ function postCard(x){
 
   const t = TROPHIES.find(y => y.s === b.key);
   return `<div class="post">${tete}
-    <div class="stage">${t ? medal(t, t.need, 'p' + String(x.id).replace(/[^\w-]/g, ''))
+    <div class="stage">${t ? medal(t, troNeed(t), 'p' + String(x.id).replace(/[^\w-]/g, ''))
       : `<div style="font-size:66px;line-height:1">${esc(b.emoji || '🏅')}</div>`}</div>
     <div class="cap">
       <h4>${t ? '' : esc(b.emoji || '🏅') + ' '}${esc(b.label || b.key || 'Badge')}</h4>
@@ -5871,7 +5871,7 @@ function postOpen(id, tab){
         ? `<div class="small mute">${kg != null
              ? `${n2(kgBase / base)} kg CO₂e par personne · ${n2(kg)} kg pour ${pers}`
              : 'Recette en texte libre, antérieure aux ingrédients mesurés'}</div>`
-        : (t ? `<div style="margin-top:12px">${medal(t, t.need, 'sh')}</div>
+        : (t ? `<div style="margin-top:12px">${medal(t, troNeed(t), 'sh')}</div>
                <p class="small" style="margin-top:10px">${esc(t.d)}</p>` : '')}
 
       ${rec ? `<div class="rtabs">
@@ -10909,7 +10909,7 @@ async function diagSheet(){
             'var(--mute)']);
 
   const nAmis = S.fr.friends.length;
-  const acquis = TROPHIES.filter((t,i) => troValue(t, scoring()) >= t.need).length;
+  const acquis = trophiesVisibles().filter(t => troValue(t, scoring()) >= troNeed(t)).length;
 
   openSheet(`
     <div class="unit">Diagnostic</div>
@@ -14471,6 +14471,30 @@ function vegMealCount(){
   return S.hist.filter(e => (e.m === 'dej' || e.m === 'din') && isVeg(e)).length;
 }
 
+/* Même compteur, borné à un mois civil précis (année pleine, mois 0-11). Sert
+   aux défis ponctuels datés — Septembre 2026 d'abord — qui ne doivent compter
+   que les repas pris dans la fenêtre annoncée, ni avant ni après. */
+function vegMealCountMonth(y, m){
+  return S.hist.filter(e => {
+    if(e.m !== 'dej' && e.m !== 'din') return false;
+    if(!isVeg(e)) return false;
+    const d = new Date(e.d + 'T12:00:00');
+    return d.getFullYear() === y && d.getMonth() === m;
+  }).length;
+}
+
+/* Seuil du défi Septembre 2026 : l'objectif végé hebdomadaire du profil,
+   multiplié par 4,1 semaines et arrondi au repas supérieur — 5/semaine donne
+   ainsi 21. Sans objectif déclaré, impossible de multiplier un chiffre qui
+   n'existe pas : le seuil reprend alors le rythme réel d'août 2026 (×4),
+   plafonné à 21 pour rester dans le même ordre de grandeur que la règle
+   générale. Un minimum d'un repas dans les deux cas, pour qu'un profil resté
+   sur 0 ou un mois d'août vide ne décroche pas le badge sans effort. */
+function sept26Need(){
+  if(S.prof.objVege != null) return Math.max(1, Math.ceil(S.prof.objVege * 4.1));
+  return Math.max(1, Math.min(21, vegMealCountMonth(2026, 7) * 4));
+}
+
 /* Journées entières sous le budget quotidien. Deux garde-fous : déjeuner et
    dîner tous deux saisis, sinon une journée à moitié renseignée décroche le
    badge sans rien prouver, et la journée doit être révolue — une journée en
@@ -14617,6 +14641,18 @@ const TROPHIES = [
    d:'Une semaine civile entière, déjeuner et dîner saisis chaque jour, aucun repas avec viande ni poisson.',
    m:sc => vegWeek100(sc)},
 
+  /* ---------- défi ponctuel daté ---------- */
+  /* N'existe pas avant le 1ᵉʳ septembre 2026 : `hideBefore` l'écarte de la
+     grille et des compteurs jusque-là (cf. trophiesVisibles). Le seuil et la
+     valeur sont tous deux bornés à ce mois civil précis, contrairement aux
+     badges « Saison … » qui retiennent le meilleur des années — ici il n'y en
+     a qu'une, ce n'est pas un rendez-vous annuel. */
+  {s:'Défi Septembre 2026', n:'Défi Septembre 2026', e:'🥗', pal:'green',
+   hideBefore:'2026-09-01', u:'repas',
+   need: sept26Need,
+   d:'Défi ponctuel, valable uniquement en septembre 2026 : atteindre ce nombre de repas végétariens (déjeuner ou dîner) sur le mois. Le seuil reprend l’objectif végé hebdomadaire du profil × 4,1 semaines, arrondi au repas supérieur ; à défaut d’objectif déclaré, il reprend le rythme d’août 2026 (× 4, plafonné à 21).',
+   m:() => vegMealCountMonth(2026, 8)},
+
   /* ---------- journées sans viande rouge ---------- */
   {s:'1ʳᵉ journée', n:'Première journée sans viande rouge', e:'🥩', need:1, u:'journée', pal:'sky', img:'b-poule.webp',
    d:'Une journée révolue, déjeuner et dîner enregistrés, sans bœuf, veau, kebab ni cheeseburger. Le poulet et le poisson y sont admis.',
@@ -14726,6 +14762,23 @@ const TROPHIES = [
 
 function troValue(t, sc){ return t.m ? t.m(sc) : sc.saved; }
 
+/* Seuil d'un trophée. Un nombre pour l'immense majorité des badges, posé une
+   fois pour toutes ; une fonction pour les rares badges dont le seuil dépend
+   du profil ou d'une donnée déjà écrite (le défi Septembre 2026 est le
+   premier). Un seul point de lecture, pour ne jamais comparer une progression
+   à une fonction plutôt qu'à sa valeur. */
+function troNeed(t){ return typeof t.need === 'function' ? t.need() : t.need; }
+
+/* Trophées à montrer maintenant. Un badge daté (`hideBefore`) n'existe pas
+   avant sa fenêtre : ni dans la grille, ni dans les compteurs « X sur Y ». Il
+   reste néanmoins à sa place dans TROPHIES — jamais retiré ni réordonné — pour
+   que les index utilisés ailleurs (data-tro, troSheet, troZoom) continuent de
+   désigner le bon badge. */
+function trophiesVisibles(){
+  const T = today();
+  return TROPHIES.filter(t => !t.hideBefore || T >= t.hideBefore);
+}
+
 function tribar(fills, op){
   const L = DB.logo;
   return `<g transform="translate(${L.ox} ${L.oy}) scale(${L.k})">` +
@@ -14790,7 +14843,7 @@ try{ document.documentElement.style.setProperty('--b-carotte',
        `url(${BADGE_IMG['b-carotte.webp']})`); }catch(e){}
 
 function medal(t, done, i){
-  const p = PAL[t.pal], got = done >= t.need, pct = Math.min(1, done / t.need);
+  const p = PAL[t.pal], got = done >= troNeed(t), pct = Math.min(1, done / troNeed(t));
   const R = 40, C = 2 * Math.PI * R;
   const img = badgeSrc(t.img);
 
@@ -14873,21 +14926,21 @@ function medal(t, done, i){
 }
 
 function troSheet(i){
-  const sc = scoring(), t = TROPHIES[i], v = troValue(t, sc), got = v >= t.need;
+  const sc = scoring(), t = TROPHIES[i], v = troValue(t, sc), got = v >= troNeed(t);
   const fmt = x => t.u === 'kg' ? (x >= 1000 ? n2(x/1000) + ' t' : n0(x) + ' kg') : n0(x);
   openSheet(`
     <div class="unit">${got ? 'Trophée obtenu' : 'Trophée à venir'}</div>
     <div class="trodet">${badgeSrc(t.img) ? '' : `<span class="te">${t.e}</span>`}<span class="tn">${esc(t.n)}</span></div>
-    <div class="small mute">Seuil : ${fmt(t.need)}${t.u !== 'kg' ? ' ' + uLabel(t.u, t.need) : ' de CO₂e évités'}</div>
+    <div class="small mute">Seuil : ${fmt(troNeed(t))}${t.u !== 'kg' ? ' ' + uLabel(t.u, troNeed(t)) : ' de CO₂e évités'}</div>
     <button class="tromed" id="tro_zoom" aria-label="Voir le badge en grand">${medal(t, v, 'sh')}</button>
     <div class="hr"></div>
     <p class="small">${esc(t.d)}</p>
     <div class="hr"></div>
     <div class="wnow">
       <div class="l">Votre compteur</div><div class="v">${fmt(v)}</div>
-      <div class="tr"><i style="width:${Math.min(100, v/t.need*100).toFixed(0)}%;background:${PAL[t.pal].jonc}"></i></div>
+      <div class="tr"><i style="width:${Math.min(100, v/troNeed(t)*100).toFixed(0)}%;background:${PAL[t.pal].jonc}"></i></div>
       <div class="l small mute" style="grid-column:1/-1">${got ? 'Acquis.'
-        : `Il reste ${fmt(Math.max(0, t.need - v))} pour l’obtenir.`}</div>
+        : `Il reste ${fmt(Math.max(0, troNeed(t) - v))} pour l’obtenir.`}</div>
     </div>
     ${got && SB.ready() ? `<button class="btn btn-2" id="tro_share" style="margin-top:12px">${
       SESS ? 'Partager sur le feed' : 'Partager — il faut un compte'}</button>
@@ -14908,7 +14961,7 @@ function troSheet(i){
    qu'on veut justement voir en entier. Ici le badge occupe la largeur, sur un
    voile sombre, et n'importe où l'on touche referme. */
 function troZoom(i){
-  const sc = scoring(), t = TROPHIES[i], v = troValue(t, sc), got = v >= t.need;
+  const sc = scoring(), t = TROPHIES[i], v = troValue(t, sc), got = v >= troNeed(t);
   const z = $('#zoom');
   z.innerHTML = `
     <div class="zwrap">
@@ -14924,22 +14977,26 @@ function troZoom(i){
 }
 
 function badgeBlock(sc){
-  const list = S.troAll ? TROPHIES : TROPHIES.slice(0, 3);
+  /* `vis` porte les objets, pas des index à elle : chaque badge retrouve sa
+     vraie place dans TROPHIES via indexOf, pour que data-tro continue de
+     désigner le bon trophée même si un badge daté est écarté de la liste. */
+  const vis = trophiesVisibles();
+  const list = S.troAll ? vis : vis.slice(0, 3);
   const fmt = (x,u) => u === 'kg' ? (x >= 1000 ? n1(x/1000) + ' t' : n0(x)) : n0(x);
+  const acquisN = vis.filter(t => troValue(t, sc) >= troNeed(t)).length;
   return `<div class="bfamttl">${n1(sc.saved)} kg CO₂e évités</div>
-    <div class="bfamsub">${TROPHIES.filter(t => troValue(t, sc) >= t.need).length} trophée${
-      TROPHIES.filter(t => troValue(t, sc) >= t.need).length > 1 ? 's' : ''} sur ${TROPHIES.length}</div>
+    <div class="bfamsub">${acquisN} trophée${acquisN > 1 ? 's' : ''} sur ${vis.length}</div>
     <div class="bgrid">
-      ${list.map((t,i) => { const v = troValue(t, sc), got = v >= t.need;
+      ${list.map(t => { const i = TROPHIES.indexOf(t), v = troValue(t, sc), got = v >= troNeed(t);
         return `<button class="badge${got ? '' : ' locked'}" data-tro="${i}">
           ${medal(t, v, i)}
           <div class="be">${badgeSrc(t.img) ? '' : t.e}</div>
           <div class="bt">${t.s}</div>
-          <div class="bp">${fmt(v, t.u)} <s>/</s> ${fmt(t.need, t.u)}</div>
+          <div class="bp">${fmt(v, t.u)} <s>/</s> ${fmt(troNeed(t), t.u)}</div>
         </button>`; }).join('')}
     </div>
     <button class="seemore" id="troMore">${S.troAll
-      ? 'Réduire' : `Voir les ${TROPHIES.length - 3} trophées suivants ›`}</button>`;
+      ? 'Réduire' : `Voir les ${vis.length - 3} trophées suivants ›`}</button>`;
 }
 
 function pointsSheet(){
@@ -16004,6 +16061,43 @@ function notifDemande(){
   $('#nd_non').onclick = () => { repondre('non'); toast('Rappels désactivés · modifiable dans Profil'); };
 }
 
+/* ---------------- annonce du défi Septembre 2026 ----------------
+   Une seule fois, à la toute première ouverture de l'app à compter du
+   1ᵉʳ septembre 2026 — `vuSept26` verrouille la question comme `pmVu` verrouille
+   les fiches de présentation. Deux canaux volontairement cumulés : un bandeau
+   dans l'app, garanti quel que soit l'état des autorisations système, et une
+   notification push si les rappels sont actifs — pour quelqu'un qui n'ouvre
+   l'app qu'en fin de journée, c'est parfois la seule des deux qui arrive à
+   temps.
+
+   Le mois passé, on pose quand même le repère sans rien montrer : rouvrir
+   l'app en octobre ne doit pas faire surgir l'annonce d'un défi déjà clos. */
+function sept26Announce(){
+  if(S.notif.vuSept26) return;
+  const T = today();
+  if(T < '2026-09-01') return;
+  S.notif.vuSept26 = true; save();
+  if(T > '2026-09-30') return;
+  const need = sept26Need();
+  openSheet(`
+    <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--mute)">Défi du mois</div>
+    <h3>Défi Septembre 2026</h3>
+    <p class="small" style="line-height:1.7">Ce mois-ci : atteindre <b>${need} repas
+      végétarien${need > 1 ? 's' : ''}</b> (déjeuner ou dîner) d’ici le 30 septembre pour
+      débloquer le badge.</p>
+    <p class="small mute" style="line-height:1.7">${S.prof.objVege != null
+      ? `Calculé depuis votre objectif de profil : ${S.prof.objVege} repas végé par semaine × 4,1.`
+      : `Aucun objectif végé déclaré dans le profil : ce seuil reprend votre rythme d’août 2026.`}</p>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-1" id="s26_ok">Compris</button>
+    </div>`);
+  const b = $('#s26_ok'); if(b) b.onclick = closeSheet;
+  notifMontre('Défi Septembre 2026',
+    `Atteignez ${need} repas végétarien${need > 1 ? 's' : ''} ce mois-ci pour débloquer le badge.`,
+    'badge', 'jeux');
+}
+
 /* Repeindre le profil s'il est à l'écran, et rien d'autre sinon. La nuance
    compte : cette fonction est aussi appelée par la fenêtre de première
    ouverture, et un « Oui, activer » qui projetterait sur la page Profil serait
@@ -16290,7 +16384,7 @@ function notesSheet(){
 function troWatch(){
   let sc;
   try{ sc = scoring(); }catch(e){ return; }
-  const acquis = TROPHIES.filter(t => troValue(t, sc) >= t.need).map(t => t.s);
+  const acquis = TROPHIES.filter(t => troValue(t, sc) >= troNeed(t)).map(t => t.s);
   const avant = S.notif.vuTro;
   S.notif.vuTro = acquis; save();
   if(!avant) return;                          /* premier passage : repère seul */
@@ -16441,7 +16535,13 @@ go(S.tab);
    est ouvert : deux fenêtres coup sur coup, c'en est une de trop. Elles
    reviendront au lancement suivant, une fois l'utilisateur chez lui. */
 if(GATE.on){ S.prof.onb = true; save(); }
-else if(!S.pmVu) setTimeout(pmOpen, 420);
+else{
+  if(!S.pmVu) setTimeout(pmOpen, 420);
+  /* Décalée derrière les fiches de présentation, pour la même raison qu'elles
+     cèdent déjà le passage à l'écran d'accueil : deux fenêtres coup sur coup
+     n'en font pas une meilleure. */
+  setTimeout(sept26Announce, 900);
+}
 
 /* Retour au premier plan. Une PWA iOS n'est pas rechargée quand on y revient :
    sans ce contrôle, une session expirée pendant la nuit laisserait l'app
@@ -17106,7 +17206,7 @@ function calcul(p){
      coup par recettesPeriode(). */
   var sc = scoring();
   var s1 = {cle:p.cle,
-            badges: TROPHIES.filter(t => troValue(t, sc) >= t.need).length,
+            badges: trophiesVisibles().filter(t => troValue(t, sc) >= troNeed(t)).length,
             defis: (S.podium && S.podium.or) || 0};
   var s0 = (etat().snap || {})[p.type];
   r.snapCourant = s1;
