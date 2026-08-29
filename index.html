@@ -714,17 +714,7 @@ p{margin:0 0 9px}
   margin-top:7px; padding:9px 10px; background:var(--track); border-radius:8px}
 .hr{height:1px; background:var(--line-soft); margin:13px 0}
 
-/* ---------------- gauge : élément signature ---------------- */
-.gauge{position:relative; height:22px; background:var(--track); border-radius:3px; overflow:hidden; display:flex}
-.gauge .seg{height:100%}
-.gauge .over-zone{position:absolute; top:0; bottom:0; z-index:2; opacity:.62;
-  background:repeating-linear-gradient(118deg,var(--brick) 0 4px,rgba(163,46,43,0) 4px 9px)}
-.gauge-wrap{position:relative}
-.tick{position:absolute; top:-4px; bottom:-4px; width:2px; background:var(--ink); z-index:3}
-.tick::after{
-  content:attr(data-label); position:absolute; top:-15px; right:4px;
-  font-family:var(--mono); font-size:9px; letter-spacing:.05em; color:var(--ink); white-space:nowrap;
-}
+/* ---------------- gauge-legend : légende cliquable des jauges ---------------- */
 .gauge-legend{display:flex; gap:12px; flex-wrap:wrap; margin-top:8px}
 .gauge-legend span{font-family:var(--mono); font-size:10px; color:var(--ink-soft); display:flex; align-items:center; gap:5px}
 /* La légende devient la cible de clic : un segment de jauge peut ne faire que
@@ -734,7 +724,6 @@ p{margin:0 0 9px}
   cursor:pointer; -webkit-tap-highlight-color:transparent}
 .gauge-legend button:active{opacity:.5}
 .gauge-legend button .ar{opacity:.42; font-size:11px; margin-left:1px}
-.gauge .seg[data-gm]{cursor:pointer}
 
 /* ---------------- cases à cocher des marques ---------------- */
 .chk{display:flex; align-items:flex-start; gap:11px; width:100%; text-align:left;
@@ -1503,13 +1492,9 @@ button.tip:active{transform:scale(.995)}
 
 /* ---------------- trois dernières semaines ---------------- */
 .daysgrid{position:relative}
-.budline{position:absolute; left:0; right:0; height:0; border-top:1px dashed var(--brick); z-index:2; pointer-events:none}
-.dayleg{display:flex; flex-wrap:wrap; gap:9px 12px; margin-top:11px}
-.dayleg span{display:flex; align-items:center; gap:5px; font-family:var(--mono); font-size:9.5px;
-  letter-spacing:.03em; color:var(--ink-soft); text-transform:uppercase}
-.dayleg .budkey{width:12px; height:0; border-top:2px dashed var(--brick); display:inline-block}
-.dayscard{background:var(--card)}
-.dayscard:active{background:var(--active)}
+/* .budline, .dayleg, .dayscard, .wkday, .wkhead : déjà déclarées plus haut,
+   avec exactement les mêmes valeurs — un copier-coller resté en double ici
+   n'ajoutait rien, la cascade se contentait de réécrire l'identique. */
 /* Variante défilante : historique complet, colonnes de largeur fixe plutôt
    que flex:1 — au-delà de quelques semaines, des colonnes qui se contractent
    pour tenir dans l'écran deviendraient illisibles. Un défilement horizontal
@@ -1518,17 +1503,6 @@ button.tip:active{transform:scale(.995)}
 .hist-scroll{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch}
 .days.scroll{gap:2px}
 .days.scroll .d{flex:0 0 8px; min-width:8px}
-.wkday{display:grid; grid-template-columns:52px 1fr auto; gap:4px 10px; align-items:center; padding:8px 0;
-  border-bottom:1px solid var(--line-soft)}
-.wkday:last-child{border-bottom:0}
-.wkday .dd{font-family:var(--mono); font-size:10px; color:var(--mute); letter-spacing:.02em; line-height:1.2}
-.wkday .dd b{display:block; font-family:var(--serif); font-size:14px; color:var(--ink)}
-.wkday .stack2{height:14px; border-radius:3px; overflow:hidden; display:flex; background:var(--track)}
-.wkday .stack2 i{height:100%}
-.wkday .kg2{font-family:var(--display); font-weight:800; font-variant-numeric:tabular-nums; font-size:14px; text-align:right}
-.wkhead{display:flex; align-items:baseline; justify-content:space-between; margin:14px 0 4px}
-.wkhead .wt{font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--mute)}
-.wkhead .wv{font-family:var(--display); font-weight:800; font-variant-numeric:tabular-nums; font-size:14px}
 
 /* ---------------- saisie : accueil et blocs repas ---------------- */
 .homegrid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:4px}
@@ -2057,7 +2031,7 @@ html[data-gate="1"] .phone{display:none}
 /* Le défilement horizontal, plutôt que des colonnes qui rétrécissent, garde
    chaque barre lisible que la période affichée soit 7, 14 ou 30 jours. */
 .coachnu-chart-wrap{width:100%}
-.coachnu-target-head{display:flex; justify-content:flex-end; margin-bottom:4px}
+.coachnu-target-head{display:flex; justify-content:flex-end; gap:6px; margin-bottom:4px; flex-wrap:wrap}
 .coachnu-chart-scroll{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px}
 .coachnu-chart{position:relative; height:112px; display:flex; align-items:flex-end;
   padding:0 0 20px; border-bottom:1px dashed var(--line)}
@@ -2074,7 +2048,9 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-day{font-size:9.5px; font-weight:700; color:var(--mute); margin-top:4px}
 .coachnu-repas{margin-top:10px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px}
 .coachnu-repas .h{font-size:11px; font-weight:800; color:var(--ink); display:flex; justify-content:space-between; margin-bottom:6px}
-.coachnu-repas .m{font-size:11.5px; padding:4px 0; border-bottom:1px dotted var(--line-soft); display:flex; justify-content:space-between; gap:8px}
+.coachnu-repas .m{font-size:11.5px; padding:4px 0; border-bottom:1px dotted var(--line-soft); display:flex; justify-content:space-between; gap:8px;
+  width:100%; text-align:left; background:none; border-left:0; border-right:0; border-top:0; cursor:pointer; font-family:inherit}
+.coachnu-repas .m:active{opacity:.6}
 .coachnu-repas .m:last-child{border-bottom:0}
 .coachnu-repas .m b{font-weight:700; color:var(--ink)}
 .coachnu-repas .m span{color:var(--mute); font-size:10.5px; text-align:right}
@@ -2387,14 +2363,6 @@ function besoinCal(){
 /* g de protéines par kilo retenu pour le niveau d'activité déclaré. */
 const protGkg = () => PROT_GKG[(S.prof || {}).act] || PROT_GKG.actif;
 
-/* Écart relatif entre la valeur retenue et sa recette, en pourcentage. C'est ce
-   que la fiche aliment affiche, et ce qu'un contrôle de non-régression compare :
-   si une valeur ADEME change, les recompositions qui en dépendent dérivent, et
-   cet écart le dit avant que quiconque s'en aperçoive. */
-function ecartRecompose(sl){
-  const f = F.get(sl), t = tRecompose(sl);
-  return (t == null || !f || !f.t) ? null : (t - f.t) / f.t * 100;
-}
 const MEALS = [
   {k:'pdj',  l:'Petit-déjeuner', s:'Matin', c:'var(--s4)'},
   {k:'dej',  l:'Déjeuner',       s:'Midi',  c:'var(--s1)'},
@@ -3128,24 +3096,6 @@ function carteAxeGrande(o){
   </div>`;
 }
 
-function gauge(byMeal, total){
-  const scale = Math.max(BUDGET_J, total) * 1.02;
-  const segs = MEALS.filter(m => byMeal[m.k] > 0)
-    .map(m => `<i class="seg" style="width:${(byMeal[m.k]/scale*100).toFixed(2)}%;background:${m.c}"></i>`)
-    .join('');
-  const ov = Math.max(0, total - BUDGET_J);
-  const over = ov > 0
-    ? `<span class="over-zone" style="left:${(BUDGET_J/scale*100).toFixed(2)}%;width:${(ov/scale*100).toFixed(2)}%"></span>`
-    : '';
-  const tick = `<span class="tick" data-label="budget ${n1(BUDGET_J)}" style="left:${clamp(BUDGET_J/scale*100,0,99.4).toFixed(2)}%"></span>`;
-  return `<div class="gauge-wrap" style="padding-top:16px">
-      <div class="gauge">${segs}${over}</div>${tick}
-    </div>
-    <div class="gauge-legend">${MEALS.filter(m=>byMeal[m.k]>0)
-      .map(m=>`<span><i class="dot" style="background:${m.c}"></i>${m.l} ${n2(byMeal[m.k])}</span>`).join('')
-      || '<span>Aucune saisie pour l’instant</span>'}
-    </div>`;
-}
 function toast(msg){
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
   clearTimeout(toast.t); toast.t = setTimeout(()=>t.classList.remove('on'), 2100);
@@ -6341,9 +6291,6 @@ function renderCuisine(){
   });
   brancher();
 }
-/* L'ancien nom reste appelable : plusieurs écrans ouvrent la bibliothèque par
-   son nom historique, et les faire tous pointer ailleurs n'apporterait rien. */
-function renderBiblio(){ renderCuisine(); }
 
 /* ==================== Mon frigo ====================
    La recherche est ici inversée par rapport au reste de l'app : on ne part pas
@@ -7477,14 +7424,7 @@ function comPortion(slug){
   if(S.comCat === 'boisson' || S.comCat === 'cafethe') return f.p;
   return Math.round(f.p * COM_COEF[S.comCat] / 5) * 5 || 5;
 }
-function comLabel(slug){
-  const base = F.get(slug).p, q = comPortion(slug);
-  if(S.comCat === 'boisson')  return `verre type ${base} ml`;
-  if(S.comCat === 'cafethe')  return `tasse type ${base} ml`;
-  if(S.comCat === 'plat') return `portion type ${base} g`;
-  if(S.comCat === 'dessert') return SWEET.has(slug) ? `dessert, ${q} g` : `hors dessert type, ${q} g`;
-  return `entrée, ${q} g (type ${base} g)`;
-}
+
 
 function editSheet(){
   const es = [...S.hist].sort((a,b) => b.d.localeCompare(a.d) || b.id.localeCompare(a.id)).slice(0, 30);
@@ -10830,45 +10770,6 @@ function paintAva(){
   a.setAttribute('aria-label', SESS ? 'Profil · ' + SESS.username : 'Profil, aucun compte');
 }
 
-function accountCard(){
-  if(!SB.ready()) return '';
-  if(SESS){
-    const ls = S.lastSync
-      ? 'Dernière synchro ' + new Date(S.lastSync).toLocaleString('fr-FR',
-          {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})
-      : 'Pas encore synchronisé';
-    return `
-    <h2 class="sec">Compte</h2>
-    <div class="card">
-      <div class="total" style="margin-top:0">
-        <div><div class="unit">Connecté</div>
-          <div class="small mute">${esc(ls)}</div></div>
-        <div class="v" style="font-size:19px">${esc(SESS.username)}</div>
-      </div>
-      <div class="actions" style="margin-top:10px">
-        <button class="btn btn-1" id="ac_sync">Synchroniser</button>
-        <button class="btn btn-2" id="ac_out">Se déconnecter</button>
-      </div>
-      <div class="src" style="margin-top:10px">La synchro se fait aussi d'elle-même à l'ouverture
-        et après chaque saisie. Vous restez connecté jusqu'à ce que vous vous déconnectiez.</div>
-    </div>`;
-  }
-  return `
-    <h2 class="sec">Compte</h2>
-    <div class="card">
-      <p class="small">Un compte permet de retrouver son historique sur un autre appareil.
-        Pseudo et mot de passe uniquement — aucune adresse e-mail n'est demandée.</p>
-      <input class="search" id="ac_p" placeholder="Pseudo" autocomplete="username">
-      <input class="search" id="ac_m" type="password" placeholder="Mot de passe"
-             autocomplete="current-password" style="margin-top:7px">
-      <div class="actions">
-        <button class="btn btn-1" id="ac_in">Se connecter</button>
-        <button class="btn btn-2" id="ac_up">Créer un compte</button>
-      </div>
-      <button class="backlink" id="ac_lost" style="margin-top:6px">Mot de passe oublié ›</button>
-    </div>`;
-}
-
 function bindAccount(){
   const sy = $('#ac_sync');
   if(sy) sy.onclick = async () => {
@@ -12481,7 +12382,7 @@ function coachAnneauHTML(moy, t, selKey, scale){
    horizontalement au-delà de sept jours : sur 14 ou 30 jours, des colonnes qui
    se contractent pour tenir dans l'écran deviennent illisibles, un défilement
    les garde lisibles quel que soit le nombre de jours affichés. */
-function coachChartHTML(data, t, selKey, selIdx){
+function coachChartHTML(data, t, selKey, selIdx, moyVal){
   const ax = COACH_KEYS.find(k => k.k === selKey);
   const isEq = selKey === 'eq';
   /* Repère fixe de 9,5/10 pour l'Équilibre : même lecture à deux sens que les
@@ -12506,10 +12407,18 @@ function coachChartHTML(data, t, selKey, selIdx){
      tous les jours) ; le libellé, lui, sort du flux défilant et vit dans un
      bandeau fixe au-dessus, aligné à droite — il ne peut plus scroller sous
      une barre ni se retrouver caché derrière un pic (cf. captures montrant
-     le libellé illisible, coincé entre deux barres). */
+     le libellé illisible, coincé entre deux barres).
+     La moyenne de la période rejoint la cible dans ce même bandeau, avec le
+     même code couleur que les barres (coachCouleur/couleurPourAxe) : on n'a
+     plus besoin de comparer soi-même le chiffre au repère, la couleur le dit. */
   const ligne = cible ? `<div class="coachnu-target" style="bottom:${(cible/maxVal*100).toFixed(1)}%"></div>` : '';
-  const lab = cible ? `<div class="coachnu-target-head"><span class="coachnu-target-lab">
-    ${t[selKey].cible?'Cible':'Rep\u00e8re'} : ${isEq?n1(cible):n0(cible)} ${ax.unit}</span></div>` : '';
+  const cibleLab = cible ? `<span class="coachnu-target-lab">
+    ${t[selKey].cible?'Cible':'Rep\u00e8re'} : ${isEq?n1(cible):n0(cible)} ${ax.unit}</span>` : '';
+  const moyCouleur = (cible && moyVal != null)
+    ? (isEq ? coachCouleur(moyVal, cible) : couleurPourAxe(selKey, moyVal, cible)) : null;
+  const moyLab = moyCouleur ? `<span class="coachnu-target-lab" style="background:${moyCouleur};color:#fff;border-color:transparent">
+    Moyenne : ${isEq?n1(moyVal):n0(moyVal)} ${ax.unit}</span>` : '';
+  const lab = (cibleLab || moyLab) ? `<div class="coachnu-target-head">${cibleLab}${moyLab}</div>` : '';
   return `<div class="coachnu-chart-wrap">${lab}
     <div class="coachnu-chart-scroll">
       <div class="coachnu-chart" style="width:${totalW}px;gap:${gapW}px">${ligne}${cols}</div>
@@ -12518,7 +12427,9 @@ function coachChartHTML(data, t, selKey, selIdx){
 }
 
 /* Repas réellement enregistrés le jour sélectionné dans l'historique — jamais
-   de repas inventé. */
+   de repas inventé. Chaque ligne ouvre désormais la fiche du repas (mealSheet) :
+   même fenêtre kcal/protéines/aliments que partout ailleurs dans l'app, pas une
+   nouvelle vue à maintenir en double. */
 function coachRepasHTML(iso_){
   const es = S.hist.filter(e => e.d === iso_)
     .sort((a,b) => MEALS.findIndex(m=>m.k===a.m) - MEALS.findIndex(m=>m.k===b.m));
@@ -12526,7 +12437,9 @@ function coachRepasHTML(iso_){
     <div class="small mute" style="padding:2px 0">Rien d\u2019enregistr\u00e9 ce jour-l\u00e0.</div></div>`;
   return `<div class="coachnu-repas">
     <div class="h"><span>Repas du ${dLabel(iso_)}</span></div>
-    ${es.map(e => `<div class="m"><b>${esc(MEAL[e.m].l)}</b><span>${esc(e.n)}</span></div>`).join('')}
+    ${es.map(e => `<button type="button" class="m" data-crmeal="${esc(e.m)}" data-crday="${esc(iso_)}">
+      <b>${esc(MEAL[e.m].l)}</b><span>${esc(e.n)}</span>
+    </button>`).join('')}
   </div>`;
 }
 
@@ -12540,39 +12453,11 @@ function coachDishPool(){
   return pool;
 }
 
-function coachProchainRepas(){
-  const t = today();
-  const fait = new Set(S.hist.filter(e => e.d === t).map(e => e.m));
-  return ['pdj','dej','din','encas'].find(m => !fait.has(m)) || 'din';
-}
-
-/* Budget carbone du jour, part\u00e9 par nuOn()/objBlock() sur le m\u00eame calcul :
-   BUDGET_J (repère annuel /365) moins ce qui a déjà été mangé aujourd'hui. */
-function carbBudgetRestant(){
-  const j = agg().days[today()] || {tot:0};
-  return BUDGET_J - j.tot;
-}
-
 /* Couverture nutritionnelle d'un plat par rapport à ce qu'il reste à combler
    sur CHAQUE axe (calories, protéines, lipides, glucides, fibres) — c'est ce
    qui « maximise chaque valeur nutritionnelle », pas seulement les calories et
    les protéines. 1 = comble exactement le besoin restant sur tous les axes
    pris en compte, 0 = totalement à côté. */
-/* Note d'équilibre du plat lui-même (indépendante des objectifs du jour) :
-   répartition énergétique lipides/glucides/protéines rapprochée des
-   fourchettes ANSES usuelles, avec un petit bonus de densité en fibres. */
-function noteEquilibree(nu){
-  if(!nu || !nu.kcal) return null;
-  const kLip = nu.lip*9, kGluc = nu.gluc*4, kProt = nu.prot*4;
-  const total = kLip + kGluc + kProt;
-  if(!total) return null;
-  const pLip = kLip/total, pGluc = kGluc/total, pProt = kProt/total;
-  const dLip  = pLip  < 0.20 ? 0.20-pLip  : pLip  > 0.40 ? pLip-0.40  : 0;
-  const dGluc = pGluc < 0.40 ? 0.40-pGluc : pGluc > 0.60 ? pGluc-0.60 : 0;
-  const dProt = pProt < 0.10 ? 0.10-pProt : pProt > 0.30 ? pProt-0.30 : 0;
-  const fibBonus = Math.min(1, (nu.fib||0)/8) * 1.2;
-  return Math.max(0, Math.min(10, 10*(1 - (dLip+dGluc+dProt)*1.4) + fibBonus));
-}
 
 /* Répartition usuelle de la journée entre les quatre repas, utilisée pour
    donner à chaque repas sa propre cible kcal/protéines dans la cible du jour. */
@@ -12807,7 +12692,7 @@ function coachBloc(){
         <div class="coachnu-histo-head">
           <span class="small mute">${COACH_KEYS.find(k=>k.k===S.cnKey).icon} ${COACH_KEYS.find(k=>k.k===S.cnKey).label} \u00b7 moyenne sur ${periode} jours</span>
         </div>
-        ${coachChartHTML(data, t, S.cnKey, selIdx)}
+        ${coachChartHTML(data, t, S.cnKey, selIdx, S.cnKey === 'eq' ? eqMoy : moy[S.cnKey])}
         ${coachRepasHTML(data[selIdx].d)}
       </div>
       ${coachJourneesHTML(t)}
@@ -12825,6 +12710,10 @@ function coachBind(){
   wrap.querySelectorAll('[data-cnd]').forEach(b => b.onclick = () => { S.cnDay = +b.dataset.cnd; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnopt]').forEach(b => b.onclick = () => { S.cnOpt = +b.dataset.cnopt; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnmr]').forEach(b => b.onclick = () => mesRecSheet(b.dataset.cnmr));
+  /* Chaque repas du jour sélectionné (Petit-déjeuner, Déjeuner, Dîner) ouvre sa
+     fiche détaillée — mêmes chiffres kcal/protéines que partout ailleurs. */
+  wrap.querySelectorAll('[data-crmeal]').forEach(b =>
+    b.onclick = () => mealSheet(b.dataset.crmeal, b.dataset.crday, 'kcal'));
   /* renderTracker() ne relie « voir la recette » qu'une fois, juste après son
      propre rendu. Les re-rendus internes (mode, période, option) réécrivent
      #tv sans repasser par renderTracker() : sans ce second branchement ici,
@@ -13141,10 +13030,6 @@ function mealSheet(mk, d, axe){
   };
   tuiles.forEach(t => t.onclick = () => montre(t.dataset.ax));
   if(axe && AXES[axe] && (axe === 'kg' || nuOn())) montre(axe);
-}
-
-function bindEntryRows(){
-  document.querySelectorAll('[data-entry]').forEach(b => b.onclick = () => entrySheet(b.dataset.entry));
 }
 
 /* Bloc macros de la fiche repas. Volontairement sous les lignes de carbone et
@@ -13811,15 +13696,6 @@ const PAL = {
 };
 const LOCK_OP = [.55,.45,.38,.30,.65,.55];
 
-/* meilleur total de repas végétariens sur une même semaine civile */
-function bestVegWeek(){
-  const w = {};
-  S.hist.forEach(e => {
-    if((e.m === 'dej' || e.m === 'din') && isVeg(e)){ const k = monday(e.d); w[k] = (w[k]||0) + 1; }
-  });
-  const v = Object.values(w);
-  return v.length ? Math.max(...v) : 0;
-}
 /* Journée complète. « Au moins deux repas principaux » ne suffisait pas :
    un petit-déjeuner suivi d'un déjeuner passait le test, et une journée dont
    le dîner manque est mécaniquement sous le budget. Le badge se décrochait
@@ -16552,10 +16428,18 @@ var TEINTES = {
   saison:['#7E3A1C','#F2C14E'], fin:['#2E1F3D','#F2C14E']
 };
 
-/* La réglette. Les trois repères descendent tous SOUS la piste et se
-   répartissent sur deux rangs dès qu'ils se marchent dessus — le grand
-   nombre au-dessus n'est jamais touché. */
-function reglette(r){
+/* La réglette du récap annuel. Renommée depuis `reglette` : ce nom collisionnait
+   avec la fonction du même nom utilisée par le carnet (reglette(o), pour la
+   réglette hebdomadaire) — deux `function reglette` au niveau global, dans deux
+   scripts distincts, ne coexistent pas : la seconde déclaration écrase purement
+   et simplement la première pour TOUS les appelants, où qu'ils soient dans le
+   fichier. Le carnet appelait donc en réalité cette réglette-ci, avec des champs
+   qui n'existent pas dans son objet (`r.tot`, `r.bud`… au lieu de `r.kg`,
+   `r.budget`…), produisant des NaN silencieux dans sa réglette hebdomadaire.
+   Les trois repères descendent tous SOUS la piste et se répartissent sur deux
+   rangs dès qu'ils se marchent dessus — le grand nombre au-dessus n'est jamais
+   touché. */
+function reglRecapBar(r){
   var ech = Math.max(r.kg, r.moyFR, r.objectif, r.budget) * 1.05 || 1;
   var pct = x => Math.max(0, Math.min(100, x / ech * 100));
   var reperes = [{v:r.budget, l:'budget 2050'}, {v:r.moyFR, l:'moyenne FR'}];
@@ -16622,7 +16506,7 @@ function cartes(r){
     '<p class="rcp-oeil">Empreinte de la période</p>' +
     '<div class="rcp-corps">' +
       '<span class="rcp-num rcp-lev" data-to="' + r.kg.toFixed(1) + '">0<small>kg CO₂e</small></span>' +
-      reglette(r) +
+      reglRecapBar(r) +
       '<p class="rcp-verdict rcp-lev" style="animation-delay:.5s">' + verdictCarbone(r) + '</p>' +
     '</div>'});
 
