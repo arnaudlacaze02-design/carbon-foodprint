@@ -8,7 +8,7 @@
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
    fichier dans ASSETS. */
-const VERSION = 'cfp-3.43.0';
+const VERSION = 'cfp-3.44.0';
 const ASSETS = [
   './', './index.html', './manifest.json',
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
@@ -60,9 +60,25 @@ self.addEventListener('fetch', e => {
                  (e.request.headers.get('accept') || '').includes('text/html');
 
   if(isPage){
-    /* réseau d'abord : l'app se met à jour toute seule dès qu'elle a du signal */
+    /* réseau d'abord : l'app se met à jour toute seule dès qu'elle a du signal.
+
+       `{cache:'no-store'}` est la ligne qui manquait. Un `fetch()` nu passe
+       par le cache HTTP du navigateur AVANT même d'arriver ici : si
+       l'hébergeur sert index.html avec un Cache-Control ou un ETag (ce que
+       fait GitHub par défaut), le navigateur peut renvoyer sa propre copie
+       locale sans toucher au réseau — le worker croit faire du « réseau
+       d'abord », il ne fait que relire un cache différent du sien, invisible
+       depuis ce fichier. C'est ce qui donnait l'impression qu'un correctif
+       posé côté page n'arrivait jamais, malgré un rechargement complet :
+       aucun bug dans index.html, juste une couche de cache que cette
+       stratégie ne voyait pas. */
     e.respondWith(
-      fresh(e.request, './index.html')
+      fetch(e.request, {cache: 'no-store'})
+        .then(res => {
+          const copy = res.clone();
+          caches.open(VERSION).then(c => c.put('./index.html', copy));
+          return res;
+        })
         .catch(() => caches.match('./index.html').then(hit => hit || caches.match('./')))
     );
     return;

@@ -12410,27 +12410,40 @@ function coachCouleurMin(val, cible){
 }
 
 /* Sélectionne la bonne fonction de teinte selon que l'axe a un plafond ou
-   non. Protéines, glucides et fibres sont des planchers purs (coachCouleurMin) ;
+   non. Protéines et fibres sont des planchers purs (coachCouleurMin) ;
    calories et lipides gardent la lecture à deux sens (coachCouleur).
    Équilibre est un cas à part : c'est déjà un score borné 0–10, pas une
-   quantité physique. Lui appliquer un écart RELATIF au repère (comme aux
-   calories) écrase la tolérance — 5 % de 9,5 ne fait que 0,475 point, si
-   bien qu'un score pourtant très correct (9,0) tombe déjà hors du vert.
-   Les mêmes paliers 5/10/15 % s'appliquent donc à l'échelle complète
-   (0–10) plutôt qu'au repère, ce qui donne des paliers de 0,5 / 1,0 / 1,5
-   point — nettement plus proche de ce qu'on perçoit comme « bon ». */
-function coachCouleurEq(val, cible){
-  if(cible == null) return 'var(--mute)';
-  const diff = Math.abs(cible - val) / 10;
-  if(diff <= 0.05) return 'var(--cn-good)';
-  if(diff <= 0.10) return 'var(--cn-yellow)';
-  if(diff <= 0.15) return 'var(--cn-orange)';
+   quantité physique — des seuils absolus sur le score lui-même parlent
+   plus directement que n'importe quel écart calculé au repère. */
+function coachCouleurEq(val){
+  if(val == null) return 'var(--mute)';
+  if(val >= 9)   return 'var(--cn-good)';
+  if(val >= 8.5) return 'var(--cn-yellow)';
+  if(val >= 7.5) return 'var(--cn-orange)';
   return 'var(--cn-red)';
 }
 
-function couleurPourAxe(key, val, cible){
-  if(key === 'eq') return coachCouleurEq(val, cible);
-  return (key === 'prot' || key === 'gluc' || key === 'fib')
+/* Glucides : la logique « plancher pur » ne suffit pas pour l'excès — un
+   dépassement de glucides ne dit rien en soi, il ne compte que s'il fait
+   déborder le budget calorique du jour. En dessous de la cible, rien ne
+   change (déficit = même lecture 5/10/15 % que les autres planchers).
+   Au-dessus, l'excès n'est signalé QUE si les calories totales du jour
+   dépassent elles aussi leur propre cible — sinon ces glucides ont
+   simplement remplacé d'autres calories dans un total resté dans les
+   clous, ce n'est pas un problème. */
+function coachCouleurGluc(val, cible, kcalVal, kcalCible){
+  if(!cible) return 'var(--mute)';
+  if(val <= cible) return coachCouleurMin(val, cible);
+  if(kcalCible && kcalVal > kcalCible) return coachCouleur(val, cible);
+  return 'var(--cn-good)';
+}
+
+/* `ctx` porte kcalVal/kcalCible, nécessaires uniquement pour glucides —
+   ignoré pour tous les autres axes. */
+function couleurPourAxe(key, val, cible, ctx){
+  if(key === 'eq') return coachCouleurEq(val);
+  if(key === 'gluc') return coachCouleurGluc(val, cible, ctx && ctx.kcalVal, ctx && ctx.kcalCible);
+  return (key === 'prot' || key === 'fib')
     ? coachCouleurMin(val, cible) : coachCouleur(val, cible);
 }
 
@@ -12485,7 +12498,8 @@ function coachAnneauHTML(moy, t, selKey, scale){
       return;
     }
     const alerte = Math.abs(gapPct) >= 15 ? (gapPct < 0 ? ' \u26a0\ufe0f' : ' \u2757') : '';
-    overlay += `<div class="coachnu-gap" style="left:${bx}px;top:${by}px;background:${couleurPourAxe(ax.k,val,cible)}">${gapPct>0?'+':''}${gapPct}%${alerte}</div>`;
+    const ctxKcal = {kcalVal: moy.kcal, kcalCible: t.kcal ? t.kcal.v : null};
+    overlay += `<div class="coachnu-gap" style="left:${bx}px;top:${by}px;background:${couleurPourAxe(ax.k,val,cible,ctxKcal)}">${gapPct>0?'+':''}${gapPct}%${alerte}</div>`;
   });
   return {svg, overlay};
 }
@@ -12522,9 +12536,10 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
     : Math.max(0, Math.min(100, v / maxVal * 100));
   const colW = 30, gapW = 8, n = data.length;
   const totalW = n * colW + (n - 1) * gapW;
+  const kcalCible = t.kcal ? t.kcal.v : null;
   const cols = data.map((d, i) => {
     const val = vals[i], h = posPct(val).toFixed(1);
-    const color = couleurPourAxe(selKey, val, cible);
+    const color = couleurPourAxe(selKey, val, cible, {kcalVal: d.kcal, kcalCible});
     /* `top` = l'espace libre au-dessus de la barre (100% - h%) moins la
        hauteur du label + une marge, sans jamais descendre sous 2px : au
        pire (barre proche du maximum), le label se recale juste sous le
@@ -12552,8 +12567,9 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
   const ligne = cible ? `<div class="coachnu-target" style="bottom:${posPct(cible).toFixed(1)}%"></div>` : '';
   const cibleLab = cible ? `<span class="coachnu-target-lab">
     ${t[selKey].cible?'Cible':'Rep\u00e8re'} : ${isEq?n1(cible):n0(cible)} ${ax.unit}</span>` : '';
+  const moyKcal = data.reduce((s,d) => s+d.kcal, 0) / (data.length || 1);
   const moyCouleur = (cible && moyVal != null)
-    ? couleurPourAxe(selKey, moyVal, cible) : null;
+    ? couleurPourAxe(selKey, moyVal, cible, {kcalVal: moyKcal, kcalCible}) : null;
   const moyLab = moyCouleur ? `<span class="coachnu-target-lab" style="background:${moyCouleur};color:#fff;border-color:transparent">
     Moyenne : ${isEq?n1(moyVal):n0(moyVal)} ${ax.unit}</span>` : '';
   const lab = (cibleLab || moyLab) ? `<div class="coachnu-target-head">${cibleLab}${moyLab}</div>` : '';
@@ -12907,7 +12923,7 @@ function coachScoreSheet(){
     const cible = t[k].v, val = moy[k] || 0;
     const gapPct = Math.round((val - cible) / cible * 100);
     const bonus = k === 'prot' && gapPct >= 0;
-    const couleur = bonus ? 'var(--cn-good)' : couleurPourAxe(k, val, cible);
+    const couleur = bonus ? 'var(--cn-good)' : couleurPourAxe(k, val, cible, {kcalVal: moy.kcal, kcalCible: t.kcal ? t.kcal.v : null});
     return `<div class="coachnu-score-row">
       <span class="l">${ax.icon} ${ax.label}</span>
       <span class="v" style="color:${couleur}">${gapPct>0?'+':''}${gapPct}%</span>
