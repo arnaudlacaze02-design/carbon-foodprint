@@ -2048,9 +2048,17 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-bwrap{width:15px; height:100%; display:flex; align-items:flex-end; position:relative; margin:0 auto}
 .coachnu-bar{width:100%; border-radius:5px 5px 2px 2px; transition:height .5s cubic-bezier(.25,1,.5,1)}
 .coachnu-col.on .coachnu-bar{outline:2px solid var(--forest); outline-offset:1px}
-.coachnu-val{position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:9.5px; font-weight:800;
+/* Le label vit à l'intérieur de la boîte : positionné en `top` (jamais
+   négatif) et clampé via max() pour ne jamais dépasser le haut de
+   .coachnu-bwrap, qui démarre pile au bord de .coachnu-chart-scroll — sans
+   la moindre marge au-dessus. Indispensable : .coachnu-chart-scroll a un
+   défilement horizontal (overflow-x:auto), et la spec CSS force alors
+   overflow-y à se comporter en 'auto' lui aussi, quoi qu'on lui demande
+   explicitement ; tout ce qui dépasse la boîte par le haut est rogné et
+   invisible, sans qu'aucune propriété ne le signale dans l'inspecteur. */
+.coachnu-val{position:absolute; left:50%; transform:translateX(-50%); font-size:9.5px; font-weight:800;
   color:var(--ink); white-space:nowrap; font-family:var(--mono)}
-.coachnu-col.on .coachnu-val{font-size:12.5px; top:-22px; color:var(--forest);
+.coachnu-col.on .coachnu-val{font-size:12.5px; color:var(--forest);
   background:var(--card); padding:1px 6px; border-radius:6px; border:1px solid var(--line)}
 .coachnu-day{font-size:9.5px; font-weight:700; color:var(--mute); margin-top:4px}
 .coachnu-repas{margin-top:10px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px}
@@ -12495,15 +12503,39 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
      calories (coachCouleur), pas les seuils arbitraires 8,5/6,5 d'avant. */
   const cible = isEq ? 9.5 : (t[selKey] ? t[selKey].v : null);
   const vals = data.map(d => isEq ? (coachEq(d, t) || 0) : (d[selKey] || 0));
-  const maxVal = Math.max(cible || 0, ...vals, isEq ? 10 : 1) * 1.25;
+  /* Équilibre est un score borné 0–10 dont les valeurs réelles vivent
+     presque toujours entre 7 et 10 : une échelle classique à partir de 0
+     écraserait toute la variation utile dans les 20 derniers % du
+     graphique, collant chaque barre — bonne ou mauvaise — contre la ligne
+     de repère, au point de donner l'impression trompeuse qu'un jour rouge
+     « touche presque » la cible. L'axe démarre donc à EQ_FLOOR plutôt que
+     0, seulement pour cet axe : les autres (kcal, g) restent à l'échelle
+     réelle, où partir de 0 a un sens physique. */
+  const EQ_FLOOR = 5;
+  const maxVal = isEq ? 10 * 1.08 : Math.max(cible || 0, ...vals, 1) * 1.32;
+  /* Un score sous EQ_FLOOR ne doit jamais tomber à 0 % : ce serait
+     indiscernable d'une journée sans aucune saisie. Un plancher visuel de
+     2 % garde une fine barre rouge visible dès qu'il y a une vraie valeur
+     (même mauvaise), pour ne pas confondre « très mauvais » et « rien ». */
+  const posPct = v => isEq
+    ? (v > 0 ? Math.max(2, Math.min(100, (v - EQ_FLOOR) / (maxVal - EQ_FLOOR) * 100)) : 0)
+    : Math.max(0, Math.min(100, v / maxVal * 100));
   const colW = 30, gapW = 8, n = data.length;
   const totalW = n * colW + (n - 1) * gapW;
   const cols = data.map((d, i) => {
-    const val = vals[i], h = (val/maxVal*100).toFixed(1);
+    const val = vals[i], h = posPct(val).toFixed(1);
     const color = couleurPourAxe(selKey, val, cible);
+    /* `top` = l'espace libre au-dessus de la barre (100% - h%) moins la
+       hauteur du label + une marge, sans jamais descendre sous 2px : au
+       pire (barre proche du maximum), le label se recale juste sous le
+       bord de la boîte plutôt que de la déborder. Le mélange % / px dans
+       max()/calc() se résout à la taille réelle de .coachnu-bwrap, pas
+       besoin de connaître sa hauteur en pixels ici. */
+    const place = i === selIdx ? 26 : 17; // hauteur du label + marge, par variante
+    const valTop = `max(2px, calc((100% - ${h}%) - ${place}px))`;
     return `<div class="coachnu-col${i===selIdx?' on':''}" data-cnd="${i}" style="width:${colW}px">
       <div class="coachnu-bwrap">
-        <div class="coachnu-val">${isEq?n1(val):n0(val)}${i===selIdx?' '+ax.unit:''}</div>
+        <div class="coachnu-val" style="top:${valTop}">${isEq?n1(val):n0(val)}${i===selIdx?' '+ax.unit:''}</div>
         <div class="coachnu-bar" style="height:${h}%;background:${color}"></div>
       </div>
       <div class="coachnu-day">${coachJourLabel(d.d)}</div>
@@ -12517,7 +12549,7 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
      La moyenne de la période rejoint la cible dans ce même bandeau, avec le
      même code couleur que les barres (coachCouleur/couleurPourAxe) : on n'a
      plus besoin de comparer soi-même le chiffre au repère, la couleur le dit. */
-  const ligne = cible ? `<div class="coachnu-target" style="bottom:${(cible/maxVal*100).toFixed(1)}%"></div>` : '';
+  const ligne = cible ? `<div class="coachnu-target" style="bottom:${posPct(cible).toFixed(1)}%"></div>` : '';
   const cibleLab = cible ? `<span class="coachnu-target-lab">
     ${t[selKey].cible?'Cible':'Rep\u00e8re'} : ${isEq?n1(cible):n0(cible)} ${ax.unit}</span>` : '';
   const moyCouleur = (cible && moyVal != null)
