@@ -13524,9 +13524,181 @@ function cxBind(){
 
 /* Onglet « Santé » du Tracker : Coach Nutrition, puis Carences & excès. */
 function tvSante(a){
-  $('#tv').innerHTML = coachBloc() + cxBloc();
+  $('#tv').innerHTML = coachBloc() + cxBloc() + exportBloc();
   coachBind();
   cxBind();
+  exportBind();
+}
+
+/* ── Export des données brutes ──────────────────────────────────────────
+   Pensé pour être copié/téléchargé et donné à une IA ou un nutritionniste :
+   pas un résumé, mais le détail plat par plat, jour par jour, avec les
+   cibles mêmes que l'app utilise pour juger — sans elles, un tiers ne peut
+   pas savoir si un écart constaté est important ou non pour cette personne
+   précise. Aucune donnée n'est envoyée nulle part : tout est généré et
+   manipulé en local, le fichier ne part que si l'utilisateur choisit de le
+   partager ou de le coller lui-même. */
+const AGE_LAB = {a18:'18-39 ans', a40:'40-59 ans', a60:'60-74 ans', a75:'75 ans et plus'};
+
+const EXPORT_PERIODES = [7, 14, 30, 90];
+
+function exportSanteTexte(periode){
+  if(!S.hist.length) return null;
+  const P = S.prof || {};
+  const act = P.act;
+  const mode = act === 'sportif' ? (P.modeEntr || 'prepa') : 'prepa';
+  const t = coachTargets(mode);
+  const r = v => Math.round(v * 10) / 10;
+  const L = [];
+
+  const depuis = new Date(); depuis.setDate(depuis.getDate() - (periode - 1));
+  const depuisIso = iso(depuis);
+
+  L.push('=== EXPORT DONNÉES NUTRITIONNELLES — Carbon FOODprint ===');
+  L.push(`Généré le ${new Date().toLocaleDateString('fr-FR')} — période : ${periode} derniers jours (depuis le ${depuisIso})`);
+  L.push('Toutes les grammages sont des poids réels (produit tel quel), les macros sont recalculées depuis la base CIQUAL/AGRIBALYSE de l’app, pas déclarées à la main.');
+  L.push('');
+
+  L.push('--- Profil déclaré dans l’app ---');
+  L.push(`Sexe : ${P.sexe === 'f' ? 'Femme' : P.sexe === 'h' ? 'Homme' : 'non renseigné'}`);
+  L.push(`Tranche d'âge : ${AGE_LAB[P.age] || 'non renseignée'}`);
+  L.push(`Niveau d'activité : ${ACT_LAB[P.act] || 'non renseigné'}`);
+  if(P.regime) L.push(`Régime alimentaire : ${REG_LAB[P.regime] || P.regime}`);
+  if(act === 'sportif') L.push(`Mode d'entraînement courant : ${(MODES_ENTR[mode] || {}).l || mode}`);
+  L.push('');
+
+  L.push('--- Cibles utilisées par l’app pour juger ces données ---');
+  if(t){
+    L.push(`Calories : ${t.kcal.v != null ? r(t.kcal.v) + ' kcal/j' : 'non estimable'}${t.kcal.cible ? ' (cible personnelle choisie par l’utilisateur)' : ' (estimation ANSES à partir du profil)'}`);
+    L.push(`Protéines : ${t.prot.v != null ? r(t.prot.v) + ' g/j' : 'non définie'}${t.prot.cible ? ' (cible personnelle)' : ''}`);
+    L.push(`Lipides (repère) : ${r(t.lip.v)} g/j — 35 % des calories, non personnalisé`);
+    L.push(`Glucides (repère) : ${r(t.gluc.v)} g/j — 50 % des calories, non personnalisé`);
+    L.push(`Fibres (repère ANSES) : ${r(t.fib.v)} g/j`);
+  } else {
+    L.push('Profil incomplet dans l’app : pas de cible calorique/protéique calculable.');
+  }
+  L.push(`Fer (repère ANSES) : ${cxFerCible()} mg/j`);
+  L.push(`Oméga-3 ALA (repère ANSES) : ${cxAlaCible()} g/j`);
+  L.push(`Sel (repère max ANSES) : ${CX_SEL_MAX} g/j`);
+  L.push('Viande rouge (repère max ANSES) : 500 g/semaine');
+  L.push('Charcuterie (repère max ANSES) : 150 g/semaine');
+  L.push('');
+
+  // Repères Carences & excès sur la période choisie
+  const moyGlob = coachMoyenne(coachDonnees(periode));
+  const selGlob = moyGlob.sodium * 2.5 / 1000;
+  const redGlob = cxRedSemaine(periode);
+  const charcGlob = cxCharcSemaine(periode);
+  L.push(`--- Moyennes sur la période (${periode} jours, du ${depuisIso} à aujourd’hui) ---`);
+  L.push(`Calories : ${r(moyGlob.kcal)} kcal/j en moyenne`);
+  L.push(`Protéines : ${r(moyGlob.prot)} g/j en moyenne`);
+  L.push(`Lipides : ${r(moyGlob.lip)} g/j en moyenne`);
+  L.push(`Glucides : ${r(moyGlob.gluc)} g/j en moyenne`);
+  L.push(`Fibres : ${r(moyGlob.fib)} g/j en moyenne`);
+  L.push(`Fer : ${r(moyGlob.fer)} mg/j en moyenne`);
+  L.push(`Sel : ${r(selGlob)} g/j en moyenne`);
+  L.push(`Oméga-3 ALA : ${r(moyGlob.omega3)} g/j en moyenne`);
+  L.push(`Viande rouge : ${r(redGlob)} g/semaine en moyenne`);
+  L.push(`Charcuterie : ${r(charcGlob)} g/semaine en moyenne`);
+  L.push('');
+
+  L.push(`--- Journal détaillé, plat par plat, du plus ancien au plus récent (${periode} derniers jours) ---`);
+  const parJour = {};
+  S.hist.filter(e => e.d >= depuisIso).forEach(e => { (parJour[e.d] = parJour[e.d] || []).push(e); });
+  const joursTrouves = Object.keys(parJour).sort();
+  if(!joursTrouves.length) L.push('  (aucun repas saisi sur cette période)');
+  joursTrouves.forEach(d => {
+    const entries = parJour[d];
+    const toutesLignes = entries.flatMap(e => e.l);
+    const jourNu = nuOf(toutesLignes);
+    L.push('');
+    L.push(`# ${d}`);
+    MEALS.forEach(m => {
+      const es = entries.filter(e => e.m === m.k);
+      es.forEach(e => {
+        const nu = nuOf(e.l);
+        L.push(`  ${m.l}${e.n && e.n !== m.l ? ' — ' + e.n : ''} : ${r(nu.kcal)} kcal, ${r(nu.prot)}g prot, ${r(nu.lip)}g lip, ${r(nu.gluc)}g gluc, ${r(nu.fib)}g fib`);
+        e.l.forEach(([slug, g, course]) => {
+          const f = F.get(slug);
+          const nom = f ? f.n : slug;
+          L.push(`    - ${nom} (${Math.round(g)} g)${course && course !== 'plat' ? ' [' + course + ']' : ''}`);
+        });
+      });
+    });
+    const cibleTxt = t && t.kcal.v != null
+      ? ` — cible du jour : ${r(t.kcal.v)} kcal (écart ${jourNu.kcal - t.kcal.v > 0 ? '+' : ''}${r(jourNu.kcal - t.kcal.v)} kcal)${t.prot.v != null ? `, ${r(t.prot.v)}g prot (écart ${jourNu.prot - t.prot.v > 0 ? '+' : ''}${r(jourNu.prot - t.prot.v)}g)` : ''}`
+      : '';
+    L.push(`  TOTAL JOUR : ${r(jourNu.kcal)} kcal, ${r(jourNu.prot)}g prot, ${r(jourNu.lip)}g lip, ${r(jourNu.gluc)}g gluc, ${r(jourNu.fib)}g fib${cibleTxt}`);
+  });
+
+  return L.join('\n');
+}
+
+function exportBloc(){
+  if(!S.hist.length) return '';
+  const periode = EXPORT_PERIODES.includes(S.exportPeriode) ? S.exportPeriode : 30;
+  S.exportPeriode = periode;
+  return `
+    <div class="card" style="margin-top:14px">
+      <div class="n-name">📤 Exporter mes données</div>
+      <div class="small mute" style="margin:6px 0 10px">
+        Toutes vos saisies — plat par plat, jour par jour — avec vos macros comparées à vos cibles.
+        À coller à une IA ou à donner à un(e) nutritionniste pour des conseils plus précis que ceux de l’app.
+      </div>
+      <div class="seg" role="tablist" style="margin-bottom:10px">
+        ${EXPORT_PERIODES.map(p => `<button data-expp="${p}" aria-pressed="${p===periode}">${p} jours</button>`).join('')}
+      </div>
+      <button class="btn btn-1" id="exportGo" style="width:100%">Générer l’export</button>
+    </div>`;
+}
+
+function exportBind(){
+  $('#tv').querySelectorAll('[data-expp]').forEach(b => b.onclick = () => {
+    S.exportPeriode = Number(b.dataset.expp); tvSante();
+  });
+  const b = $('#exportGo');
+  if(b) b.onclick = exportSanteOuvrir;
+}
+
+function exportSanteOuvrir(){
+  const periode = EXPORT_PERIODES.includes(S.exportPeriode) ? S.exportPeriode : 30;
+  const txt = exportSanteTexte(periode);
+  if(!txt) return toast('Aucune donnée à exporter pour l’instant');
+  openSheet(`
+    <div class="unit">Export de données</div>
+    <h3 style="margin:2px 0 10px">Vos données, prêtes à partager</h3>
+    <div class="small mute" style="margin-bottom:10px">Rien n’est envoyé automatiquement : ce texte reste sur votre téléphone tant que vous ne le copiez, téléchargez ou partagez pas vous-même.</div>
+    <textarea id="exportTa" readonly style="width:100%;height:220px;font-family:monospace;font-size:11px;
+      padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--paper)">${esc(txt)}</textarea>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-1" id="exp_copy">Copier le texte</button>
+    </div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn btn-2" id="exp_dl">Télécharger (.txt)</button>
+      ${navigator.share ? `<button class="btn btn-2" id="exp_sh">Partager</button>` : ''}
+    </div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn btn-2" onclick="closeSheet()">Fermer</button>
+    </div>`);
+  const ta = $('#exportTa');
+  $('#exp_copy').onclick = async () => {
+    try{
+      if(navigator.clipboard) await navigator.clipboard.writeText(txt);
+      else { ta.select(); document.execCommand('copy'); }
+      toast('Texte copié');
+    } catch(e){ ta.select(); toast('Sélection prête : copiez avec votre clavier'); }
+  };
+  $('#exp_dl').onclick = () => {
+    const blob = new Blob([txt], {type:'text/plain;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `carbon-foodprint-export-${periode}j-${today()}.txt`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  };
+  const sh = $('#exp_sh');
+  if(sh) sh.onclick = () => navigator.share({title:'Mes données nutritionnelles', text:txt})
+    .catch(() => {});
 }
 
 function tvRepas(a){
