@@ -1297,11 +1297,18 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 button.vbar-col{background:none; border:0; padding:0; font:inherit; cursor:pointer;
   -webkit-tap-highlight-color:transparent}
 button.vbar-col:active{opacity:.72}
-.vbar-val{font-family:var(--mono); font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums; margin-bottom:5px}
-.vbar-track{width:100%; max-width:46px; display:flex; flex-direction:column-reverse; overflow:hidden}
-.vbar-fill:first-child{border-top-left-radius:6px; border-top-right-radius:6px}
-.vbar-fill:last-child{border-bottom-left-radius:3px; border-bottom-right-radius:3px}
-.vbar-fill{width:100%}
+/* Chaque bâton et son chiffre sont positionnés en absolu dans un repère commun
+   (le track), avec un `bottom` calculé explicitement — pas de flexbox ici :
+   colonne-inversée + hauteurs en pourcentage avait paru aligner les bases,
+   mais laissait le chiffre planté en haut du repère plutôt que juste au-dessus
+   du bâton. Le rayon de chaque coin est lui aussi explicite par segment
+   (haut du bâton arrondi, bas arrondi, jonction entre deux segments empilés
+   laissée droite) : un `overflow:hidden` global aurait retaillé le chiffre
+   dès qu'un bâton touche le haut du repère. */
+.vbar-track{position:relative; width:100%; max-width:46px}
+.vbar-fill{position:absolute; left:0; right:0}
+.vbar-val{position:absolute; left:50%; transform:translateX(-50%); white-space:nowrap;
+  font-family:var(--mono); font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums}
 .vbar-lab{font-size:10px; color:var(--mute); text-align:center; margin-top:8px; line-height:1.3}
 .vbars-legend{display:flex; flex-wrap:wrap; gap:8px 14px; margin:16px 0 2px}
 .vbars-legend span{display:flex; align-items:center; gap:5px; font-family:var(--mono); font-size:9.5px;
@@ -14136,14 +14143,28 @@ function tvAn(a){
      680 kg au sens propre n'est pas mesuré ici — c'est une hypothèse de
      répartition, pas un chiffre officiel, au même titre que le budget cible. */
   const CHART_H = 160;
+  const LABEL_GAP = 22; // espace réservé au-dessus du bâton pour que le chiffre n'ait jamais à être retaillé
+  const TRACK_H = CHART_H + LABEL_GAP;
   const foodShare2050 = 680;
   const resteShare2050 = f.target2050 - foodShare2050;
   const mxV = Math.max(f.foodAbs, proj, f.budget, f.target2050);
+  const px = v => v / mxV * CHART_H;
   const vBars = [
     {l:'Moyenne française, alimentation', v:f.foodAbs, c:'var(--s4)'},
     {l:'Vous, à ce rythme', v:proj, c:'var(--forest)'},
     {l:'Empreinte alimentaire visée en 2050', v:f.budget, c:'var(--straw)'}
   ];
+  /* Un seul segment : coins arrondis sur les quatre côtés. Empilé (le
+     budget 2050) : seul le bas du segment du bas et le haut du segment du
+     haut sont arrondis — la jonction entre les deux reste droite, pour
+     éviter l'effet de deux pastilles qui se chevauchent au milieu du bâton. */
+  const vbarSimple = (v, c) => {
+    const h = px(v);
+    return `<div class="vbar-track" style="height:${TRACK_H}px">
+      <div class="vbar-fill" style="height:${h.toFixed(1)}px;bottom:0;border-radius:6px 6px 3px 3px;background:${c}"></div>
+      <div class="vbar-val" style="bottom:${(h + 4).toFixed(1)}px">${n0(v)}</div>
+    </div>`;
+  };
   $('#tv').innerHTML = `
     <h2 class="sec">Moyenne / jour</h2>
     <div class="card">
@@ -14177,18 +14198,18 @@ function tvAn(a){
     <div class="card">
       <div class="vbars">
         ${vBars.map((b, i) => `<${i === 0 ? 'button type="button" onclick="secteursSheet()"' : 'div'} class="vbar-col">
-          <div class="vbar-val">${n0(b.v)}</div>
-          <div class="vbar-track" style="height:${CHART_H}px">
-            <div class="vbar-fill" style="height:${(b.v/mxV*CHART_H).toFixed(1)}px;background:${b.c}"></div>
-          </div>
+          ${vbarSimple(b.v, b.c)}
           <div class="vbar-lab">${b.l}</div>
         </${i === 0 ? 'button' : 'div'}>`).join('')}
         <div class="vbar-col">
-          <div class="vbar-val">${n0(f.target2050)}</div>
-          <div class="vbar-track" style="height:${CHART_H}px">
-            <div class="vbar-fill" style="height:${(foodShare2050/mxV*CHART_H).toFixed(1)}px;background:var(--straw)"></div>
-            <div class="vbar-fill" style="height:${(resteShare2050/mxV*CHART_H).toFixed(1)}px;background:var(--ink-soft)"></div>
-          </div>
+          ${(() => {
+            const hFood = px(foodShare2050), hReste = px(resteShare2050);
+            return `<div class="vbar-track" style="height:${TRACK_H}px">
+              <div class="vbar-fill" style="height:${hFood.toFixed(1)}px;bottom:0;border-radius:0 0 3px 3px;background:var(--straw)"></div>
+              <div class="vbar-fill" style="height:${hReste.toFixed(1)}px;bottom:${hFood.toFixed(1)}px;border-radius:6px 6px 0 0;background:var(--ink-soft)"></div>
+              <div class="vbar-val" style="bottom:${(hFood + hReste + 4).toFixed(1)}px">${n0(f.target2050)}</div>
+            </div>`;
+          })()}
           <div class="vbar-lab">Budget total 2050, tous postes</div>
         </div>
       </div>
