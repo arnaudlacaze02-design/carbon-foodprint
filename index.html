@@ -996,7 +996,7 @@ p{margin:0 0 9px}
 
 /* carte recette : bandeau titré puis les repères, comme une fiche de cuisine */
 .rcard{display:block; width:100%; text-align:left; border:0; background:none; padding:0}
-.rcard .band{padding:17px 15px 15px; background:linear-gradient(135deg,var(--forest),var(--forest-2)); color:#fff}
+.rcard .band{padding:17px 15px 15px; background:var(--co-bg, linear-gradient(135deg,var(--forest),var(--forest-2))); color:var(--co-on, #fff)}
 .rcard .band .k{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; opacity:.72}
 .rcard .band h4{margin:6px 0 0; font-family:var(--display); font-weight:800; font-size:20px;
   line-height:1.15; letter-spacing:-.015em; color:#fff}
@@ -3681,7 +3681,7 @@ async function amiRecettesSheet(uid, nom){
     const b = p.body || {};
     const ing = recIng(b), prep = recPrep(b), autres = recAutres(b);
     const kg = recKg(b), pers = recPers(b);
-    return `<button class="rcard" data-arv="${i}" style="margin-bottom:10px;width:100%;text-align:left">
+    return `<button class="rcard" data-arv="${i}" data-co="${hashCouleur(p.id)}" style="margin-bottom:10px;width:100%;text-align:left">
       <div class="band">
         <div class="k">${kg != null ? n2(kg / pers) + ' kg CO₂e par personne' : 'Idée de recette'}</div>
         <h4>${esc(b.title || 'Sans titre')}</h4>
@@ -5785,7 +5785,7 @@ function postCard(x){
     const ing = recIng(b), prep = recPrep(b), autres = recAutres(b);
     const kg = recKg(b), pers = recPers(b);
     return `<div class="post">${tete}
-      <button class="rcard" data-popen="${esc(x.id)}">
+      <button class="rcard" data-popen="${esc(x.id)}" data-co="${hashCouleur(x.id)}">
         <div class="band">
           <div class="k">Idée de recette${kg != null ? ` · ${n2(kg / pers)} kg CO₂e par personne` : ''}</div>
           <h4>${esc(b.title || 'Sans titre')}</h4>
@@ -6798,15 +6798,23 @@ async function mrPublishAll(){
    liste : la pile est triée par date et la liste se filtre par catégorie, donc
    une couleur assise sur le rang aurait changé chaque fois qu'une recette est
    ajoutée ou qu'on touche un filtre. On reconnaît une recette à sa couleur, ce
-   qui suppose qu'elle ne bouge pas. */
+   qui suppose qu'elle ne bouge pas.
+
+   Le hachage lui-même (hashCouleur) est partagé avec les recettes qui n'ont
+   pas de carnet propre — un partage dans Actu, une recette du livre d'un ami —
+   qui n'ont donc pas de catégorie sur laquelle s'appuyer, seulement un
+   identifiant de publication. */
+const hashCouleur = id => {
+  let h = 0;
+  const s = String(id);
+  for(let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 100003;
+  return TEINTES_AUTO[h % TEINTES_AUTO.length];
+};
 const mrCouleur = r => {
   if(!r) return null;
   const t = catCo(r.cat);
   if(t) return t;
-  let h = 0;
-  const s = String(r.id);
-  for(let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 100003;
-  return TEINTES_AUTO[h % TEINTES_AUTO.length];
+  return hashCouleur(r.id);
 };
 
 function cuiRecettes(){
