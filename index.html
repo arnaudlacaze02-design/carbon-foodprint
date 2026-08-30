@@ -13327,19 +13327,17 @@ function cxBloc(){
     ? `<span class="pill" style="background:${alaCouleur}">Sous repère</span>`
     : `<span class="pill" style="background:var(--cn-good)">Dans la cible</span>`;
 
-  const redMax = 500;
-  const redAlerte = redMax * 0.8; // 400 g : signal avant le repère plutôt qu'au dépassement
+  const redMax = 500; // repère ANSES, sert de marqueur sur la jauge
+  const redSeuil = 400; // seuil d'affichage et de passage à l'orange (80 % du repère)
   const redSem = cxRedSemaine(periode);
-  const redOver = redSem > redMax;
-  const redNear = !redOver && redSem >= redAlerte;
-  const redCouleur = redOver ? cxCouleurMax(redSem, redMax) : (redNear ? 'var(--cn-orange)' : 'var(--cn-good)');
-  const redBad = redOver || redNear;
+  const redVisible = redSem >= redSeuil; // masqué tant que la consommation reste modérée
+  const redOver = redSem >= redMax;
+  const redCouleur = redOver ? 'var(--cn-red)' : 'var(--cn-orange)';
+  const redBad = redVisible;
   const redPct = redOver ? Math.round((redSem - redMax) / redMax * 100) : null;
   const redPill = redOver
     ? `<span class="pill" style="background:${redCouleur}">Au-dessus du repère max</span>`
-    : redNear
-      ? `<span class="pill" style="background:${redCouleur}">Proche du repère max</span>`
-      : `<span class="pill" style="background:var(--cn-good)">Dans la cible</span>`;
+    : `<span class="pill" style="background:${redCouleur}">Proche du repère max</span>`;
 
   const charcMax = 150;
   const charcSem = cxCharcSemaine(periode);
@@ -13450,24 +13448,24 @@ function cxBloc(){
         </div>
       </div>
 
-      <div class="card">
+      ${redVisible ? `<div class="card">
         <div class="n-top" data-cxcard="1">
           <div class="n-name">🥩 Viande rouge <span class="chevron">▾</span></div>
           ${redPill}
         </div>
         <div class="n-ref">Moy. ${periode}j, ramené / semaine : ${n0(redSem)} g/sem</div>
         ${cxJauge(redSem, redMax, redCouleur, `${n0(redSem)}g`, `${redMax}g`, redPct)}
-        ${redBad ? `<button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
+        <button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
         <div class="food-box">
           <div class="fs-label">Leviers pour repasser sous ${redMax} g/sem</div>
           <div class="food-item"><span>🐔 Remplacer une portion par de la volaille</span></div>
           <div class="food-item"><span>🐟 Remplacer une portion par du poisson</span></div>
           <div class="food-item"><span>🫘 Un repas végétarien de plus dans la semaine</span></div>
-        </div>` : ''}
+        </div>
         <div class="n-detail">L’ANSES ne fixe pas de valeur minimale : la viande rouge n’est pas un nutriment essentiel, seulement un plafond à ne pas dépasser — viandes rouges et charcuterie sont classées cancérogènes probables/certaines par le CIRC (OMS) au-delà de certaines quantités.
           <span class="src">Source : ANSES, repère max 500g/semaine ; CIRC (OMS), classification viande rouge/transformée</span>
         </div>
-      </div>
+      </div>` : ''}
 
       <div class="card">
         <div class="n-top" data-cxcard="1">
