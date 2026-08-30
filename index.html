@@ -994,16 +994,26 @@ p{margin:0 0 9px}
   letter-spacing:-.012em; line-height:1.2}
 .post .cap p{margin:0; font-size:12.5px; line-height:1.45; color:var(--mute)}
 
-/* carte recette : bandeau titré puis les repères, comme une fiche de cuisine */
-.rcard{display:block; width:100%; text-align:left; border:0; background:none; padding:0}
-.rcard .band{padding:17px 15px 15px; background:var(--co-bg, linear-gradient(135deg,var(--forest),var(--forest-2))); color:var(--co-on, #fff)}
+/* carte recette : toute la carte prend la couleur (comme le portefeuille de
+   recettes), pas seulement le bandeau — bien plus accueillant dans un fil
+   qu'une carte au vert forêt unique et systématique. */
+.rcard{display:block; width:100%; text-align:left; border:0; padding:0;
+  background:var(--co-bg, linear-gradient(135deg,var(--forest),var(--forest-2))); color:var(--co-on, #fff)}
+.rcard .band{padding:17px 15px 15px}
 .rcard .band .k{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; opacity:.72}
 .rcard .band h4{margin:6px 0 0; font-family:var(--display); font-weight:800; font-size:20px;
-  line-height:1.15; letter-spacing:-.015em; color:#fff}
+  line-height:1.15; letter-spacing:-.015em; color:inherit}
 .rchips{display:flex; flex-wrap:wrap; gap:6px; padding:12px 13px 0}
 .rchip{font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase;
   border:1px solid var(--line); border-radius:999px; padding:3px 9px; color:var(--mute)}
+.rcard .rchip{border-color:rgba(255,255,255,.4); color:inherit; opacity:.88}
 .rmore{padding:10px 13px 14px; font-size:12.5px; color:var(--accent); font-weight:600}
+.rcard .rmore{color:inherit; opacity:.92}
+/* Mêmes teintes claires que le portefeuille de recettes (2,4,5,6,7,10) : liserés
+   et texte secondaire passent en encre sombre semi-transparente pour rester
+   lisibles sur un fond clair. */
+.rcard[data-co="2"] .rchip, .rcard[data-co="4"] .rchip, .rcard[data-co="5"] .rchip,
+.rcard[data-co="6"] .rchip, .rcard[data-co="7"] .rchip, .rcard[data-co="10"] .rchip{border-color:rgba(0,0,0,.22)}
 
 /* fiche recette à deux onglets */
 .rtabs{display:flex; gap:3px; background:var(--seg-bg); border-radius:10px; padding:3px; margin:12px 0 14px}
