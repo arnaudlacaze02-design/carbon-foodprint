@@ -14905,6 +14905,32 @@ function calendarSheet(month){
 }
 
 /* repas d'une journée donnée */
+/* Même anneau que le Coach Nutrition (coachAnneauHTML), mais nourri des
+   totaux d'UNE SEULE journée plutôt que d'une moyenne de période — coachEq et
+   coachAnneauHTML ne font aucune hypothèse sur ce qu'est « moy », ils
+   comparent juste des valeurs à des cibles. Statique (pointer-events:none) :
+   il n'y a ici ni période à parcourir ni histogramme à faire réagir, l'anneau
+   sert de résumé visuel et non de sélecteur. */
+function coachJourEqBloc(k, esCount){
+  if(!nuOn() || !esCount) return '';
+  const sportif = (S.prof && S.prof.act) === 'sportif';
+  const mode = sportif ? ((S.prof && S.prof.modeEntr) || 'prepa') : 'prepa';
+  const t = coachTargets(mode);
+  if(!t) return '';
+  const jour = nuParJour()[k] || {kcal:0, prot:0, lip:0, gluc:0, fib:0};
+  const eq = coachEq(jour, t);
+  const scale = 280/200;
+  const {svg, overlay} = coachAnneauHTML(jour, t, null, scale);
+  return `<div class="hr"></div>
+    <div class="unit" style="margin-bottom:2px">\u00c9quilibre de la journ\u00e9e</div>
+    <div class="coachnu-donut" style="pointer-events:none">
+      <svg viewBox="0 0 200 200">${svg}</svg>
+      <div class="coachnu-icons">${overlay}</div>
+      <div class="coachnu-center"><b>${eq!=null?n1(eq):'\u2013'}</b><span>Score du jour</span></div>
+    </div>
+    <div class="src" style="margin-top:4px">M\u00eames rep\u00e8res que le Coach Nutrition (onglet Sant\u00e9), appliqu\u00e9s \u00e0 cette seule journ\u00e9e plut\u00f4t qu\u2019\u00e0 une moyenne de p\u00e9riode.</div>`;
+}
+
 function daySheet(k){
   const es = S.hist.filter(e => e.d === k);
   const tot = es.reduce((a,e) => a + kgOf(e.l), 0);
@@ -14928,11 +14954,13 @@ function daySheet(k){
           <div class="kg">${n2(kgOf(e.l))} ›</div>
         </button>`).join('')
         : '<div class="empty">Aucun repas ce jour-là.</div>'}
-    </div>`);
+    </div>
+    ${coachJourEqBloc(k, es.length)}`);
   $('#dsBack').onclick = () => calendarSheet(k.slice(0,7));
   $('#sheet').querySelectorAll('[data-entry]').forEach(b => b.onclick = () =>
     entrySheet(b.dataset.entry, {l:dLabel(k), fn:() => daySheet(k)}));
 }
+
 
 /* ---- trophées : deux jalons végétariens, puis l'échelle des kg évités ----
    Chaque médaille est frappée dans son métal, le tribar de Penrose gravé au centre. */
