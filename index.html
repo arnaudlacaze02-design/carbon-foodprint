@@ -1918,6 +1918,38 @@ button.tip:active{transform:scale(.995)}
 .podlink{text-align:left; color:var(--ink); text-decoration:underline;
   text-underline-offset:2px; text-decoration-color:var(--line)}
 
+/* ---------------- podium des journées (onglet Cumulé) ----------------
+   Distinct de .podium/.pod ci-dessus (podium des défis, avec pseudos et
+   médailles-images) : celui-ci est personnel, cliquable, et pensé comme une
+   vraie estrade — trois blocs de hauteurs différentes, l'or au centre et le
+   plus haut, chacun teinté du dégradé de son métal (mêmes teintes que les
+   trophées de l'onglet Progrès, pour ne pas inventer un second langage
+   couleur). Chaque marche est un vrai <button> : toucher une journée ouvre
+   son détail, exactement comme n'importe quelle autre case de l'historique. */
+.pod3-wrap{display:flex; align-items:flex-end; justify-content:center; gap:8px; margin:4px 0 2px}
+.pod3-step{flex:1 1 0; min-width:0; position:relative; overflow:hidden; border:0; cursor:pointer;
+  border-radius:16px 16px 9px 9px; color:#fff; text-align:center;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+  padding:10px 6px 10px; box-shadow:0 6px 16px rgba(20,20,15,.16);
+  transition:transform .12s ease, box-shadow .12s ease}
+.pod3-step:active{transform:scale(.96); box-shadow:0 3px 10px rgba(20,20,15,.18)}
+.pod3-1{order:2; height:158px;
+  background:linear-gradient(158deg,#FFF3C4 0%,#F0C24E 52%,#B8850C 100%)}
+.pod3-2{order:1; height:134px;
+  background:linear-gradient(158deg,#F6F9FA 0%,#CBD3D8 52%,#828E96 100%)}
+.pod3-3{order:3; height:118px;
+  background:linear-gradient(158deg,#EFC9A0 0%,#C07D42 52%,#7C4A22 100%)}
+.pod3-rank{position:absolute; left:8px; top:4px; font-family:var(--display); font-weight:800;
+  font-size:38px; line-height:1; color:rgba(255,255,255,.34); pointer-events:none}
+.pod3-medal{font-size:26px; line-height:1; display:block; margin-bottom:4px;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+.pod3-day{display:block; font-family:var(--display); font-weight:700; font-size:13.5px;
+  line-height:1.2; text-shadow:0 1px 3px rgba(0,0,0,.28); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; max-width:100%}
+.pod3-val{display:block; font-family:var(--mono); font-size:10.5px; margin-top:3px;
+  color:rgba(255,255,255,.92); text-shadow:0 1px 2px rgba(0,0,0,.22)}
+.pod3-chev{position:absolute; right:8px; bottom:7px; font-size:10px; color:rgba(255,255,255,.75)}
+
 /* Médaille d'un défi terminé : sur la ligne du récapitulatif, et en grand dans
    la fiche du défi. C'est le seul endroit où une image de badge sort du cercle
    de medal() — un podium se regarde entier. */
@@ -14431,14 +14463,17 @@ function podiumBloc(a){
   const MED = ['\u{1F947}','\u{1F948}','\u{1F949}'];
   return `<h2 class="sec">Podium des journées</h2>
     ${selecteur}
-    <div class="podium">
-      ${top.map((j,i) => `<div class="pod">
-        <span style="font-size:32px;line-height:1;display:block;margin:0 auto 6px">${MED[i]}</span>
-        <b>${dLabel(j.d)}</b>
-        <span>${podiumValLabel(j, crit)}</span>
-      </div>`).join('')}
+    <div class="pod3-wrap">
+      ${top.map((j,i) => `<button type="button" class="pod3-step pod3-${i+1}" data-podday="${esc(j.d)}"
+          aria-label="${esc(dLabel(j.d))}, ${esc(podiumValLabel(j, crit))} \u2014 voir les repas">
+        <span class="pod3-rank">${i+1}</span>
+        <span class="pod3-medal">${MED[i]}</span>
+        <b class="pod3-day">${esc(dLabel(j.d))}</b>
+        <span class="pod3-val">${podiumValLabel(j, crit)}</span>
+        <span class="pod3-chev">\u203a</span>
+      </button>`).join('')}
     </div>
-    ${infoCap(PODIUM_LEGENDE[crit])}`;
+    ${infoCap(PODIUM_LEGENDE[crit] + ' Touchez une journée pour voir ses repas.')}`;
 }
 
 function tvCumule(a){
@@ -14583,6 +14618,7 @@ function tvCumule(a){
   const wb = $('#weeksBtn');
   if(wb) wb.onclick = () => weeksSheet(a, allDays);
   $('#tv').querySelectorAll('[data-podc]').forEach(b => b.onclick = () => { S.podiumCrit = b.dataset.podc; tvCumule(a); });
+  $('#tv').querySelectorAll('[data-podday]').forEach(b => b.onclick = () => daySheet(b.dataset.podday));
 }
 
 /* Calories et protéines cumulées, sur la même fenêtre que le carbone. Affiché
