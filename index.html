@@ -9160,12 +9160,14 @@ function renderSaisie(){
       <span class="mcs">Une protéine, un féculent, un légume, et la taille de l’assiette.
         Le plus rapide, et suffisant pour la plupart des repas de tous les jours.</span>
     </button>` : ''}
-    <button class="mcard" data-co="6" data-path="compose">
+    <div class="mcard" data-co="6">
       <span class="mct">Rechercher</span>
       <span class="mcn">${DB.foods.length + DISHES().length}</span>
-      <span class="mcs">Recherche des aliments et des plats types que vous pourrez
-        personnaliser : les grammes se corrigent ligne par ligne après l’ajout.</span>
-    </button>
+      <div class="srchw mb" style="grid-column:1/-1; margin:2px 0 0">
+        <input class="search" id="dq0" type="search" placeholder="Chercher un aliment ou un plat"
+               autocorrect="on" autocapitalize="sentences" spellcheck="true" value="${esc(S.dishQ)}">
+      </div>
+    </div>
     <button class="mcard" data-co="4" data-path="part">
       <span class="mct">Restaurants et partenaires</span>
       <span class="mcn">${partTous().length}</span>
@@ -9271,6 +9273,21 @@ function renderSaisie(){
     renderSaisie(); const n = $('#dq'); if(n){ n.focus(); n.setSelectionRange(p,p); } };
   const dqx = $('#dqx');
   if(dqx) dqx.onclick = () => { S.dishQ = ''; renderSaisie(); const n = $('#dq'); if(n) n.focus(); };
+  /* Champ « Rechercher » incrusté dans la tuile du choix de voie : un seul geste
+     doit suffire pour se retrouver en train de taper. Le focus — pas la frappe —
+     bascule S.path sur « compose » et rend le vrai champ de recherche (#dq) à sa
+     place, avec le focus repris dessus dans le même tour de boucle pour ne pas
+     perdre le clavier. #dq0 ne vit donc qu'un instant : une tuile parmi d'autres
+     tant qu'on ne l'a pas touchée, le champ de recherche dès qu'on la touche. */
+  const dq0 = $('#dq0');
+  if(dq0) dq0.onfocus = () => {
+    if(S.path === 'compose') return;
+    const val = dq0.value, p = dq0.selectionStart;
+    S.path = 'compose'; S.partner = null; S.dishQ = val;
+    renderSaisie();
+    const n = $('#dq');
+    if(n){ n.value = val; n.focus(); try{ n.setSelectionRange(p, p); }catch(err){} }
+  };
 
   /* Le panier descend au récapitulatif du service en cours. Ce récapitulatif
      n'est pas toujours à l'écran — dans un repas à services, il ne se rend que
