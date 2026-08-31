@@ -7721,7 +7721,8 @@ function editSheet(){
         </button>`).join('')
         : '<div class="empty">Aucun repas enregistré pour l’instant.</div>'}
     </div>`);
-  $('#sheet').querySelectorAll('[data-entry]').forEach(b => b.onclick = () => entrySheet(b.dataset.entry));
+  $('#sheet').querySelectorAll('[data-entry]').forEach(b => b.onclick = () =>
+    entrySheet(b.dataset.entry, {l:'Derniers repas', fn:editSheet}));
 }
 
 /* étapes du parcours guidé, pour le déjeuner et le dîner */
@@ -14084,7 +14085,7 @@ function mealSheet(mk, d, axe){
       ${n0(n.part)} % en valeurs propres${n.part < 99 ? ', le reste par recette ou report' : ''}.
       Source : table CIQUAL 2025 de l\u2019ANSES, jointe par aliment.</div>` : ''}`);
   $('#sheet').querySelectorAll('[data-entry]').forEach(b =>
-    b.onclick = () => entrySheet(b.dataset.entry));
+    b.onclick = () => entrySheet(b.dataset.entry, {l:MEAL[mk].l, fn:() => mealSheet(mk, d, axe)}));
 
   /* Un seul axe ouvert à la fois : trois décompositions empilées feraient une
      fiche à dérouler, et l'intérêt de la vignette est justement de comparer. */
@@ -14123,11 +14124,12 @@ function nuBlock(lignes){
       sans équivalent direct sont déduites de la recette ou reportées d’un aliment proche.</div>`;
 }
 
-function entrySheet(id){
+function entrySheet(id, back){
   const e = S.hist.find(x => x.id === id);
   if(!e) return;
   const lines = e.l.map(([sl,g]) => `${esc(F.get(sl).n)} · ${g} g · ${n2(F.get(sl).t*g/1000)}`).join('<br>');
   openSheet(`
+    ${back ? `<button id="es_back" class="backlink">‹ ${esc(back.l)}</button>` : ''}
     <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">
       ${MEAL[e.m].l} · ${dLabel(e.d)}</div>
     <h3>${esc(e.n)}</h3>
@@ -14142,6 +14144,7 @@ function entrySheet(id){
     <div class="actions" style="margin-top:8px">
       <button class="btn btn-2" id="e_del" style="color:var(--brick)">Supprimer</button>
     </div>`);
+  if(back){ const bb = $('#es_back'); if(bb) bb.onclick = back.fn; }
 
   $('#e_edit').onclick = () => {
     S.draft = e.l.map(l => [l[0], l[1], l[2] || 'plat']);
@@ -14927,7 +14930,8 @@ function daySheet(k){
         : '<div class="empty">Aucun repas ce jour-là.</div>'}
     </div>`);
   $('#dsBack').onclick = () => calendarSheet(k.slice(0,7));
-  $('#sheet').querySelectorAll('[data-entry]').forEach(b => b.onclick = () => entrySheet(b.dataset.entry));
+  $('#sheet').querySelectorAll('[data-entry]').forEach(b => b.onclick = () =>
+    entrySheet(b.dataset.entry, {l:dLabel(k), fn:() => daySheet(k)}));
 }
 
 /* ---- trophées : deux jalons végétariens, puis l'échelle des kg évités ----
