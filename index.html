@@ -14341,6 +14341,106 @@ function cumulCard(o){
     </div>`;
 }
 
+/* ---------------- podium des journées (onglet Cumulé) ----------------
+   Trois critères sélectionnables :
+   - carbone   : les trois journées renseignées les plus sobres (tot le plus bas) ;
+   - équilibre : les trois journées dont le score coachEq DU JOUR MÊME (et non
+     une moyenne de période) est le plus élevé — même fonction que l'anneau
+     Coach Nutrition, appliquée jour par jour ;
+   - mix       : les deux à parts égales. Le carbone n'est pas borné 0–10 comme
+     l'équilibre ; il est donc normalisé par min-max sur les seules journées
+     candidates (celles où un score équilibre existe) avant d'être moyenné à
+     50/50 avec ce score. Cette normalisation est relative à la période
+     affichée, pas à une échelle absolue : elle sert à départager ces
+     journées-là, pas à donner une note universelle. */
+const PODIUM_CRIT = [
+  ['carbone', 'Carbone'],
+  ['equilibre', '\u00c9quilibre'],
+  ['mix', 'Carbone + \u00c9quilibre']
+];
+
+function podiumJours(a, crit){
+  const nuj = nuParJour();
+  const sportif = (S.prof && S.prof.act) === 'sportif';
+  const mode = sportif ? ((S.prof && S.prof.modeEntr) || 'prepa') : 'prepa';
+  const t = nuOn() ? coachTargets(mode) : null;
+
+  const jours = a.keys.map(k => ({
+    d: k, tot: a.days[k].tot,
+    eq: (t && nuj[k]) ? coachEq(nuj[k], t) : null
+  }));
+
+  if(crit === 'carbone') return jours.slice().sort((x,y) => x.tot - y.tot).slice(0, 3);
+
+  const valides = jours.filter(j => j.eq != null);
+  if(crit === 'equilibre') return valides.slice().sort((x,y) => y.eq - x.eq).slice(0, 3);
+
+  if(!valides.length) return [];
+  const tots = valides.map(j => j.tot);
+  const minT = Math.min(...tots), maxT = Math.max(...tots);
+  valides.forEach(j => { j.mix = 0.5 * (maxT > minT ? (maxT - j.tot) / (maxT - minT) * 10 : 5) + 0.5 * j.eq; });
+  return valides.slice().sort((x,y) => y.mix - x.mix).slice(0, 3);
+}
+
+function podiumValLabel(j, crit){
+  if(crit === 'carbone') return `${n2(j.tot)} kg`;
+  if(crit === 'equilibre') return `${n1(j.eq)}/10`;
+  return `${n2(j.tot)} kg \u00b7 ${n1(j.eq)}/10`;
+}
+
+const PODIUM_LEGENDE = {
+  carbone: 'Les trois journées renseignées avec l\u2019empreinte carbone la plus faible, tous repas confondus.',
+  equilibre: 'Les trois journées dont le score \u00c9quilibre du jour (calories, protéines, lipides, glucides comparés à votre profil) est le plus élevé.',
+  mix: 'Chaque journée combine son classement carbone et son score \u00c9quilibre du jour, à parts égales (50 % chacun). Le carbone est ramené sur une échelle de 0 à 10 relative aux journées de cette liste, pour rester comparable au score \u00c9quilibre.'
+};
+
+function podiumBloc(a){
+  if(!a.keys.length) return '';
+  const crit = PODIUM_CRIT.some(([k]) => k === S.podiumCrit) ? S.podiumCrit : 'carbone';
+  S.podiumCrit = crit;
+  const besoinEq = crit !== 'carbone';
+
+  const selecteur = nuOn() ? `<div class="seg" role="tablist" style="margin-bottom:10px">
+    ${PODIUM_CRIT.map(([k,l]) => `<button data-podc="${k}" aria-pressed="${k===crit}">${l}</button>`).join('')}
+  </div>` : '';
+
+  if(besoinEq && !nuOn()){
+    /* Filet de sécurité : un critère nutrition sélectionné avant que le
+       réglage nutrition n'ait été désactivé retombe sur Carbone plutôt que
+       d'afficher un sélecteur à deux boutons manquants. */
+    S.podiumCrit = 'carbone';
+    return podiumBloc(a);
+  }
+
+  if(besoinEq){
+    const sportif = (S.prof && S.prof.act) === 'sportif';
+    const mode = sportif ? ((S.prof && S.prof.modeEntr) || 'prepa') : 'prepa';
+    if(!coachTargets(mode)) return `<h2 class="sec">Podium des journées</h2>
+      ${selecteur}
+      <div class="card">
+        <div class="small mute">L\u2019\u00c9quilibre a besoin d\u2019une cible ou d\u2019une estimation calorique pour noter vos journées. Renseignez votre profil (sexe, \u00e2ge, activité) ou une cible calorique dans vos objectifs.</div>
+        <div class="actions" style="margin-top:10px"><button class="btn btn-1" onclick="objSheet()">Renseigner mon profil</button></div>
+      </div>`;
+  }
+
+  const top = podiumJours(a, crit);
+  if(!top.length) return `<h2 class="sec">Podium des journées</h2>
+    ${selecteur}
+    <div class="card"><div class="small mute">Pas encore assez de journées complètes (repas et, pour l\u2019\u00c9quilibre, cibles nutritionnelles) pour établir ce podium.</div></div>`;
+
+  const MED = ['\u{1F947}','\u{1F948}','\u{1F949}'];
+  return `<h2 class="sec">Podium des journées</h2>
+    ${selecteur}
+    <div class="podium">
+      ${top.map((j,i) => `<div class="pod">
+        <span style="font-size:32px;line-height:1;display:block;margin:0 auto 6px">${MED[i]}</span>
+        <b>${dLabel(j.d)}</b>
+        <span>${podiumValLabel(j, crit)}</span>
+      </div>`).join('')}
+    </div>
+    ${infoCap(PODIUM_LEGENDE[crit])}`;
+}
+
 function tvCumule(a){
   if(!a.nd){
     $('#tv').innerHTML = `<div class="card" style="margin-top:14px">
@@ -14396,6 +14496,8 @@ function tvCumule(a){
           ${n1(Math.abs(a.nd*BUDGET_J - a.tot))} <small>kg</small></div>
         <div class="l">${a.tot > a.nd*BUDGET_J ? 'Au-dessus du budget cumulé' : 'Marge sur le budget cumulé'}</div></div>
     </div>
+
+    ${podiumBloc(a)}
 
     <h2 class="sec">Courbe cumulée</h2>
     <div class="card">
@@ -14480,6 +14582,7 @@ function tvCumule(a){
   }
   const wb = $('#weeksBtn');
   if(wb) wb.onclick = () => weeksSheet(a, allDays);
+  $('#tv').querySelectorAll('[data-podc]').forEach(b => b.onclick = () => { S.podiumCrit = b.dataset.podc; tvCumule(a); });
 }
 
 /* Calories et protéines cumulées, sur la même fenêtre que le carbone. Affiché
