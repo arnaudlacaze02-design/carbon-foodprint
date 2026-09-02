@@ -420,6 +420,19 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   letter-spacing:-.03em; font-variant-numeric:tabular-nums}
 .saisdial .ctr span{font-family:var(--mono); font-size:9px; letter-spacing:.09em;
   text-transform:uppercase; color:var(--mute); margin-top:4px}
+/* Bouton « Les fruits et légumes de saison » et la liste du mois en cours
+   qu'il déplie, dans la feuille de saisonnalité, au-dessus du sélecteur de
+   période. Chips plutôt que liste verticale : quinze à trente noms tiennent
+   mieux en paquet qu'en colonne, et rien ici n'a besoin d'être trié par
+   poids ou comparé — juste consulté. */
+.saisbtn{width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:var(--card);
+  font-family:inherit; font-size:13.5px; color:var(--ink); text-align:left; margin-bottom:10px}
+.saisbtn:active{background:var(--active)}
+.saisbtn .ar{font-family:var(--mono); font-size:15px; color:var(--mute); flex:0 0 auto}
+.saislist{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 14px}
+.saislist span{padding:6px 11px; border:1px solid var(--line); border-radius:999px; background:var(--active);
+  font-size:12.5px; color:var(--ink-soft)}
 .seg button.on{background:var(--card); color:var(--ink); font-weight:600;
   box-shadow:0 1px 2px rgba(0,0,0,.06)}
 
@@ -16146,7 +16159,23 @@ function saisStats(per){
           contre:[...contre.entries()].sort((a,b) => b[1] - a[1]).slice(0, 5)};
 }
 
-let saisPer = 'tout', saisCal = null;
+let saisPer = 'tout', saisCal = null, saisListOpen = false;
+
+/* Fruits et légumes de saison pour le mois en cours (celui de l'appareil, pas
+   celui d'un repas passé : c'est une liste « que manger maintenant », pas une
+   relecture d'historique). Réutilise saisOf() telle quelle — même définition
+   de la saison que le pourcentage juste au-dessus, imports et neutres exclus
+   par construction puisque saisOf() renvoie null ou false pour eux. */
+function saisMoisFoods(){
+  const mois = new Date().getMonth();
+  /* Les deux entrées génériques du référentiel — utilisées pour composer des
+     recettes, pas pour être consultées comme un aliment — sont "sais:1" donc
+     toujours vraies : sans cette exclusion elles apparaîtraient chaque mois,
+     à côté de vrais noms, sans rien dire de la saison. */
+  const generiques = new Set(['legumesaison', 'fruitsaison']);
+  return DB.foods.filter(f => !generiques.has(f.s) && saisOf(f.s, mois) === true)
+    .sort((a,b) => a.n.localeCompare(b.n, 'fr'));
+}
 
 /* Calendrier d'un aliment, douze cases. Répond à la seule question qu'on se pose
    devant un « hors saison » : quand est-ce que j'en remange ? Les trois cas
@@ -16262,6 +16291,17 @@ function saisSheet(){
     <div class="small mute" style="margin-bottom:12px">Part de tes fruits et légumes qui étaient
       de saison au moment où tu les as mangés. Le reste de l’assiette n’entre pas dans ce calcul.</div>
 
+    <button class="saisbtn" id="saisMoisBtn" aria-expanded="${saisListOpen}">
+      <span>Les fruits et légumes de saison${saisListOpen ? ` (${MOISN[new Date().getMonth()]})` : ''}</span>
+      <span class="ar">${saisListOpen ? '\u2212' : '+'}</span>
+    </button>
+    ${saisListOpen ? (() => {
+      const items = saisMoisFoods();
+      return items.length
+        ? `<div class="saislist">${items.map(f => `<span>${esc(f.n)}</span>`).join('')}</div>`
+        : `<div class="src" style="margin-bottom:12px">Aucun aliment de saison enregistré pour ce mois-ci.</div>`;
+    })() : ''}
+
     <div class="seg" id="saisper">${SAIS_PER.map(([k,l]) =>
       `<button data-sp="${k}"${k === saisPer ? ' class="on"' : ''}>${l}</button>`).join('')}</div>
 
@@ -16302,6 +16342,7 @@ function saisSheet(){
 
   $('#saisper').querySelectorAll('[data-sp]').forEach(b =>
     b.onclick = () => { saisPer = b.dataset.sp; saisCal = null; saisSheet(); });
+  $('#saisMoisBtn').onclick = () => { saisListOpen = !saisListOpen; saisSheet(); };
   /* Un seul calendrier ouvert à la fois : trois empilés rendraient la liste
      illisible, et l'intérêt est de comparer les retours de saison. */
   $('#sheet').querySelectorAll('[data-cal]').forEach(b =>
