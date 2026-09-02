@@ -7615,6 +7615,23 @@ function bindBiblio(){
   view.querySelectorAll('[data-rec]').forEach(b => b.onclick = () => recetteSheet(b.dataset.rec));
 }
 
+/* Pour un aliment estimé (x.x), retrouve la ou les valeurs ADEME exactes
+   reprises via x.c (ex. boeuf mg5 % → boeuf, 28,009 kg CO2e/kg) plutôt que de
+   se contenter du texte libre de xn. Rien à afficher si l'estimation n'a pas
+   de composition structurée (quelques valeurs posées sans report direct,
+   ex. sucre, moutarde). */
+function foodRefHTML(x){
+  if(!x.x || !x.c || !x.c.length) return '';
+  const refs = x.c.map(([slug, coef]) => {
+    const r = F.get(slug);
+    if(!r) return null;
+    const mult = Math.abs(coef - 1) > 0.001 ? ` × ${n2(coef)}` : '';
+    return `${esc(r.n)} : ${n2(r.t)} kg CO₂e/kg${mult}`;
+  }).filter(Boolean);
+  if(!refs.length) return '';
+  return `<div class="small mute" style="margin-top:6px">${refs.length > 1 ? 'Références ADEME utilisées' : 'Référence ADEME'} — ${refs.join(' · ')}</div>`;
+}
+
 function foodSheet(slug){
   const x = F.get(slug);
   const st = x.e || [];
@@ -7635,9 +7652,11 @@ function foodSheet(slug){
     : `<p class="small mute" style="margin-top:12px">Décomposition par étape non publiée pour cet aliment.</p>`}
     ${x.x ? `<div class="note"><b>Valeur estimée, absente de la base ADEME.</b><br>
       Reprise de « ${esc(x.xs)} » : ${esc(x.xn)}. À remplacer par la ligne AGRIBALYSE correspondante
-      si l’aliment devient structurant dans vos saisies.</div>` : ''}
+      si l’aliment devient structurant dans vos saisies.
+      ${foodRefHTML(x)}</div>` : ''}
     ${x.m || x.sais != null ? `<div class="hr"></div><div class="unit">Saison en France</div>
       ${cal12(x.s)}` : ''}
+    ${nuBlock([[x.s, x.p]])}
     <div class="hr"></div>
     <div class="actions">
       <button class="btn btn-1" onclick="quickAdd('${x.s}')">Ajouter à la saisie</button>
