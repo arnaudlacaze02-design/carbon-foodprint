@@ -13453,19 +13453,32 @@ function courseSuiviHTML(){
   const bandes = coursePhaseBandes(c.date, debut, fin);
   const jourW = data.length > 1 ? (fin - debut) / (data.length - 1) : 86400000;
 
-  const W = 320, H = 130, mL = 2, mR = 2, mT = 8, mB = 2;
-  const plotW = W - mL - mR, plotH = H - mT - mB;
-  const span = (fin - debut) + jourW;
-  const xPos = t => mL + ((t - debut) / span) * plotW;
-  const barW = plotW / data.length;
-
   const cibles = data.map(d => {
     const ph = phaseForDate(c.date, d.d);
     const t = coachTargets(ph);
     return t && t[macroKey] && t[macroKey].v != null ? t[macroKey].v : null;
   });
+  /* coachTargets() dépend du profil, pas du jour : soit la cible existe pour
+     TOUS les jours de la fenêtre, soit pour aucun (profil incomplet côté
+     calories/protéines) — jamais un trou au milieu. D'où ce test global
+     plutôt qu'un filtre jour par jour. */
+  const hasCible = cibles.every(v => v != null);
+
   const vals = data.map(d => d[macroKey] || 0);
-  const yMax = Math.max(...vals, ...cibles.filter(v => v != null), 1) * 1.15;
+  /* Le vrai objet du graphe : pas "combien j'ai mangé ce jour-là" (un seul
+     écart de jour ne veut rien dire, cf. la demande d'écart cumulé), mais
+     "où j'en suis en cumulé par rapport à ce que le programme attendait de
+     moi jusqu'ici". Deux sommes qui montent, pas des barres. */
+  let cr = 0, cc = 0;
+  const cumReel = vals.map(v => cr += v);
+  const cumCible = hasCible ? cibles.map(v => cc += v) : [];
+
+  const W = 320, H = 130, mL = 2, mR = 2, mT = 8, mB = 2;
+  const plotW = W - mL - mR, plotH = H - mT - mB;
+  const span = (fin - debut) + jourW;
+  const xPos = t => mL + ((t - debut) / span) * plotW;
+  const barW = plotW / data.length;
+  const yMax = Math.max(...cumReel, ...cumCible, 1) * 1.08;
   const yPos = v => mT + plotH - (v / yMax) * plotH;
 
   const bandsSvg = bandes.map(b => {
@@ -13473,35 +13486,38 @@ function courseSuiviHTML(){
     return `<rect x="${x1.toFixed(1)}" y="${mT}" width="${Math.max(1, x2 - x1).toFixed(1)}" height="${plotH}" fill="${PHASE_COLOR[b.phase]}" opacity=".16"/>`;
   }).join('');
 
-  const barresSvg = data.map((d,i) => {
-    const v = vals[i], y = yPos(v), x = xPos(new Date(d.d+'T00:00:00').getTime()) + barW*0.18, w = barW*0.64;
-    const couleur = cibles[i] ? coachCouleur(v, cibles[i]) : 'var(--mute)';
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0, mT+plotH-y).toFixed(1)}" rx="2" fill="${couleur}"/>`;
+  function ligne(vals2, couleur, tirets){
+    let d = '';
+    data.forEach((day,i) => {
+      const x = xPos(new Date(day.d+'T00:00:00').getTime()) + barW/2, y = yPos(vals2[i]);
+      d += (i===0 ? `M${x.toFixed(1)},${y.toFixed(1)}` : ` L${x.toFixed(1)},${y.toFixed(1)}`);
+    });
+    return `<path d="${d}" fill="none" stroke="${couleur}" stroke-width="1.8"${tirets ? ' stroke-dasharray="3 3"' : ''}/>`;
+  }
+  const ligneCibleSvg = hasCible ? ligne(cumCible, '#8A9285', true) : '';
+  const ligneReelSvg = ligne(cumReel, 'var(--ink, #16241C)', false);
+  const pointsSvg = data.map((day,i) => {
+    const x = xPos(new Date(day.d+'T00:00:00').getTime()) + barW/2, y = yPos(cumReel[i]);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.4" fill="var(--ink, #16241C)"/>`;
   }).join('');
 
-  let ligneCible = '', started = false, path = '';
-  data.forEach((d,i) => {
-    if(cibles[i] == null) return;
-    const x = xPos(new Date(d.d+'T00:00:00').getTime()) + barW/2, y = yPos(cibles[i]);
-    path += (!started ? `M${x.toFixed(1)},${y.toFixed(1)}` : ` L${x.toFixed(1)},${y.toFixed(1)}`); started = true;
-  });
-  if(path) ligneCible = `<path d="${path}" fill="none" stroke="#8A9285" stroke-width="1.4" stroke-dasharray="3 3"/>`;
-
-  const moyReel = vals.reduce((a,b)=>a+b,0) / (vals.length || 1);
-  const cibleVals = cibles.filter(v => v != null);
-  const moyCible = cibleVals.length ? cibleVals.reduce((a,b)=>a+b,0) / cibleVals.length : null;
+  const ecart = hasCible ? cumReel[cumReel.length-1] - cumCible[cumCible.length-1] : null;
+  const ecartPct = hasCible && cumCible[cumCible.length-1] ? (ecart / cumCible[cumCible.length-1] * 100) : null;
+  const signe = ecart != null && ecart >= 0 ? '+' : '';
 
   return `
     <div class="coachnu-modes" style="margin:0 0 10px">${CR_MACROS.map(m =>
       `<button data-crmacro="${m.k}" aria-pressed="${macroKey===m.k}">${m.l}</button>`).join('')}</div>
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; display:block">${bandsSvg}${barresSvg}${ligneCible}</svg>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; display:block">${bandsSvg}${ligneCibleSvg}${ligneReelSvg}${pointsSvg}</svg>
     <div class="course-suivi-legend">
       ${['prepa','peak','compet','recup'].map(k => `<span><i style="background:${PHASE_COLOR[k]}"></i>${MODES_ENTR[k].l}</span>`).join('')}
-      <span><i class="dash"></i>Cible</span>
+      <span><i class="dash"></i>Cible cumul\u00e9e</span>
     </div>
-    <div class="coachnu-periode-sheet" style="margin-top:12px">${[7,14,30].map(p =>
-      `<button data-crper="${p}" aria-pressed="${per===p}"><span>${p} j</span></button>`).join('')}</div>
-    <div class="src" style="margin-top:10px">Moyenne r\u00e9elle sur ${per}\u00a0j : <b>${n0(moyReel)} ${macro.unit}</b>${moyCible!=null ? ` vs cible p\u00e9riodis\u00e9e <b>${n0(moyCible)} ${macro.unit}</b>` : ' \u2014 pas de cible calorique r\u00e9gl\u00e9e'}.</div>
+    <div class="coachnu-modes" style="margin-top:12px">${[7,14,30].map(p =>
+      `<button data-crper="${p}" aria-pressed="${per===p}">${p} j</button>`).join('')}</div>
+    ${hasCible
+      ? `<div class="src" style="margin-top:10px">\u00c9cart cumul\u00e9 sur ${per}\u00a0j : <b>${signe}${n0(ecart)} ${macro.unit.replace('/j','')}</b>${ecartPct!=null ? ` (${signe}${n0(ecartPct)}\u00a0%)` : ''} \u2014 total r\u00e9el <b>${n0(cumReel[cumReel.length-1])}</b> vs cible <b>${n0(cumCible[cumCible.length-1])}</b>.</div>`
+      : `<div class="src" style="margin-top:10px">Pas de cible ${esc(macro.l.toLowerCase())} r\u00e9gl\u00e9e \u2014 seul le cumul r\u00e9el s\u2019affiche.</div>`}
   `;
 }
 
