@@ -2169,6 +2169,25 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-modes button{flex:1; padding:8px 0; border-radius:999px; font-size:11px; font-weight:700; color:var(--mute)}
 .coachnu-modes button[aria-pressed="true"]{background:var(--card); color:var(--ink); font-weight:800;
   box-shadow:0 2px 6px rgba(0,0,0,.08)}
+/* Ligne mode + bouton course, et le repère calendrier qu'il déplie en dessous.
+   Le bouton course n'écrit jamais S.prof.modeEntr lui-même : il ouvre juste
+   la feuille de réglage. Seul le bouton « Appliquer » du repère change le
+   mode actif — la date de course reste un calcul affiché à côté, jamais une
+   bascule automatique et silencieuse (cf. phaseAuto). */
+.coachnu-modes-row{display:flex; align-items:center; gap:6px; margin:6px 0 8px}
+.coachnu-modes-row .coachnu-modes{margin:0}
+.coachnu-course-btn{width:32px; height:32px; border-radius:50%; border:1px solid var(--line);
+  background:var(--card); display:flex; align-items:center; justify-content:center; flex:0 0 auto; font-size:15px}
+.coachnu-course-btn:active{background:var(--active)}
+.coachnu-course-btn.on{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset}
+.coachnu-course-hint{display:flex; align-items:center; flex-wrap:wrap; gap:6px; font-family:var(--mono);
+  font-size:10.5px; color:var(--mute); margin:0 0 12px; padding:0 2px}
+.coachnu-course-hint b{color:var(--ink); font-family:var(--sans)}
+.coachnu-apply-btn{font-family:var(--sans); font-size:10.5px; font-weight:700; color:var(--accent);
+  border:1px solid var(--accent); border-radius:999px; padding:3px 9px; background:none}
+.coachnu-apply-btn:active{background:rgba(111,194,166,.12)}
+.coachnu-course-jourj{width:100%; text-align:center; font-family:var(--display); font-weight:800; font-size:13px;
+  color:#fff; background:var(--brick); border-radius:10px; padding:8px; margin:0 0 12px}
 .coachnu-donut{position:relative; width:100%; max-width:280px; aspect-ratio:1/1; margin:4px auto 8px}
 .coachnu-donut svg{width:100%; height:100%; overflow:visible}
 .coachnu-arc{fill:none; stroke-width:22; stroke-linecap:round; cursor:pointer;
@@ -12639,7 +12658,8 @@ const MODES_ENTR = {
   chill:  {l:'Chill',          kcal:0.85, prot:0.90, lip:0.90, gluc:0.75, fib:1.00},
   prepa:  {l:'Pr\u00e9pa',          kcal:1.00, prot:1.00, lip:1.00, gluc:1.00, fib:1.00},
   peak:   {l:'Peak',           kcal:1.15, prot:1.05, lip:1.00, gluc:1.30, fib:0.95},
-  compet: {l:'J-3 Comp\u00e9t\u2019', kcal:1.20, prot:0.90, lip:0.75, gluc:1.60, fib:0.65}
+  compet: {l:'J-3 Comp\u00e9t\u2019', kcal:1.20, prot:0.90, lip:0.75, gluc:1.60, fib:0.65},
+  recup:  {l:'R\u00e9cup',          kcal:1.10, prot:1.15, lip:1.00, gluc:1.20, fib:0.90}
 };
 const COACH_PERIODES = [7, 14, 30];
 
@@ -12647,12 +12667,147 @@ const COACH_PERIODES = [7, 14, 30];
    « Équilibre » sur l'anneau, jamais à calculer le score lui-même (qui reste
    la synthèse des quatre axes réels, cf. coachEq). Ce sont des repères
    indicatifs de périodisation, pas des cibles personnelles. */
-const EQ_REPERE = {chill:8.0, prepa:8.5, peak:8.8, compet:9.0};
+const EQ_REPERE = {chill:8.0, prepa:8.5, peak:8.8, compet:9.0, recup:8.5};
+
+/* ====================================================================
+   Course cible et calendrier de périodisation
+   ====================================================================
+   Le mode d'entraînement (chill/prépa/peak/compét/récup) n'a jusqu'ici
+   jamais été piloté que par un clic manuel sur MODES_ENTR. Ce qui suit
+   ajoute un second chemin, automatique : une date de course dans le
+   profil (S.prof.course) permet de calculer un J-X et d'en déduire une
+   phase suggérée, sans empêcher l'override manuel — phaseAuto() est un
+   repère proposé, jamais un mode imposé de force.
+
+   Seuils retenus (J = jour de course) :
+     J-∞ → J-22  : prépa      (aucune charge glucidique particulière)
+     J-21 → J-4  : peak       (glucides qui montent avec la charge)
+     J-3  → J-1  : compet     (fenêtre de charge glucidique, cf. carbLoad)
+     J        : jourj        (hors MODES_ENTR — géré par raceDayCalc(),
+                               c'est un débit horaire pendant l'effort, pas
+                               une cible journalière)
+     J+1 → J+5  : recup       (glucides + protéines remontés pour la
+                               resynthèse du glycogène et la réparation
+                               tissulaire, avant retour en chill ou prépa)
+   Ces bornes reprennent l'ordre de grandeur usuel des protocoles de
+   tapering et de charge glucidique (ISSN position stand 2018 ; Burke et
+   al. 2011 sur le carb-loading) : un repère de périodisation sportive
+   généraliste, pas une prescription individualisée. */
+function joursAvantCourse(dateISO){
+  if(!dateISO) return null;
+  const course = new Date(dateISO + 'T00:00:00');
+  const auj = new Date(); auj.setHours(0,0,0,0);
+  return Math.round((course - auj) / 86400000);
+}
+
+function phaseAuto(dateISO){
+  const j = joursAvantCourse(dateISO);
+  if(j == null) return null;
+  if(j > 21) return 'prepa';
+  if(j >= 4) return 'peak';
+  if(j >= 1) return 'compet';
+  if(j === 0) return 'jourj';
+  if(j >= -5) return 'recup';
+  return 'prepa';
+}
+
+/* Sports et sous-catégories couverts dans un premier temps : course à pied,
+   vélo, natation, triathlon, Hyrox. Chaque sous-catégorie porte trois
+   informations qui ne doivent SURTOUT PAS être mélangées :
+     - carbLoad : la charge glucidique des 24 à 72h avant course (g/kg de
+       poids de corps par jour). Le vrai seuil physiologique qui justifie un
+       carb-load, c'est la durée de l'effort — pas la discipline. En dessous
+       d'environ 90 minutes d'effort continu, les réserves de glycogène
+       musculaire suffisent déjà : charger plus n'apporte rien et ajoute
+       souvent de l'inconfort digestif ou du poids d'eau inutile. D'où
+       carbLoad:null pour tout ce qui est structurellement court.
+     - jourJ : le débit horaire PENDANT l'effort (g/h de glucides, mg/h de
+       sodium, mL/h d'hydratation) — jamais un g/kg journalier, cf. plus
+       haut. null quand il n'y a pas de ravitaillement possible en course
+       (Hyrox : pas d'aide alimentaire pendant les stations).
+     - note : ce qui distingue vraiment cette sous-catégorie dans le
+       protocole (pas une simple description marketing du format). */
+const EFFORT_SPORTS = {
+  course: {
+    l: 'Course \u00e0 pied',
+    cats: {
+      dix_km:    {l:'10 km',            dureeH:[0.5,1],    carbLoad:null,        jourJ:null,
+        note:'Sous le seuil des 90 minutes : glycogène musculaire suffisant sans charge ni ravitaillement dédiés.'},
+      semi:      {l:'Semi-marathon',    dureeH:[1.3,2.3],  carbLoad:[6,8],       jourJ:{glucH:[30,50], sodiumH:[300,500], eauH:[400,600]},
+        note:'Zone frontière : utile surtout au-delà de 1h45, à ajuster selon l\u2019allure visée.'},
+      marathon:  {l:'Marathon',         dureeH:[3,5],      carbLoad:[8,10],      jourJ:{glucH:[30,60], sodiumH:[300,700], eauH:[400,800]},
+        note:'Le protocole de référence : c\u2019est sur ce format que le carb-loading a été le plus étudié.'},
+      trail_court: {l:'Trail (<3h)',    dureeH:[1,3],      carbLoad:[6,8],       jourJ:{glucH:[30,60], sodiumH:[300,600], eauH:[400,700]},
+        note:'Le dénivelé ralentit l\u2019allure et allonge la durée réelle par rapport à la distance seule — recalculer sur le temps visé, pas les km.'},
+      trail_ultra: {l:'Trail long / ultra (>4h)', dureeH:[4,12], carbLoad:[10,12], jourJ:{glucH:[60,90], sodiumH:[500,1000], eauH:[500,750]},
+        note:'Glycogène + apport en course : sur ces durées les deux comptent autant l\u2019un que l\u2019autre. Débit haut sous réserve d\u2019un intestin entraîné à l\u2019effort.'}
+    }
+  },
+  velo: {
+    l: 'V\u00e9lo',
+    cats: {
+      court:     {l:'Sortie / CLM court (<1h30)', dureeH:[0.5,1.5], carbLoad:null, jourJ:{glucH:[0,60], sodiumH:[200,400], eauH:[500,750]},
+        note:'Ravitaillement optionnel sous 45 minutes, utile au-delà.'},
+      longue:    {l:'Cyclosportive / sortie longue (>3h)', dureeH:[3,8], carbLoad:[8,10], jourJ:{glucH:[60,90], sodiumH:[500,800], eauH:[500,750]},
+        note:'Le vélo tolère mieux un débit glucidique élevé que la course à pied — moins de ballottement digestif.'}
+    }
+  },
+  natation: {
+    l: 'Natation',
+    cats: {
+      court:     {l:'Course en bassin (<1h30)', dureeH:[0.2,1.5], carbLoad:null, jourJ:null,
+        note:'Pas de ravitaillement pendant la course : l\u2019essentiel se joue sur le repas pré-course.'},
+      eau_libre: {l:'Eau libre longue (>1h30)', dureeH:[1.5,6], carbLoad:[6,8], jourJ:{glucH:[30,60], sodiumH:[400,700], eauH:[0,0]},
+        note:'Ravitaillement possible seulement si le règlement de l\u2019épreuve l\u2019autorise (gels étanches, plots ravito) ; le sel perdu compte double en eau de mer.'}
+    }
+  },
+  triathlon: {
+    l: 'Triathlon',
+    cats: {
+      sprint:    {l:'Sprint',   dureeH:[1,1.5],  carbLoad:null,   jourJ:{glucH:[30,60], sodiumH:[300,500], eauH:[400,600]},
+        note:'Trop court pour un vrai carb-load ; un repas riche en glucides la veille suffit.'},
+      olympique: {l:'M (Olympique)', dureeH:[2,2.5], carbLoad:[5,7], jourJ:{glucH:[40,60], sodiumH:[400,600], eauH:[500,700]},
+        note:'Charge légère la veille plutôt qu\u2019un vrai protocole 48-72h.'},
+      m70_3:     {l:'70.3 (M half)', dureeH:[4,7], carbLoad:[8,10], jourJ:{glucH:[60,90], sodiumH:[500,800], eauH:[500,750]},
+        note:'Même squelette que l\u2019Ironman, fenêtres plus courtes : c\u2019est la distance, pas le protocole, qui diffère.'},
+      ironman:   {l:'Ironman (L)', dureeH:[9,16], carbLoad:[10,12], jourJ:{glucH:[90,120], sodiumH:[600,1200], eauH:[500,900]},
+        note:'Débit haut sur très longue durée : la tolérance digestive entraînée compte plus que le chiffre théorique. Risque d\u2019hyponatrémie à surveiller si l\u2019hydratation dépasse largement les pertes.'}
+    }
+  },
+  hyrox: {
+    l: 'Hyrox',
+    cats: {
+      standard:  {l:'Standard / Pro', dureeH:[0.9,1.6], carbLoad:[7,8], jourJ:null,
+        note:'Pas d\u2019aide alimentaire pendant les stations : le carb-load sert à partir avec le plein de glycogène, pas à tenir un débit en course. Le repas pré-course (1 à 4h avant, 1 à 4 g/kg de glucides) compte plus ici que le protocole 48-72h.'}
+    }
+  }
+};
+
+/* Débit horaire recommandé pendant l'effort, pour la sous-catégorie et le
+   poids donnés. Retourne null si la sous-catégorie n'a pas de fenêtre
+   jourJ (Hyrox, course en bassin) — dans ce cas le bon réflexe est le repas
+   pré-course, pas un calcul de g/h. */
+function raceDayCalc(sport, cat){
+  const s = EFFORT_SPORTS[sport]; const c = s && s.cats[cat];
+  if(!c || !c.jourJ) return null;
+  return c.jourJ;
+}
+
+/* Cible de charge glucidique (g/kg de poids de corps par jour) pour la
+   fenêtre J-3→J-1, ou null si la sous-catégorie est trop courte pour que
+   ça ait un sens (cf. le seuil des 90 minutes évoqué plus haut). */
+function carbLoadCible(sport, cat, poidsKg){
+  const s = EFFORT_SPORTS[sport]; const c = s && s.cats[cat];
+  if(!c || !c.carbLoad || !poidsKg) return null;
+  const [gMin, gMax] = c.carbLoad;
+  return {gKgMin: gMin, gKgMax: gMax, gJourMin: gMin * poidsKg, gJourMax: gMax * poidsKg};
+}
 
 /* Cibles/repères du mode courant, dérivées de la cible calorique choisie (ou
    du besoin estimé ANSES à défaut). null si l'app ne peut encore rien
    estimer — profil incomplet et aucune cible calorique renseignée. */
 function coachTargets(mode){
+
   const P = S.prof || {};
   const calBase = P.objCal != null ? P.objCal : besoinCal();
   if(calBase == null) return null;
@@ -13192,8 +13347,65 @@ function coachJourneesHTML(t){
 }
 
 function coachModesHTML(mode){
-  return `<div class="coachnu-modes">${Object.entries(MODES_ENTR).map(([k,m]) =>
-    `<button data-cnm="${k}" aria-pressed="${mode===k}"><b>${m.l}</b></button>`).join('')}</div>`;
+  const course = S.prof && S.prof.course;
+  const hasCourse = !!(course && course.date && course.sport && course.cat &&
+    EFFORT_SPORTS[course.sport] && EFFORT_SPORTS[course.sport].cats[course.cat]);
+  const phase = hasCourse ? phaseAuto(course.date) : null;
+  const j = hasCourse ? joursAvantCourse(course.date) : null;
+  const label = hasCourse ? EFFORT_SPORTS[course.sport].cats[course.cat].l : null;
+  /* mismatch ne concerne que les quatre modes réels de MODES_ENTR : jourj
+     n'y figure pas exprès (débit horaire, pas cible journalière, cf.
+     raceDayCalc), il a son propre bandeau plus bas plutôt qu'un bouton
+     Appliquer qui n'aurait rien de sensé à appliquer. */
+  const mismatch = phase && MODES_ENTR[phase] && phase !== mode;
+
+  return `<div class="coachnu-modes-row">
+    <div class="coachnu-modes">${Object.entries(MODES_ENTR).map(([k,m]) =>
+      `<button data-cnm="${k}" aria-pressed="${mode===k}"><b>${m.l}</b></button>`).join('')}</div>
+    <button class="coachnu-course-btn${hasCourse ? ' on' : ''}" id="cn_course" aria-label="Ma prochaine course">\ud83c\udfc1</button>
+  </div>
+  ${hasCourse && phase === 'jourj' ? `<div class="coachnu-course-jourj">\ud83c\udfc1 C\u2019est aujourd\u2019hui \u2014 ${esc(label)}</div>` : ''}
+  ${hasCourse && phase !== 'jourj' ? `<div class="coachnu-course-hint">
+    <span>${esc(label)} \u00b7 ${j > 0 ? `J-${j}` : `J+${Math.abs(j)}`}</span>
+    ${mismatch ? `<span>\u2014 calendrier : <b>${MODES_ENTR[phase].l}</b></span>
+      <button class="coachnu-apply-btn" data-cnauto="${phase}">Appliquer</button>` : ''}
+  </div>` : ''}`;
+}
+
+/* Feuille « Ma prochaine course » : sport, puis format (les cats d'
+   EFFORT_SPORTS), puis date. Se re-rend elle-même à chaque choix — même
+   logique progressive que coachProfilSheet — plutôt qu'un formulaire à
+   valider d'un coup, pour que le choix du sport filtre tout de suite les
+   formats proposés. Le résultat n'est qu'un repère affiché sous les
+   boutons de mode (cf. coachModesHTML) : rien ici ne modifie S.prof.modeEntr
+   directement. */
+function courseSheet(){
+  const P = S.prof = S.prof || {};
+  const c = P.course = P.course || {};
+  openSheet(`
+    <h3>Ma prochaine course</h3>
+    <div class="small mute" style="margin-bottom:12px">Sert de rep\u00e8re calendrier sous les boutons Chill/Pr\u00e9pa/Peak/Comp\u00e9t/R\u00e9cup \u2014 jamais une bascule automatique. C\u2019est toujours vous qui choisissez le mode actif.</div>
+    <div class="small" style="font-weight:700; margin-bottom:6px">Sport</div>
+    <div class="coachnu-periode-sheet">${Object.entries(EFFORT_SPORTS).map(([k,s]) =>
+      `<button data-crsport="${k}" aria-pressed="${c.sport===k}"><span>${esc(s.l)}</span>${c.sport===k?'\u2713':''}</button>`).join('')}</div>
+    ${c.sport && EFFORT_SPORTS[c.sport] ? `
+    <div class="small" style="font-weight:700; margin:14px 0 6px">Format</div>
+    <div class="coachnu-periode-sheet">${Object.entries(EFFORT_SPORTS[c.sport].cats).map(([k,cc]) =>
+      `<button data-crcat="${k}" aria-pressed="${c.cat===k}"><span>${esc(cc.l)}</span>${c.cat===k?'\u2713':''}</button>`).join('')}</div>
+    ${c.cat && EFFORT_SPORTS[c.sport].cats[c.cat] ? `<div class="src" style="margin-top:8px">${esc(EFFORT_SPORTS[c.sport].cats[c.cat].note)}</div>` : ''}
+    ` : ''}
+    <div class="small" style="font-weight:700; margin:14px 0 6px">Date de la course</div>
+    <input type="date" id="crdate" value="${c.date || ''}" min="${iso(new Date())}" style="width:100%">
+    ${c.date ? `<button class="btn" id="crClear" style="margin-top:16px; width:100%">Retirer cette course</button>` : ''}
+  `);
+  $('#sheet').querySelectorAll('[data-crsport]').forEach(b => b.onclick = () => {
+    P.course = {sport: b.dataset.crsport, cat: null, date: c.date || null}; save(); courseSheet();
+  });
+  $('#sheet').querySelectorAll('[data-crcat]').forEach(b => b.onclick = () => {
+    P.course.cat = b.dataset.crcat; save(); courseSheet();
+  });
+  const di = $('#crdate'); if(di) di.onchange = () => { P.course.date = di.value || null; save(); tvSante(agg()); };
+  const clr = $('#crClear'); if(clr) clr.onclick = () => { P.course = null; save(); closeSheet(); tvSante(agg()); };
 }
 
 /* Icône « réglages » (deux curseurs), en haut à droite du bloc : elle ouvre la
@@ -13339,6 +13551,10 @@ function coachBind(){
   wrap.querySelectorAll('[data-cnm]').forEach(b => b.onclick = () => {
     S.prof = S.prof || {}; S.prof.modeEntr = b.dataset.cnm; save(); tvSante(agg());
   });
+  wrap.querySelectorAll('[data-cnauto]').forEach(b => b.onclick = () => {
+    S.prof = S.prof || {}; S.prof.modeEntr = b.dataset.cnauto; save(); tvSante(agg());
+  });
+  const crs = $('#cn_course'); if(crs) crs.onclick = courseSheet;
   wrap.querySelectorAll('[data-cnk]').forEach(b => b.onclick = () => { S.cnKey = b.dataset.cnk; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnd]').forEach(b => b.onclick = () => { S.cnDay = +b.dataset.cnd; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnopt]').forEach(b => b.onclick = () => { S.cnOpt = +b.dataset.cnopt; tvSante(agg()); });
