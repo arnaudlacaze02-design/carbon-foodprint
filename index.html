@@ -2205,6 +2205,10 @@ html[data-gate="1"] .phone{display:none}
 .jourj-prod-info span{font-family:var(--mono); font-size:10px; color:var(--mute)}
 .jourj-prod-qte{font-family:var(--display); font-weight:800; font-size:14px; color:var(--accent); flex:0 0 auto;
   font-variant-numeric:tabular-nums}
+.course-suivi-legend{display:flex; flex-wrap:wrap; gap:10px; margin-top:8px}
+.course-suivi-legend span{display:flex; align-items:center; gap:4px; font-family:var(--mono); font-size:9.5px; color:var(--mute)}
+.course-suivi-legend i{width:8px; height:8px; border-radius:2px; flex:0 0 auto}
+.course-suivi-legend i.dash{width:10px; height:0; border-top:2px dashed #8A9285; border-radius:0}
 .coachnu-donut{position:relative; width:100%; max-width:280px; aspect-ratio:1/1; margin:4px auto 8px}
 .coachnu-donut svg{width:100%; height:100%; overflow:visible}
 .coachnu-arc{fill:none; stroke-width:22; stroke-linecap:round; cursor:pointer;
@@ -12710,15 +12714,15 @@ const EQ_REPERE = {chill:8.0, prepa:8.5, peak:8.8, compet:9.0, recup:8.5};
    tapering et de charge glucidique (ISSN position stand 2018 ; Burke et
    al. 2011 sur le carb-loading) : un repère de périodisation sportive
    généraliste, pas une prescription individualisée. */
-function joursAvantCourse(dateISO){
+function joursAvant(dateISO, refISO){
   if(!dateISO) return null;
   const course = new Date(dateISO + 'T00:00:00');
-  const auj = new Date(); auj.setHours(0,0,0,0);
-  return Math.round((course - auj) / 86400000);
+  const ref = refISO ? new Date(refISO + 'T00:00:00') : (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+  return Math.round((course - ref) / 86400000);
 }
+function joursAvantCourse(dateISO){ return joursAvant(dateISO); }
 
-function phaseAuto(dateISO){
-  const j = joursAvantCourse(dateISO);
+function phaseAtJ(j){
   if(j == null) return null;
   if(j > 21) return 'prepa';
   if(j >= 4) return 'peak';
@@ -12727,6 +12731,11 @@ function phaseAuto(dateISO){
   if(j >= -5) return 'recup';
   return 'prepa';
 }
+function phaseAuto(dateISO){ return phaseAtJ(joursAvantCourse(dateISO)); }
+/* Même seuils que phaseAuto, mais pour un jour passé (ou futur) donné plutôt
+   qu'aujourd'hui — sert au graphe de suivi, qui doit savoir dans quelle
+   phase se trouvait CHAQUE jour de l'historique, pas seulement aujourd'hui. */
+function phaseForDate(courseDateISO, refISO){ return phaseAtJ(joursAvant(courseDateISO, refISO)); }
 
 /* Sports et sous-catégories couverts dans un premier temps : course à pied,
    vélo, natation, triathlon, Hyrox. Chaque sous-catégorie porte trois
@@ -13397,11 +13406,121 @@ function coachModesHTML(mode){
    formats proposés. Le résultat n'est qu'un repère affiché sous les
    boutons de mode (cf. coachModesHTML) : rien ici ne modifie S.prof.modeEntr
    directement. */
-function courseSheet(){
+/* Couleurs de phase pour le graphe de suivi seulement — sans lien avec les
+   couleurs de macros utilisées ailleurs (coachnu-icon, etc.), pour ne pas
+   faire porter un second sens à des teintes déjà prises. */
+const PHASE_COLOR = {chill:'#ADB6A0', prepa:'#6E8F6B', peak:'#C98A2C', compet:'#8B4F3A', jourj:'#A32E2B', recup:'#5B84A8'};
+const CR_MACROS = [{k:'kcal', l:'Calories', unit:'kcal/j'}, {k:'prot', l:'Prot\u00e9ines', unit:'g/j'}, {k:'gluc', l:'Glucides', unit:'g/j'}];
+
+/* Bandes de phase à l'intérieur d'une fenêtre [debut, fin], découpées sur
+   les MÊMES seuils que phaseAtJ — jamais des bornes redéfinies pour
+   l'occasion du graphe. Les Date() infinies en bord ne posent pas de
+   problème : elles sont de toute façon clippées à la fenêtre juste après. */
+function coursePhaseBandes(courseDateISO, debut, fin){
+  const E = new Date(courseDateISO + 'T00:00:00');
+  const jour = n => { const d = new Date(E); d.setDate(d.getDate() + n); return d; };
+  const bornes = [
+    {phase:'prepa',  from: new Date(-8640000000000000), to: jour(-22)},
+    {phase:'peak',   from: jour(-21), to: jour(-4)},
+    {phase:'compet', from: jour(-3),  to: jour(-1)},
+    {phase:'jourj',  from: jour(0),   to: jour(0)},
+    {phase:'recup',  from: jour(1),   to: jour(5)},
+    {phase:'prepa',  from: jour(6),   to: new Date(8640000000000000)}
+  ];
+  return bornes
+    .map(b => ({phase: b.phase, from: b.from < debut ? debut : b.from, to: b.to > fin ? fin : b.to}))
+    .filter(b => b.from <= b.to);
+}
+
+/* Graphe « comment je me situe par rapport au besoin » : barres réelles
+   (coachDonnees, les mêmes données que le reste de l'onglet Coach Nutrition),
+   bandes de fond par phase, et une cible qui suit la phase de CHAQUE jour —
+   pas une cible fixe comme dans la maquette de départ, puisque coachTargets()
+   sait déjà périodiser (cf. MODES_ENTR). C'est la différence entre "combien
+   je devrais manger en général" et "combien je devrais manger ce jour-là,
+   vu où j'en étais dans le programme". */
+function courseSuiviHTML(){
+  const P = S.prof || {};
+  const c = P.course;
+  if(!c || !c.date) return `<div class="small mute" style="padding:8px 2px 20px">R\u00e9glez la date de votre course dans l\u2019onglet R\u00e9glages pour voir le suivi.</div>`;
+
+  const per = S.crPer || 14;
+  const macroKey = S.crMacro || 'kcal';
+  const macro = CR_MACROS.find(m => m.k === macroKey);
+  const data = coachDonnees(per);
+  const debut = new Date(data[0].d + 'T00:00:00');
+  const fin = new Date(data[data.length-1].d + 'T00:00:00');
+  const bandes = coursePhaseBandes(c.date, debut, fin);
+  const jourW = data.length > 1 ? (fin - debut) / (data.length - 1) : 86400000;
+
+  const W = 320, H = 130, mL = 2, mR = 2, mT = 8, mB = 2;
+  const plotW = W - mL - mR, plotH = H - mT - mB;
+  const span = (fin - debut) + jourW;
+  const xPos = t => mL + ((t - debut) / span) * plotW;
+  const barW = plotW / data.length;
+
+  const cibles = data.map(d => {
+    const ph = phaseForDate(c.date, d.d);
+    const t = coachTargets(ph);
+    return t && t[macroKey] && t[macroKey].v != null ? t[macroKey].v : null;
+  });
+  const vals = data.map(d => d[macroKey] || 0);
+  const yMax = Math.max(...vals, ...cibles.filter(v => v != null), 1) * 1.15;
+  const yPos = v => mT + plotH - (v / yMax) * plotH;
+
+  const bandsSvg = bandes.map(b => {
+    const x1 = xPos(b.from.getTime()), x2 = xPos(b.to.getTime()) + barW;
+    return `<rect x="${x1.toFixed(1)}" y="${mT}" width="${Math.max(1, x2 - x1).toFixed(1)}" height="${plotH}" fill="${PHASE_COLOR[b.phase]}" opacity=".16"/>`;
+  }).join('');
+
+  const barresSvg = data.map((d,i) => {
+    const v = vals[i], y = yPos(v), x = xPos(new Date(d.d+'T00:00:00').getTime()) + barW*0.18, w = barW*0.64;
+    const couleur = cibles[i] ? coachCouleur(v, cibles[i]) : 'var(--mute)';
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0, mT+plotH-y).toFixed(1)}" rx="2" fill="${couleur}"/>`;
+  }).join('');
+
+  let ligneCible = '', started = false, path = '';
+  data.forEach((d,i) => {
+    if(cibles[i] == null) return;
+    const x = xPos(new Date(d.d+'T00:00:00').getTime()) + barW/2, y = yPos(cibles[i]);
+    path += (!started ? `M${x.toFixed(1)},${y.toFixed(1)}` : ` L${x.toFixed(1)},${y.toFixed(1)}`); started = true;
+  });
+  if(path) ligneCible = `<path d="${path}" fill="none" stroke="#8A9285" stroke-width="1.4" stroke-dasharray="3 3"/>`;
+
+  const moyReel = vals.reduce((a,b)=>a+b,0) / (vals.length || 1);
+  const cibleVals = cibles.filter(v => v != null);
+  const moyCible = cibleVals.length ? cibleVals.reduce((a,b)=>a+b,0) / cibleVals.length : null;
+
+  return `
+    <div class="coachnu-modes" style="margin:0 0 10px">${CR_MACROS.map(m =>
+      `<button data-crmacro="${m.k}" aria-pressed="${macroKey===m.k}">${m.l}</button>`).join('')}</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; display:block">${bandsSvg}${barresSvg}${ligneCible}</svg>
+    <div class="course-suivi-legend">
+      ${['prepa','peak','compet','recup'].map(k => `<span><i style="background:${PHASE_COLOR[k]}"></i>${MODES_ENTR[k].l}</span>`).join('')}
+      <span><i class="dash"></i>Cible</span>
+    </div>
+    <div class="coachnu-periode-sheet" style="margin-top:12px">${[7,14,30].map(p =>
+      `<button data-crper="${p}" aria-pressed="${per===p}"><span>${p} j</span></button>`).join('')}</div>
+    <div class="src" style="margin-top:10px">Moyenne r\u00e9elle sur ${per}\u00a0j : <b>${n0(moyReel)} ${macro.unit}</b>${moyCible!=null ? ` vs cible p\u00e9riodis\u00e9e <b>${n0(moyCible)} ${macro.unit}</b>` : ' \u2014 pas de cible calorique r\u00e9gl\u00e9e'}.</div>
+  `;
+}
+
+/* Feuille « Ma prochaine course », à deux vues : Réglages (sport, format,
+   date — la feuille d'origine) et Suivi (le graphe ci-dessus). Le drapeau
+   ouvre toujours sur Réglages ; un bouton Fermer y est explicite en plus du
+   scrim, sur demande — les interactions internes à chaque vue se
+   re-rendent sur elles-mêmes plutôt que de revenir à Réglages à chaque
+   clic. */
+function courseSheet(view){
+  view = view === 'suivi' ? 'suivi' : 'reglages';
   const P = S.prof = S.prof || {};
   const c = P.course = P.course || {};
-  openSheet(`
-    <h3>Ma prochaine course</h3>
+  const tabs = `<div class="coachnu-modes" style="margin-bottom:16px">
+    <button data-crview="reglages" aria-pressed="${view==='reglages'}">R\u00e9glages</button>
+    <button data-crview="suivi" aria-pressed="${view==='suivi'}">Suivi</button>
+  </div>`;
+
+  const reglagesHTML = `
     <div class="small mute" style="margin-bottom:12px">Sert de rep\u00e8re calendrier sous les boutons Chill/Pr\u00e9pa/Peak/Comp\u00e9t/R\u00e9cup \u2014 jamais une bascule automatique. C\u2019est toujours vous qui choisissez le mode actif.</div>
     <div class="small" style="font-weight:700; margin-bottom:6px">Sport</div>
     <div class="coachnu-periode-sheet">${Object.entries(EFFORT_SPORTS).map(([k,s]) =>
@@ -13415,15 +13534,27 @@ function courseSheet(){
     <div class="small" style="font-weight:700; margin:14px 0 6px">Date de la course</div>
     <input type="date" id="crdate" value="${c.date || ''}" min="${iso(new Date())}" style="width:100%">
     ${c.date ? `<button class="btn" id="crClear" style="margin-top:16px; width:100%">Retirer cette course</button>` : ''}
-  `);
-  $('#sheet').querySelectorAll('[data-crsport]').forEach(b => b.onclick = () => {
-    P.course = {sport: b.dataset.crsport, cat: null, date: c.date || null}; save(); courseSheet();
-  });
-  $('#sheet').querySelectorAll('[data-crcat]').forEach(b => b.onclick = () => {
-    P.course.cat = b.dataset.crcat; save(); courseSheet();
-  });
-  const di = $('#crdate'); if(di) di.onchange = () => { P.course.date = di.value || null; save(); tvSante(agg()); };
-  const clr = $('#crClear'); if(clr) clr.onclick = () => { P.course = null; save(); closeSheet(); tvSante(agg()); };
+    <button class="btn btn-2" id="crFermer" style="margin-top:10px; width:100%">Fermer</button>
+  `;
+
+  openSheet(`<h3>Ma prochaine course</h3>${tabs}${view === 'suivi' ? courseSuiviHTML() : reglagesHTML}`);
+
+  $('#sheet').querySelectorAll('[data-crview]').forEach(b => b.onclick = () => courseSheet(b.dataset.crview));
+
+  if(view === 'reglages'){
+    $('#sheet').querySelectorAll('[data-crsport]').forEach(b => b.onclick = () => {
+      P.course = {sport: b.dataset.crsport, cat: null, date: c.date || null}; save(); courseSheet('reglages');
+    });
+    $('#sheet').querySelectorAll('[data-crcat]').forEach(b => b.onclick = () => {
+      P.course.cat = b.dataset.crcat; save(); courseSheet('reglages');
+    });
+    const di = $('#crdate'); if(di) di.onchange = () => { P.course.date = di.value || null; save(); tvSante(agg()); };
+    const clr = $('#crClear'); if(clr) clr.onclick = () => { P.course = null; save(); closeSheet(); tvSante(agg()); };
+    const fermer = $('#crFermer'); if(fermer) fermer.onclick = closeSheet;
+  } else {
+    $('#sheet').querySelectorAll('[data-crmacro]').forEach(b => b.onclick = () => { S.crMacro = b.dataset.crmacro; courseSheet('suivi'); });
+    $('#sheet').querySelectorAll('[data-crper]').forEach(b => b.onclick = () => { S.crPer = +b.dataset.crper; courseSheet('suivi'); });
+  }
 }
 
 /* ==================== Plan de ravitaillement (jour J) ====================
