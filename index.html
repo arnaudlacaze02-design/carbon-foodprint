@@ -2165,8 +2165,9 @@ html[data-gate="1"] .phone{display:none}
   border:1px solid var(--line); background:var(--card); color:var(--ink); font-size:11px; font-weight:700; flex:0 0 auto}
 .coachnu-profil-btn:active{background:var(--active)}
 .coachnu-profil-btn svg{width:12px; height:12px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; opacity:.55; flex:0 0 auto}
-.coachnu-modes{width:100%; display:flex; gap:4px; background:var(--seg-bg); padding:3px; border-radius:999px; margin:6px 0 14px}
-.coachnu-modes button{flex:1; padding:8px 0; border-radius:999px; font-size:11px; font-weight:700; color:var(--mute)}
+.coachnu-modes{width:100%; display:flex; gap:5px; background:var(--seg-bg); padding:4px; border-radius:999px; margin:6px 0 14px}
+.coachnu-modes button{flex:1; padding:11px 2px; border-radius:999px; font-size:12.5px; font-weight:700; color:var(--mute);
+  line-height:1.15}
 .coachnu-modes button[aria-pressed="true"]{background:var(--card); color:var(--ink); font-weight:800;
   box-shadow:0 2px 6px rgba(0,0,0,.08)}
 /* Ligne mode + bouton course, et le repère calendrier qu'il déplie en dessous.
@@ -2174,10 +2175,10 @@ html[data-gate="1"] .phone{display:none}
    la feuille de réglage. Seul le bouton « Appliquer » du repère change le
    mode actif — la date de course reste un calcul affiché à côté, jamais une
    bascule automatique et silencieuse (cf. phaseAuto). */
-.coachnu-modes-row{display:flex; align-items:center; gap:6px; margin:6px 0 8px}
+.coachnu-modes-row{display:flex; align-items:center; gap:8px; margin:6px 0 8px}
 .coachnu-modes-row .coachnu-modes{margin:0}
-.coachnu-course-btn{width:32px; height:32px; border-radius:50%; border:1px solid var(--line);
-  background:var(--card); display:flex; align-items:center; justify-content:center; flex:0 0 auto; font-size:15px}
+.coachnu-course-btn{width:40px; height:40px; border-radius:50%; border:1px solid var(--line);
+  background:var(--card); display:flex; align-items:center; justify-content:center; flex:0 0 auto; font-size:19px}
 .coachnu-course-btn:active{background:var(--active)}
 .coachnu-course-btn.on{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset}
 .coachnu-course-hint{display:flex; align-items:center; flex-wrap:wrap; gap:6px; font-family:var(--mono);
@@ -2187,7 +2188,23 @@ html[data-gate="1"] .phone{display:none}
   border:1px solid var(--accent); border-radius:999px; padding:3px 9px; background:none}
 .coachnu-apply-btn:active{background:rgba(111,194,166,.12)}
 .coachnu-course-jourj{width:100%; text-align:center; font-family:var(--display); font-weight:800; font-size:13px;
-  color:#fff; background:var(--brick); border-radius:10px; padding:8px; margin:0 0 12px}
+  color:#fff; background:var(--brick); border-radius:10px; padding:8px; margin:0 0 12px; border:0}
+/* Feuille « Plan de ravitaillement ». Trois cases pour la cible (glucides,
+   sodium, eau) plutôt qu'un seul chiffre : les confondre serait le genre
+   d'erreur qui mène à trop boire ou pas assez saler, cf. la mise en garde
+   hyponatrémie sur l'Ironman dans EFFORT_SPORTS. */
+.jourj-cibles{display:flex; gap:8px; margin-bottom:4px}
+.jourj-cibles > div{flex:1; text-align:center; background:var(--active); border-radius:10px; padding:10px 4px}
+.jourj-cibles b{display:block; font-family:var(--display); font-weight:800; font-size:16px; font-variant-numeric:tabular-nums}
+.jourj-cibles span{display:block; font-family:var(--mono); font-size:8.5px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--mute); margin-top:2px}
+.jourj-prod{display:flex; align-items:center; gap:10px; padding:10px 2px; border-bottom:1px solid var(--line-soft)}
+.jourj-prod input[type="checkbox"]{width:18px; height:18px; flex:0 0 auto}
+.jourj-prod-info{flex:1; min-width:0; display:flex; flex-direction:column; gap:1px}
+.jourj-prod-info b{font-size:13px}
+.jourj-prod-info span{font-family:var(--mono); font-size:10px; color:var(--mute)}
+.jourj-prod-qte{font-family:var(--display); font-weight:800; font-size:14px; color:var(--accent); flex:0 0 auto;
+  font-variant-numeric:tabular-nums}
 .coachnu-donut{position:relative; width:100%; max-width:280px; aspect-ratio:1/1; margin:4px auto 8px}
 .coachnu-donut svg{width:100%; height:100%; overflow:visible}
 .coachnu-arc{fill:none; stroke-width:22; stroke-linecap:round; cursor:pointer;
@@ -13364,11 +13381,12 @@ function coachModesHTML(mode){
       `<button data-cnm="${k}" aria-pressed="${mode===k}"><b>${m.l}</b></button>`).join('')}</div>
     <button class="coachnu-course-btn${hasCourse ? ' on' : ''}" id="cn_course" aria-label="Ma prochaine course">\ud83c\udfc1</button>
   </div>
-  ${hasCourse && phase === 'jourj' ? `<div class="coachnu-course-jourj">\ud83c\udfc1 C\u2019est aujourd\u2019hui \u2014 ${esc(label)}</div>` : ''}
+  ${hasCourse && phase === 'jourj' ? `<button type="button" class="coachnu-course-jourj" id="cn_jourj">\ud83c\udfc1 C\u2019est aujourd\u2019hui \u2014 ${esc(label)} \u00b7 Plan ravito</button>` : ''}
   ${hasCourse && phase !== 'jourj' ? `<div class="coachnu-course-hint">
     <span>${esc(label)} \u00b7 ${j > 0 ? `J-${j}` : `J+${Math.abs(j)}`}</span>
     ${mismatch ? `<span>\u2014 calendrier : <b>${MODES_ENTR[phase].l}</b></span>
       <button class="coachnu-apply-btn" data-cnauto="${phase}">Appliquer</button>` : ''}
+    <button class="coachnu-apply-btn" id="cn_jourj" style="border-color:var(--line); color:var(--ink)">Plan ravito</button>
   </div>` : ''}`;
 }
 
@@ -13406,6 +13424,93 @@ function courseSheet(){
   });
   const di = $('#crdate'); if(di) di.onchange = () => { P.course.date = di.value || null; save(); tvSante(agg()); };
   const clr = $('#crClear'); if(clr) clr.onclick = () => { P.course = null; save(); closeSheet(); tvSante(agg()); };
+}
+
+/* ==================== Plan de ravitaillement (jour J) ====================
+   Inspiré de myRavito sur un point précis : laisser choisir ses propres
+   produits plutôt qu'imposer une liste. Trois produits de départ, vérifiés
+   à la main sur la fiche produit officielle (Maurten, Science in Sport) —
+   volontairement peu nombreux plutôt qu'un long catalogue de marques dont
+   les chiffres n'auraient pas été rerelus un par un. Le reste se construit
+   par l'utilisateur, avec les valeurs de son propre emballage : c'est plus
+   fiable qu'une base tierce qui peut dater d'une reformulation. */
+const EFFORT_PRODUITS_DEFAUT = [
+  {id:'maurten100', marque:'Maurten', nom:'Gel 100', portion:'1 sachet (40 g)', gluc:25, sodium:20},
+  {id:'maurten160', marque:'Maurten', nom:'Gel 160', portion:'1 sachet', gluc:40, sodium:30},
+  {id:'sisgo',      marque:'SIS',     nom:'GO Isotonic Gel', portion:'1 sachet (60 mL)', gluc:22, sodium:10}
+];
+
+function effortCatalogue(){
+  const custom = (S.prof && S.prof.effortProduits) || [];
+  return [...EFFORT_PRODUITS_DEFAUT, ...custom];
+}
+
+function jourJSheet(){
+  const P = S.prof = S.prof || {};
+  const c = P.course;
+  const catOk = c && c.sport && c.cat && EFFORT_SPORTS[c.sport] && EFFORT_SPORTS[c.sport].cats[c.cat];
+  const cible = catOk ? raceDayCalc(c.sport, c.cat) : null;
+  const sel = new Set(P.effortSel || []);
+  const catalogue = effortCatalogue();
+
+  openSheet(`
+    <h3>Plan de ravitaillement</h3>
+    ${!catOk ? `<div class="small mute">R\u00e9glez d\u2019abord votre prochaine course (\ud83c\udfc1) pour calculer une cible.</div>` :
+      !cible ? `<div class="small mute">${esc(EFFORT_SPORTS[c.sport].cats[c.cat].l)} : pas de ravitaillement possible pendant l\u2019effort pour ce format. ${esc(EFFORT_SPORTS[c.sport].cats[c.cat].note)}</div>` :
+      `<div class="small mute" style="margin-bottom:10px">Cible pendant l\u2019effort, ${esc(EFFORT_SPORTS[c.sport].cats[c.cat].l)} :</div>
+      <div class="jourj-cibles">
+        <div><b>${cible.glucH[0]}-${cible.glucH[1]}</b><span>g/h glucides</span></div>
+        <div><b>${cible.sodiumH[0]}-${cible.sodiumH[1]}</b><span>mg/h sodium</span></div>
+        <div><b>${cible.eauH[0]}-${cible.eauH[1]}</b><span>mL/h eau</span></div>
+      </div>
+      <div class="small" style="font-weight:700; margin:16px 0 4px">Mes produits</div>
+      <div class="small mute" style="margin-bottom:8px">Coch\u00e9 = la quantit\u00e9/heure pour viser \u00e0 lui seul le milieu de la fourchette glucides. En pratique on combine plusieurs produits plut\u00f4t qu\u2019un seul \u2014 ce chiffre sert de rep\u00e8re, pas de plan figé.</div>
+      ${catalogue.map(p => {
+        const milieu = (cible.glucH[0] + cible.glucH[1]) / 2;
+        const qte = p.gluc > 0 ? milieu / p.gluc : 0;
+        return `<label class="jourj-prod${sel.has(p.id) ? ' on' : ''}">
+          <input type="checkbox" data-jjprod="${p.id}" ${sel.has(p.id) ? 'checked' : ''}>
+          <div class="jourj-prod-info">
+            <b>${esc(p.marque)} ${esc(p.nom)}</b>
+            <span>${esc(p.portion)} \u00b7 ${p.gluc} g gluc \u00b7 ${p.sodium} mg Na</span>
+          </div>
+          ${sel.has(p.id) ? `<div class="jourj-prod-qte">${n1(qte)}/h</div>` : ''}
+        </label>`;
+      }).join('')}
+      <button class="btn" id="jjAddProd" style="width:100%; margin-top:12px">+ Ajouter un produit</button>`}
+  `);
+  $('#sheet').querySelectorAll('[data-jjprod]').forEach(cb => cb.onchange = () => {
+    const s = new Set(P.effortSel || []);
+    if(cb.checked) s.add(cb.dataset.jjprod); else s.delete(cb.dataset.jjprod);
+    P.effortSel = [...s]; save(); jourJSheet();
+  });
+  const add = $('#jjAddProd'); if(add) add.onclick = jourJProduitSheet;
+}
+
+function jourJProduitSheet(){
+  openSheet(`
+    <h3>Ajouter un produit</h3>
+    <div class="small mute" style="margin-bottom:12px">Les valeurs sont sur l\u2019emballage, \u00e0 c\u00f4t\u00e9 de \u00ab valeurs nutritionnelles \u00bb.</div>
+    <input type="text" id="jjNom" placeholder="Marque + nom (ex: Overstim.s Gel Boost)" style="width:100%; margin-bottom:8px">
+    <input type="text" id="jjPortion" placeholder="Portion (ex: 1 sachet de 30 g)" style="width:100%; margin-bottom:8px">
+    <input type="number" id="jjGluc" placeholder="Glucides par portion (g)" style="width:100%; margin-bottom:8px">
+    <input type="number" id="jjSodium" placeholder="Sodium par portion (mg)" style="width:100%; margin-bottom:14px">
+    <button class="btn" id="jjSaveProd" style="width:100%">Ajouter</button>
+  `);
+  const save2 = $('#jjSaveProd');
+  if(save2) save2.onclick = () => {
+    const nom = ($('#jjNom').value || '').trim();
+    const gluc = +$('#jjGluc').value;
+    if(!nom || !gluc){ toast('Nom et glucides sont n\u00e9cessaires'); return; }
+    const P = S.prof = S.prof || {};
+    P.effortProduits = P.effortProduits || [];
+    P.effortProduits.push({
+      id: 'custom_' + Date.now(), marque: '', nom,
+      portion: ($('#jjPortion').value || '').trim() || '1 portion',
+      gluc, sodium: +$('#jjSodium').value || 0
+    });
+    save(); jourJSheet();
+  };
 }
 
 /* Icône « réglages » (deux curseurs), en haut à droite du bloc : elle ouvre la
@@ -13555,6 +13660,7 @@ function coachBind(){
     S.prof = S.prof || {}; S.prof.modeEntr = b.dataset.cnauto; save(); tvSante(agg());
   });
   const crs = $('#cn_course'); if(crs) crs.onclick = courseSheet;
+  const jj = $('#cn_jourj'); if(jj) jj.onclick = jourJSheet;
   wrap.querySelectorAll('[data-cnk]').forEach(b => b.onclick = () => { S.cnKey = b.dataset.cnk; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnd]').forEach(b => b.onclick = () => { S.cnDay = +b.dataset.cnd; tvSante(agg()); });
   wrap.querySelectorAll('[data-cnopt]').forEach(b => b.onclick = () => { S.cnOpt = +b.dataset.cnopt; tvSante(agg()); });
