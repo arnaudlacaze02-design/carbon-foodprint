@@ -3367,10 +3367,16 @@ function carteAxeGrande(o){
   const segs = vus.map(m =>
     `<i data-gm="${m.k}" data-ax="${ax}" style="width:${pc(o.par[m.k])}%;background:${m.c}"></i>`).join('');
   /* L'étiquette du repère se place à gauche du trait, sauf quand le trait est
-     lui-même près du bord gauche : elle serait rognée par overflow:hidden. */
+     lui-même près du bord gauche : elle serait rognée par overflow:hidden.
+     Absente quand `o.sous` dit déjà le même repère en toutes lettres (cible,
+     minimum recommandé) : les deux lignes disaient l'identique l'une sous
+     l'autre, l'une en gras au-dessus du bandeau, l'autre en tout petit dessus
+     — un doublon, pas une confirmation. Le budget carbone, lui, n'est répété
+     nulle part ailleurs sur la carte : son étiquette reste. */
   const tp = clamp(rep / scale * 100, 0, 99);
   const tick = rep > 0
-    ? `<span class="tk${tp < 34 ? ' tkr' : ''}" data-label="${o.repLabel} ${o.fmt(rep)}"
+    ? `<span class="tk${tp < 34 ? ' tkr' : ''}"${o.repLabelOnChart === false ? '' :
+        ` data-label="${o.repLabel} ${o.fmt(rep)}"`}
          style="left:${tp.toFixed(2)}%"></span>` : '';
   const refTickSpans = refTicks.filter(r => r.v > 0).map(r =>
     `<span class="tk" style="left:${clamp(r.v / scale * 100, 0, 99).toFixed(2)}%;background:${r.c};opacity:.85"></span>`
@@ -12766,7 +12772,7 @@ const MODES_ENTR = {
   compet: {l:'J-3 Comp\u00e9t\u2019', kcal:1.20, prot:0.90, lip:0.75, gluc:1.60, fib:0.65},
   recup:  {l:'R\u00e9cup',          kcal:1.10, prot:1.15, lip:1.00, gluc:1.20, fib:0.90}
 };
-const COACH_PERIODES = [7, 14, 30];
+const COACH_PERIODES = [1, 7, 14, 30, 90];
 
 /* Repère d'équilibre par mode : sert uniquement à colorer/chiffrer le badge de
    « Équilibre » sur l'anneau, jamais à calculer le score lui-même (qui reste
@@ -13774,7 +13780,7 @@ function coachPeriodeSheet(){
     <h3>P\u00e9riode d\u2019\u00e9valuation</h3>
     <div class="small mute" style="margin-bottom:10px">L\u2019anneau et l\u2019historique affichent la moyenne par jour sur cette p\u00e9riode glissante.</div>
     <div class="coachnu-periode-sheet">${COACH_PERIODES.map(p =>
-      `<button data-cnp="${p}" aria-pressed="${periode===p}"><span>${p} jours</span>${periode===p?'\u2713':''}</button>`).join('')}</div>`);
+      `<button data-cnp="${p}" aria-pressed="${periode===p}"><span>${p} ${p===1?'jour':'jours'}</span>${periode===p?'\u2713':''}</button>`).join('')}</div>`);
   $('#sheet').querySelectorAll('[data-cnp]').forEach(b => b.onclick = () => {
     S.cnPeriode = +b.dataset.cnp; S.cnDay = null; closeSheet(); tvSante(agg());
   });
@@ -13824,7 +13830,7 @@ function coachScoreSheet(){
   }).join('');
   openSheet(`
     <h3>Score actuel : ${eq!=null?n1(eq):'\u2013'}/10</h3>
-    <div class="small mute" style="margin-bottom:10px">Une note sur 10 qui résume en un seul chiffre à quel point vos calories, protéines, lipides et glucides des ${periode} derniers jours collent aux repères de votre profil. 10 = tout est pile dans la cible ; le calcul fait la moyenne des écarts de chaque axe (un excès de protéines n'est jamais compté contre vous, faute de plafond utile pour cet axe).</div>
+    <div class="small mute" style="margin-bottom:10px">Une note sur 10 qui résume en un seul chiffre à quel point vos calories, protéines, lipides et glucides des ${periode} ${periode===1?'dernier jour':'derniers jours'} collent aux repères de votre profil. 10 = tout est pile dans la cible ; le calcul fait la moyenne des écarts de chaque axe (un excès de protéines n'est jamais compté contre vous, faute de plafond utile pour cet axe).</div>
     ${lignes}
     <div class="small mute" style="margin-top:10px">Un score bas ne veut pas dire « mauvais » — juste que vous vous éloignez de la cible calculée pour votre profil sur cette période. Changez la période d'évaluation (icône réglage en haut de l'anneau) pour voir si c'est ponctuel ou installé.</div>`);
 }
@@ -13871,7 +13877,7 @@ function coachBloc(){
       </div>
       <div class="coachnu-histo">
         <div class="coachnu-histo-head">
-          <span class="small mute">${COACH_KEYS.find(k=>k.k===S.cnKey).icon} ${COACH_KEYS.find(k=>k.k===S.cnKey).label} \u00b7 moyenne sur ${periode} jours</span>
+          <span class="small mute">${COACH_KEYS.find(k=>k.k===S.cnKey).icon} ${COACH_KEYS.find(k=>k.k===S.cnKey).label} \u00b7 moyenne sur ${periode} ${periode===1?'jour':'jours'}</span>
         </div>
         ${coachChartHTML(data, t, S.cnKey, selIdx, S.cnKey === 'eq' ? eqMoy : moy[S.cnKey])}
         ${coachRepasHTML(data[selIdx].d)}
@@ -13947,7 +13953,7 @@ function coachBind(){
    un problème — d'où cxCouleurMax, son miroir côté plafond, mêmes trois
    paliers 5/10/15 %. */
 let CX_OPEN = false;
-const CX_PERIODES = [7, 14, 30];
+const CX_PERIODES = [1, 7, 14, 30, 90];
 
 /* Repère fibres : le même calcul que coachTargets (30 g pour 2600 kcal,
    mis à l'échelle du besoin réel) plutôt qu'un flat 30 g — cohérent avec
@@ -14138,7 +14144,7 @@ function cxBloc(){
     <div class="cx-head" id="cxHead">
       <div>
         <div class="cx-title"><span class="cx-name">Carences & excès</span></div>
-        <div class="cx-sub">${flags ? `${flags} point${flags>1?'s':''} d’attention` : 'Tout est dans la cible'} · ${periode} jours</div>
+        <div class="cx-sub">${flags ? `${flags} point${flags>1?'s':''} d’attention` : 'Tout est dans la cible'} · ${periode} ${periode===1?'jour':'jours'}</div>
       </div>
       <div class="cx-flags">
         ${fibBad ? `<span class="cx-dot" style="background:${fibCouleur}"></span>` : ''}
@@ -14153,13 +14159,13 @@ function cxBloc(){
 
     <div class="cx-body">
       <div class="seg" role="tablist">
-        ${CX_PERIODES.map(p => `<button data-cxp="${p}" aria-pressed="${p===periode}">${p} jours</button>`).join('')}
+        ${CX_PERIODES.map(p => `<button data-cxp="${p}" aria-pressed="${p===periode}">${p} ${p===1?'jour':'jours'}</button>`).join('')}
       </div>
 
       <div class="cx-note">
         <span class="em">ⓘ</span>
         <span class="tx"><b>Ceci n’est pas un diagnostic médical.</b>
-        <span>Sur la base de vos saisies des ${periode} derniers jours, certains apports peuvent sembler en dessous ou au-dessus des repères de l’ANSES. Seul un bilan sanguin permet de confirmer une carence réelle.</span></span>
+        <span>Sur la base de vos saisies des ${periode} ${periode===1?'dernier jour':'derniers jours'}, certains apports peuvent sembler en dessous ou au-dessus des repères de l’ANSES. Seul un bilan sanguin permet de confirmer une carence réelle.</span></span>
       </div>
 
       <div class="card">
@@ -14649,7 +14655,7 @@ function axesDuJour(a, t){
     titre:'Calories', unite:'kcal', fmt:n0, total:j.kcal, par:j.par.kcal, axe:'kcal',
     sous: cCal != null ? 'Cible' + (choisie ? '' : ' (estimée)') + ' : ' + n0(cCal) + ' kcal/j'
                        : 'Aucune cible renseignée',
-    repere:cCal || 0, repLabel:'cible', sens:'cible',
+    repere:cCal || 0, repLabel:'cible', sens:'cible', repLabelOnChart:false,
     couleur:calCouleur(j.kcal, cCal * coefJ),
     mot: rien ? 'Rien d\u2019enregistré aujourd\u2019hui.'
       : cCal == null
@@ -14670,7 +14676,7 @@ function axesDuJour(a, t){
   const proteines = carteAxeGrande({
     titre:'Protéines', unite:'g', fmt:n0, total:j.prot, par:j.par.prot, axe:'prot',
     sous: cProt != null ? 'Minimum recommandé : ' + n0(cProt) + ' g/j' : 'Aucune cible renseignée',
-    repere:cProt || 0, repLabel:'minimum recommandé', sens:'plancher',
+    repere:cProt || 0, repLabel:'minimum recommandé', sens:'plancher', repLabelOnChart:false,
     couleur:protCouleur(j.prot, cProt * coefJ),
     mot: rien ? 'Rien d\u2019enregistré aujourd\u2019hui.'
       : cProt == null
@@ -14837,9 +14843,19 @@ function entrySheet(id, back){
   if(back){ const bb = $('#es_back'); if(bb) bb.onclick = back.fn; }
 
   $('#e_edit').onclick = () => {
-    S.draft = e.l.map(l => [l[0], l[1], l[2] || 'plat']);
+    /* La provenance (frais / surgelé / resto) vit sur chaque ligne du repas
+       enregistré, mais rien ici ne la reversait dans S.mode : elle restait à
+       ce qu'elle valait avant l'ouverture de cette fiche, y compris null en
+       tout début de session. Or l'écran de saisie masque tout — recherche
+       comprise — tant que S.mode n'est pas posé : rouvrir un repas pour y
+       ajouter un aliment n'affichait alors que « Provenance à choisir », sans
+       rien en dessous. On la relit donc depuis la première ligne du repas, et
+       à défaut (repas antérieur à ce champ) on retombe sur « frais », comme le
+       fait déjà l'habitude de petit-déjeuner un peu plus haut. */
+    const m = (e.l[0] && e.l[0][3]) || 'frais';
+    S.draft = e.l.map(l => [l[0], l[1], l[2] || 'plat', l[3] || m]);
     S.meal = e.m; S.path = 'compose'; S.editId = id; S.entryDate = e.d;
-    S.step = 'saisie'; S.wiz = null; S.comCat = 'plat';
+    S.step = 'saisie'; S.wiz = null; S.comCat = 'plat'; S.mode = m;
     closeSheet(); go('saisie');
     toast('Repas ouvert pour modification');
   };
