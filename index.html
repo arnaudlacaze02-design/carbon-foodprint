@@ -3905,7 +3905,10 @@ function amiRecetteSheet(post, nom){
         <button class="btn btn-1" id="ar_keep">Ajouter à mes recettes</button>
       </div>
       <div class="actions" style="margin-top:8px">
+        ${ing.length || autres.length ? `<button class="btn btn-2" id="ar_shop">Liste de courses</button>` : ''}
         ${recStruct(b) ? `<button class="btn btn-2" id="ar_pt">En plat type</button>` : ''}
+      </div>
+      <div class="actions" style="margin-top:8px">
         <button class="btn btn-2" onclick="closeSheet()">Fermer</button>
       </div>`);
 
@@ -3916,6 +3919,8 @@ function amiRecetteSheet(post, nom){
       pers = clamp(pers + (+btn.dataset.pers), 1, 30); peint();
     });
     const pt = $('#ar_pt'); if(pt) pt.onclick = () => recSaveBody(b);
+    const shop = $('#ar_shop');
+    if(shop) shop.onclick = () => partagerListeCourses(b.title || 'Sans titre', pers, ing, autres, k);
     $('#ar_keep').onclick = () => {
       const r = bodyToMesRec(b, nom);
       S.mesRec.unshift(r); save();
@@ -5915,6 +5920,79 @@ function recIng(b){
   return recLines(b.ing).map(t => ({slug:null, nom:t, g:null, lab:null}));
 }
 
+/* ==================== liste de courses ====================
+   Pour les fruits et légumes vendus à la pièce, un poids en grammes ne veut
+   rien dire au rayon : « 600 g de poivron » se traduit d'abord en « 4
+   poivrons » dans la tête de qui fait les courses. Cette table ne sert qu'à
+   ça — un poids moyen à la pièce, pour convertir — et n'a aucun rapport avec
+   les portions nutritionnelles de la base (`p`), pensées pour une assiette
+   et non pour un cageot. Volontairement limitée aux produits qu'on achète
+   effectivement à l'unité ; les légumes vendus au poids ou au sachet
+   (champignons, salade, pomme de terre en filet…) restent en grammes. */
+const PIECE_G = {
+  poivron:[150,'poivron','poivrons'], tomate:[120,'tomate','tomates'],
+  oignon:[100,'oignon','oignons'], echalote:[25,'échalote','échalotes'],
+  citron:[90,'citron','citrons'], courgette:[200,'courgette','courgettes'],
+  aubergine:[250,'aubergine','aubergines'], pomme:[180,'pomme','pommes'],
+  poire:[180,'poire','poires'], banane:[130,'banane','bananes'],
+  orange:[200,'orange','oranges'], avocat:[200,'avocat','avocats'],
+  concombre:[300,'concombre','concombres'], kiwi:[80,'kiwi','kiwis'],
+  peche:[150,'pêche','pêches'], nectarine:[150,'nectarine','nectarines'],
+  abricot:[50,'abricot','abricots'], prune:[50,'prune','prunes'],
+  figue:[50,'figue','figues'], clementine:[50,'clémentine','clémentines'],
+  mandarine:[50,'mandarine','mandarines'], pamplemousse:[350,'pamplemousse','pamplemousses'],
+  carotte:[80,'carotte','carottes'], navet:[100,'navet','navets'],
+  betterave:[150,'betterave','betteraves'], panais:[150,'panais','panais'],
+  poireau:[150,'poireau','poireaux'], fenouil:[300,'fenouil','fenouils'],
+  grenade:[250,'grenade','grenades'], oeuf:[60,'œuf','œufs'],
+  ail:[5,'gousse d’ail','gousses d’ail'], coing:[200,'coing','coings'],
+  kaki:[150,'kaki','kakis'],
+  fruitdelapassion:[50,'fruit de la passion','fruits de la passion'],
+};
+
+/* Une ligne de la liste : la pièce prime sur le poids quand la table la
+   connaît, sinon on retombe sur le grammage arrondi. On repart du grammage
+   brut (déjà mis à l'échelle par `k`) plutôt que du texte déjà formaté par
+   ringLigne, pour ne pas avoir à le reparser. */
+function ligneCourse(g, k){
+  const gr = g.g != null ? Math.round(g.g * k) : null;
+  const piece = g.slug ? PIECE_G[g.slug] : null;
+  if(piece && gr != null){
+    const [pg, sg, pl] = piece;
+    const n = Math.max(1, Math.round(gr / pg));
+    return `${n} ${n > 1 ? pl : sg}`;
+  }
+  if(gr != null) return gr >= 1000 ? `${n2(gr / 1000)} kg de ${g.nom.toLowerCase()}` : `${gr} g de ${g.nom.toLowerCase()}`;
+  return g.nom;
+}
+
+/* Texte brut, une case à cocher unicode par ligne : c'est le format le plus
+   simple qui colle tel quel dans Notes, Messages ou ailleurs une fois
+   partagé. Notes ne convertira pas ces lignes en cases interactives toutes
+   seules — ça reste un geste de l'utilisateur, un appui sur le bouton
+   « liste à puces » de sa barre d'outils une fois le texte collé — mais le
+   contenu, lui, est prêt : un aliment par ligne, en pièces quand ça a un
+   sens plutôt qu'en grammes. */
+function texteListeCourses(titre, pers, ing, autres, k){
+  const lignes = ing.map(g => ligneCourse(g, k)).concat(autres.map(a => labScale(a, k)));
+  const corps = lignes.length ? lignes.map(t => `☐ ${t}`).join('\n') : '☐ (aucun ingrédient renseigné)';
+  return `Liste de courses – ${titre}\npour ${pers} personne${pers > 1 ? 's' : ''}\n\n${corps}`;
+}
+
+async function partagerListeCourses(titre, pers, ing, autres, k){
+  const texte = texteListeCourses(titre, pers, ing, autres, k);
+  if(navigator.share){
+    try{ await navigator.share({title:'Liste de courses', text:texte}); return; }
+    catch(e){ if(e && e.name === 'AbortError') return; }
+  }
+  try{
+    await navigator.clipboard.writeText(texte);
+    toast('Liste copiée : collez-la dans Notes, puis touchez la liste à puces pour cocher chaque ligne');
+  }catch(e){
+    toast('Impossible de copier la liste');
+  }
+}
+
 function pactBar(x){
   const l = likeList(x.id), mien = SESS && l.includes(SESS.uid), c = comList(x.id);
   const b = x.body || {};
@@ -7533,11 +7611,14 @@ function mesRecSheet(id){
         <button class="btn btn-1" id="mr_sh" ${SESS ? '' : 'disabled'}>Partager à mes amis</button>
       </div>
       <div class="actions" style="margin-top:8px">
+        ${ing.length || autres.length ? `<button class="btn btn-2" id="mr_shop">Liste de courses</button>` : ''}
         <button class="btn btn-2" id="mr_ed">Modifier</button>
-        <button class="btn btn-2" id="mr_pt">En plat type</button>
       </div>
       <div class="actions" style="margin-top:8px">
+        <button class="btn btn-2" id="mr_pt">En plat type</button>
         <button class="btn btn-2" id="mr_rm" style="color:var(--brick)">Supprimer</button>
+      </div>
+      <div class="actions" style="margin-top:8px">
         <button class="btn btn-2" onclick="closeSheet()">Fermer</button>
       </div>
       <div class="src" style="margin-top:10px">${SESS
@@ -7560,6 +7641,9 @@ function mesRecSheet(id){
     $('#mr_pt').onclick = () => recSaveBody(b);
 
     $('#mr_ed').onclick = () => mesRecEdit(id);
+
+    const shop = $('#mr_shop');
+    if(shop) shop.onclick = () => partagerListeCourses(r.t, pers, ing, autres, k);
 
     $('#mr_rm').onclick = () => {
       /* Deux touches pour supprimer, et le second libellé nomme la recette : un
