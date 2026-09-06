@@ -4859,12 +4859,18 @@ function recipeSheet(){
       ${SESS ? `<div class="actions" style="margin-top:8px">
         <button class="btn btn-2" id="rq_sh" style="flex:1">Enregistrer et partager à mes amis</button>
       </div>` : ''}
-      <div class="src" style="margin-top:8px">Enregistrer garde la recette sur cet appareil, dans
-        Mes recettes : rien ne part au serveur. ${SESS
-          ? `Partager publie en plus une idée de recette ${Array.isArray(q.dst)
+      <div class="src" style="margin-top:8px">${SESS && S.mrPartage
+        ? `Votre livre est actuellement <b>ouvert à vos amis</b> : toute recette enregistrée ici sera
+           publiée automatiquement dans Actu à votre prochaine visite de Mes recettes, avec
+           « Enregistrer » comme avec « Partager ». Fermez le livre depuis Mes recettes si vous
+           voulez garder celle-ci pour vous seul.`
+        : `Enregistrer garde la recette sur cet appareil, dans Mes recettes : rien ne part au
+           serveur.`}
+        ${SESS
+          ? ` Partager publie en plus une idée de recette ${Array.isArray(q.dst)
               ? 'visible des seules personnes cochées'
               : 'visible de vos amis'}, qui pourront l’enregistrer dans leurs plats types.`
-          : 'Le partage à des amis demande un compte.'}
+          : ' Le partage à des amis demande un compte.'}
         Ce qui figure dans « Autres » ne compte pas dans l’empreinte : elle est donc minorante.</div>`);
 
     brancheOnglets();
@@ -4987,10 +4993,40 @@ function recipeSheet(){
       return i >= 0;
     };
 
+    /* Avant d'enregistrer ou de partager : si « Recette pour » a été corrigé
+       sans recalculer les quantités, l'empreinte par personne sera de toute
+       façon calculée pour le chiffre déclaré (voir mrBody) — mais la liste de
+       courses, elle, reste celle de l'ancien effectif tant qu'on ne l'ajuste
+       pas. On le demande une seule fois, ici, plutôt que de laisser la
+       question sans réponse dans le carnet. */
+    const demanderAjustementPuis = suite => {
+      collecte();
+      if(!(q.ingp && q.ingp !== q.pers)) return suite();
+      const avant = q.ingp, apres = Math.max(1, q.pers);
+      openSheet(`
+        <div class="unit">Nombre de personnes modifié</div>
+        <h3 style="margin:2px 0 10px">Ajuster les quantités ?</h3>
+        <p class="small" style="line-height:1.7">Vous avez déclaré ${apres}
+          personne${apres > 1 ? 's' : ''} au lieu de ${avant}, mais les quantités d’ingrédients
+          n’ont pas changé. L’empreinte par personne sera calculée pour ${apres} dans les deux cas.
+          Ajuster multiplie en plus chaque quantité, pour une liste de courses qui suit vraiment
+          ${apres} personne${apres > 1 ? 's' : ''}.</p>
+        <div class="actions" style="margin-top:10px; flex-direction:column; gap:8px">
+          <button class="btn btn-1" id="pa_oui">Ajuster les quantités pour ${apres}</button>
+          <button class="btn btn-2" id="pa_non">Garder ces quantités</button>
+        </div>`);
+      $('#pa_oui').onclick = () => {
+        const k = Math.max(1, q.pers) / q.ingp;
+        q.ing.forEach(l => { l[1] = clamp(Math.round(l[1] * k), 1, 5000); });
+        q.ingp = Math.max(1, q.pers);
+        suite();
+      };
+      $('#pa_non').onclick = () => suite();
+    };
+
     /* Volontairement pas nommé `go` : l'ancien code appelait ainsi le bouton, ce
        qui masquait la fonction de navigation du même nom dans toute la portée. */
-    const bEnr = $('#rq_go');
-    bEnr.onclick = () => {
+    const finirEnregistrer = () => {
       const r = valide();
       if(!r) return;
       const modif = ranger(r);
@@ -5001,9 +5037,10 @@ function recipeSheet(){
       S.cv = 'recettes';
       if(S.tab === 'biblio') renderCuisine(); else go('biblio');
     };
+    const bEnr = $('#rq_go');
+    bEnr.onclick = () => demanderAjustementPuis(finirEnregistrer);
 
-    const sh = $('#rq_sh');
-    if(sh) sh.onclick = async () => {
+    const finirPartager = async () => {
       const r = valide();
       if(!r) return;
       if(Array.isArray(q.dst) && !q.dst.length)
@@ -5012,10 +5049,11 @@ function recipeSheet(){
          la recette est déjà en sécurité dans le carnet et il ne reste qu'à
          retoucher le partage. L'inverse ferait perdre la saisie sur une coupure. */
       ranger(r);
-      sh.disabled = true; sh.textContent = 'Publication…';
+      const sh = $('#rq_sh');
+      if(sh){ sh.disabled = true; sh.textContent = 'Publication…'; }
       const res = await postNew('recipe', mrPost(r), Array.isArray(q.dst) ? q.dst : undefined);
       if(!res.ok){
-        sh.disabled = false; sh.textContent = 'Enregistrer et partager à mes amis';
+        if(sh){ sh.disabled = false; sh.textContent = 'Enregistrer et partager à mes amis'; }
         return toast('Enregistrée, mais pas partagée · ' + res.msg);
       }
       S.rq = null; closeSheet();
@@ -5025,6 +5063,8 @@ function recipeSheet(){
       S.fv = 'actu';
       frPosts();
     };
+    const sh = $('#rq_sh');
+    if(sh) sh.onclick = () => demanderAjustementPuis(finirPartager);
   };
   peint();
 }
@@ -7005,16 +7045,19 @@ function frigoDel(slug){
    fonction de conversion, appelée partout, plutôt qu'un objet remodelé à la main
    à chaque usage.
 
-   `pers` porte la base des grammages et non le nombre de personnes déclaré. Les
-   deux coïncident presque toujours ; ils divergent quand on a corrigé « Recette
-   pour » sans recalculer les quantités — le formulaire le signale et propose le
-   recalcul, mais on peut passer outre. Dans ce cas c'est `ingp` qui dit à quoi
-   correspondent réellement les grammes, et diviser par le chiffre déclaré
-   donnerait une empreinte par personne fausse, ici comme dans la conversion en
-   plat type comme chez l'ami qui reçoit le partage. */
-const mrBody = r => ({title:r.t, pers:Math.max(1, r.ingp || r.pers), ing:r.ing,
+   `pers` porte le nombre de personnes déclaré, celui que l'utilisateur a
+   validé — y compris quand il a corrigé « Recette pour » sans recalculer les
+   quantités : à l'enregistrement, une confirmation lui demande justement s'il
+   veut ajuster les grammages en conséquence, et son choix vaut réponse.
+   L'empreinte par personne se calcule donc toujours sur ce chiffre, ici comme
+   dans la conversion en plat type ou chez l'ami qui reçoit le partage.
+   `ingp`, quand il est posé, ne sert plus qu'à signaler que la liste de
+   courses ci-dessous n'a pas suivi : elle reste dimensionnée pour `ingp`
+   personnes, pas pour `pers`. */
+const mrBody = r => ({title:r.t, pers:Math.max(1, r.pers), ing:r.ing,
                       lab:r.lab, labp:r.labp,
-                      autres:r.autres, prep:r.prep, url:r.url});
+                      autres:r.autres, prep:r.prep, url:r.url,
+                      ...(r.ingp && r.ingp !== r.pers ? {ingp:r.ingp} : {})});
 /* Corps de publication : la même chose, plus le rangement. Un ami qui enregistre
    la recette hérite de la catégorie de son auteur, ce qui vaut mieux que de le
    lui faire refaire. */
@@ -7113,7 +7156,7 @@ function cuiRecettes(){
   const choisi = S.mrCat != null;
   const rows = !choisi ? [] : ordreApplique(
     L.filter(r => S.mrCat === '' || (S.mrCat === '~' ? !r.cat : r.cat === S.mrCat))
-      .map(r => ({r, kg: kgOf(r.ing), pers: Math.max(1, r.ingp || r.pers)}))
+      .map(r => ({r, kg: kgOf(r.ing), pers: Math.max(1, r.pers)}))
       .sort((a, b) => (b.r.ts || 0) - (a.r.ts || 0)),
     S.mrOrdre, x => x.r.id);
 
@@ -7599,8 +7642,11 @@ function mesRecSheet(id){
   const r = mrGet(id);
   if(!r) return;
   const b = mrBody(r);
-  /* Base des grammages, reprise de mrBody pour n'avoir qu'une source. */
-  const base = b.pers;
+  /* Base des grammages tels qu'enregistrés — sert à l'aperçu « et si j'en
+     faisais pour N » ci-dessous (le curseur de portions), pas au calcul de
+     l'empreinte par personne : celle-ci suit toujours `declare`, le nombre de
+     personnes que l'utilisateur a validé, quantités recalculées ou non. */
+  const base = r.ingp || r.pers;
   const declare = Math.max(1, r.pers);
   const baseLab = Math.max(1, Math.round(+r.labp || 0)) || base;
   let pers = base;
@@ -7610,15 +7656,16 @@ function mesRecSheet(id){
     const ing = recIng(b), prep = recPrep(b), autres = recAutres(b);
     const k = pers / base, kl = pers / baseLab;
     const kgBase = kgOf(r.ing), kg = kgBase * k;
+    const kgParPersonne = kgBase / declare;
 
     openSheet(`
       <div class="unit">Ma recette${r.src ? ' · lue sur ' + esc(r.src) : ''}</div>
       <h3 style="margin:2px 0 6px">${esc(r.t)}</h3>
-      <div class="small mute">${n2(kgBase / base)} kg CO₂e par personne · ${n2(kg)} kg pour ${pers}</div>
-      ${declare !== base ? `<div class="src" style="margin-top:6px">Annoncée pour ${declare}
-        personne${declare > 1 ? 's' : ''}, mais les quantités n’ont jamais été recalculées : elles
-        valent pour ${base}. C’est cette base qui sert au calcul. Touchez « Modifier » pour
-        recalculer, ou pour corriger le nombre annoncé.</div>` : ''}
+      <div class="small mute">${n2(kgParPersonne)} kg CO₂e par personne · ${n2(kg)} kg pour ${pers}</div>
+      ${declare !== base ? `<div class="src" style="margin-top:6px">Les ingrédients ci-dessous
+        restent ceux prévus pour ${base} personne${base > 1 ? 's' : ''} : la liste de courses n’a
+        pas suivi votre correction à ${declare}. L’empreinte par personne, elle, est bien calculée
+        pour ${declare}. Touchez « Modifier » si vous voulez ajuster les quantités.</div>` : ''}
       ${r.cat ? `<div style="margin-top:8px">${catChip(r.cat)}</div>` : ''}
 
       <div class="rtabs">
@@ -10482,10 +10529,13 @@ function profSave(k, v){
   S.prof.at = new Date().toISOString();
   if(k === 'situe') S.prof.situeAt = S.prof.at;
   if(k === 'kit') applyKit(v);
-  /* L'âge exact remplace les anciens boutons de tranche ; la tranche
-     (a18/a40/a60/a75) reste dérivée automatiquement pour ne rien casser
-     de ce qui s'appuie dessus (CAL_AGE, profOk, AGE_LAB…). */
-  if(k === 'ageAns') S.prof.age = ageToTranche(v);
+  /* L'année de naissance remplace les anciens boutons de tranche ; la
+     tranche (a18/a40/a60/a75) reste dérivée automatiquement pour ne rien
+     casser de ce qui s'appuie dessus (CAL_AGE, profOk, AGE_LAB…). Dérivée
+     depuis l'âge courant, pas depuis la valeur saisie telle quelle : c'est
+     ce qui permet à un anniversaire de faire changer de tranche sans jamais
+     rouvrir cet écran. */
+  if(k === 'anneeNaissance') S.prof.age = ageToTranche(ageActuel());
   if(/^(calKnow|calVal|objNut)$/.test(k)) calMirror();
   save();
   if(TASTE_KEYS.includes(k)) tastePush();
@@ -10512,6 +10562,21 @@ function ageToTranche(age){
   return 'a75';
 }
 
+/* Âge courant, recalculé à chaque appel depuis l'année de naissance : il
+   avance tout seul d'une année en janvier, sans qu'on ait jamais à revenir
+   corriger un chiffre qui se fige sinon dans le profil. Approximation à un an
+   près (le mois de naissance n'est pas demandé) — largement suffisant pour
+   des seuils qui se comptent en tranches de dizaines d'années ou en un
+   basculement unique vers la cinquantaine.
+   Repli sur `ageAns` pour les profils enregistrés avant l'ajout de l'année
+   de naissance, le temps que la migration au démarrage (voir plus bas) les
+   convertisse ; ce repli ne devrait donc jamais s'activer en pratique. */
+function ageActuel(){
+  const P = S.prof || {};
+  if(P.anneeNaissance != null) return new Date().getFullYear() - P.anneeNaissance;
+  return P.ageAns != null ? P.ageAns : null;
+}
+
 /* Première étape : les deux données qui servent aux références énergétiques.
    Le compte a déjà été créé sur l'écran d'accueil, il est simplement rappelé
    ici pour que l'on sache à quoi les réponses vont être attachées. */
@@ -10536,13 +10601,15 @@ function sexeAgeCorps(){
       </div>
     </div>
     <div class="qfield">
-      <label for="q_age">Âge</label>
-      <input class="search" id="q_age" type="number" inputmode="numeric" min="15" max="120"
-             placeholder="55" value="${S.prof.ageAns != null ? S.prof.ageAns : ''}" style="margin:0">
+      <label for="q_naiss">Année de naissance</label>
+      <input class="search" id="q_naiss" type="number" inputmode="numeric"
+             min="${new Date().getFullYear() - 120}" max="${new Date().getFullYear() - 15}"
+             placeholder="1971" value="${S.prof.anneeNaissance != null ? S.prof.anneeNaissance : ''}"
+             style="margin:0">
     </div>
-    <div class="src" style="margin-top:10px">Sexe et âge servent aux références énergétiques et
-      nutritionnelles de l’ANSES, établies par tranche à partir de cet âge exact. Ils restent sur
-      l’appareil et ne sont partagés avec personne.</div>`;
+    <div class="src" style="margin-top:10px">Sexe et année de naissance servent aux références
+      énergétiques et nutritionnelles de l’ANSES, établies par tranche d’âge — recalculé chaque
+      année plutôt que figé. Ils restent sur l’appareil et ne sont partagés avec personne.</div>`;
 }
 
 /* Le questionnaire vit à deux endroits : plein écran pendant le parcours
@@ -10695,11 +10762,12 @@ function profQuiz(i){
     bindIdent(i);
     const nx = $('#q_next');
     if(nx) nx.onclick = () => {
-      const ageEl = $('#q_age');
-      const ageVal = ageEl && ageEl.value !== '' ? parseInt(ageEl.value, 10) : S.prof.ageAns;
-      if(!S.prof.sexe || ageVal == null || isNaN(ageVal) || ageVal < 15 || ageVal > 120)
-        return toast('Indiquez le sexe et un âge valide (15 à 120 ans)');
-      profSave('ageAns', ageVal);
+      const naissEl = $('#q_naiss');
+      const anMin = new Date().getFullYear() - 120, anMax = new Date().getFullYear() - 15;
+      const naissVal = naissEl && naissEl.value !== '' ? parseInt(naissEl.value, 10) : S.prof.anneeNaissance;
+      if(!S.prof.sexe || naissVal == null || isNaN(naissVal) || naissVal < anMin || naissVal > anMax)
+        return toast(`Indiquez le sexe et une année de naissance valide (${anMin} à ${anMax})`);
+      profSave('anneeNaissance', naissVal);
       profQuiz(i + 1);
     };
   }
@@ -14098,16 +14166,20 @@ function cxFibreCible(){
 /* Repère fer : 16 mg/j pour une femme non ménopausée (pertes menstruelles),
    11 mg/j dès la ménopause — ANSES, apports nutritionnels conseillés. La
    ménopause elle-même n'est pas demandée (trop intrusif pour ce que ça
-   change), donc l'âge exact sert de seuil : 51 ans, âge moyen de la
-   ménopause en France. Ça reste une approximation — une femme peut être
-   ménopausée avant ou après — mais un seuil nettement plus juste qu'une
-   tranche « 40-59 ans » entière traitée comme non ménopausée.
-   Pour les profils enregistrés avant l'ajout de l'âge exact (ageAns
-   absent), on retombe sur l'ancienne approximation par tranche. */
+   change), donc l'âge sert de seuil : 51 ans, âge moyen de la ménopause en
+   France. Ça reste une approximation — une femme peut être ménopausée avant
+   ou après — mais un seuil nettement plus juste qu'une tranche « 40-59 ans »
+   entière traitée comme non ménopausée. L'âge vient de `ageActuel()`, donc
+   recalculé à chaque appel depuis l'année de naissance : ce repère bascule
+   de lui-même l'année des 51 ans, sans jamais rouvrir le profil.
+   Pour les profils enregistrés avant l'ajout de l'âge (ni année de
+   naissance, ni ancien `ageAns`), on retombe sur l'ancienne approximation
+   par tranche. */
 function cxFerCible(){
   const P = S.prof || {};
   if(P.sexe !== 'f') return 11;
-  if(P.ageAns != null) return P.ageAns < 51 ? 16 : 11;
+  const age = ageActuel();
+  if(age != null) return age < 51 ? 16 : 11;
   return (P.age === 'a18' || P.age === 'a40') ? 16 : 11;
 }
 
@@ -14492,7 +14564,7 @@ function exportSanteTexte(periode){
 
   L.push('--- Profil déclaré dans l’app ---');
   L.push(`Sexe : ${P.sexe === 'f' ? 'Femme' : P.sexe === 'h' ? 'Homme' : 'non renseigné'}`);
-  L.push(`Âge : ${P.ageAns != null ? P.ageAns + ' ans' : (AGE_LAB[P.age] || 'non renseigné')}`);
+  L.push(`Âge : ${ageActuel() != null ? ageActuel() + ' ans' : (AGE_LAB[P.age] || 'non renseigné')}`);
   L.push(`Niveau d'activité : ${ACT_LAB[P.act] || 'non renseigné'}`);
   if(P.regime) L.push(`Régime alimentaire : ${REG_LAB[P.regime] || P.regime}`);
   if(act === 'sportif') L.push(`Mode d'entraînement courant : ${(MODES_ENTR[mode] || {}).l || mode}`);
@@ -17267,6 +17339,23 @@ document.addEventListener('click', ev => {
 
 SB.readSess();
 load();
+/* Migration silencieuse de l'âge figé (`ageAns`) vers une année de naissance
+   dynamique. Ne s'exécute qu'une fois par profil concerné : une fois
+   `anneeNaissance` posée, `ageAns` ne sert plus à rien (ageActuel() ne le lit
+   qu'en repli) mais reste en place, sans risque, au cas où une synchro plus
+   ancienne le réécrirait. La tranche calorique est recalculée dans la foulée
+   pour ne jamais rester figée sur l'âge du jour de la saisie. */
+if(S.prof.anneeNaissance == null && S.prof.ageAns != null){
+  S.prof.anneeNaissance = new Date().getFullYear() - S.prof.ageAns;
+  S.prof.age = ageToTranche(ageActuel());
+  save();
+} else if(S.prof.anneeNaissance != null){
+  /* Profil déjà migré à une session précédente : la tranche est simplement
+     rafraîchie, pour le cas — rare mais réel un jour tous les vingt ans —
+     où un anniversaire l'a fait changer depuis la dernière ouverture. */
+  const fraiche = ageToTranche(ageActuel());
+  if(fraiche && fraiche !== S.prof.age){ S.prof.age = fraiche; save(); }
+}
 /* Rattrapage avant addStandards : les six favoris standards, posés d'office au
    premier lancement, feraient croire à un seau déjà peuplé. */
 const rattrape = recover();
@@ -17550,47 +17639,52 @@ function sept26Announce(){
     'badge', 'jeux');
 }
 
-/* ---------------- invite à compléter l'âge exact ----------------
+/* ---------------- invite à compléter l'année de naissance ----------------
    Une seule fois, à la première ouverture qui suit le remplacement de la
-   tranche d'âge par un âge exact (repère fer notamment, voir cxFerCible) —
-   `vuAgeAns` verrouille l'invite comme `vuSept26` verrouille l'annonce du
-   défi. Ne concerne que les comptes déjà en place : quiconque passe
-   désormais l'écran d'identité saisit son âge exact directement, cette
-   invite ne sert qu'à rattraper les profils antérieurs à ce changement.
-   Verrou posé dès le premier passage, y compris si l'âge n'est finalement
-   pas saisi : on ne relance pas une question laissée de côté, elle reste
-   accessible depuis le profil. */
+   tranche d'âge par une année de naissance (âge recalculé chaque année, voir
+   ageActuel et cxFerCible) — `vuAgeAns` verrouille l'invite comme `vuSept26`
+   verrouille l'annonce du défi. Ne concerne que les comptes déjà en place :
+   quiconque passe désormais l'écran d'identité renseigne son année de
+   naissance directement, et les profils qui avaient déjà répondu à l'ancienne
+   version (âge figé) sont migrés en silence au démarrage — cette invite ne
+   sert donc qu'à rattraper les tout premiers profils, antérieurs aux deux
+   changements. Verrou posé dès le premier passage, y compris si l'année
+   n'est finalement pas saisie : on ne relance pas une question laissée de
+   côté, elle reste accessible depuis le profil. */
 function ageAnsAnnounce(){
   if(S.notif.vuAgeAns) return;
   S.notif.vuAgeAns = true; save();
-  if(S.prof.ageAns != null || !profOk()) return;
+  if(S.prof.anneeNaissance != null || !profOk()) return;
+  const anMin = new Date().getFullYear() - 120, anMax = new Date().getFullYear() - 15;
   openSheet(`
     <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;
       text-transform:uppercase;color:var(--mute)">Profil</div>
-    <h3>Compléter votre âge</h3>
-    <p class="small" style="line-height:1.7">Complétez votre âge pour affiner les recommandations
-      nutritionnelles — le repère en fer notamment diffère selon l’âge. Seule une tranche large
+    <h3>Compléter votre année de naissance</h3>
+    <p class="small" style="line-height:1.7">Complétez votre année de naissance pour affiner les
+      recommandations nutritionnelles — le repère en fer notamment diffère selon l’âge. Votre âge
+      se recalculera de lui-même chaque année, sans jamais revenir ici. Seule une tranche large
       était demandée jusqu’ici.</p>
     <div class="qfield">
-      <label for="ag_age">Âge</label>
-      <input class="search" id="ag_age" type="number" inputmode="numeric" min="15" max="120"
-             placeholder="55" style="margin:0">
+      <label for="ag_naiss">Année de naissance</label>
+      <input class="search" id="ag_naiss" type="number" inputmode="numeric"
+             min="${anMin}" max="${anMax}" placeholder="1971" style="margin:0">
     </div>
     <div class="actions" style="margin-top:12px">
       <button class="btn btn-2" id="ag_later">Plus tard</button>
       <button class="btn btn-1" id="ag_ok">Valider</button>
     </div>`);
   const valider = () => {
-    const el = $('#ag_age');
+    const el = $('#ag_naiss');
     const v = el && el.value !== '' ? parseInt(el.value, 10) : NaN;
-    if(isNaN(v) || v < 15 || v > 120) return toast('Indiquez un âge valide (15 à 120 ans)');
-    profSave('ageAns', v);
+    if(isNaN(v) || v < anMin || v > anMax)
+      return toast(`Indiquez une année de naissance valide (${anMin} à ${anMax})`);
+    profSave('anneeNaissance', v);
     closeSheet();
     pfRepeint();
   };
   const ok = $('#ag_ok'); if(ok) ok.onclick = valider;
   const later = $('#ag_later'); if(later) later.onclick = closeSheet;
-  const el = $('#ag_age'); if(el) el.onkeydown = e => { if(e.key === 'Enter') valider(); };
+  const el = $('#ag_naiss'); if(el) el.onkeydown = e => { if(e.key === 'Enter') valider(); };
 }
 
 /* Repeindre le profil s'il est à l'écran, et rien d'autre sinon. La nuance
