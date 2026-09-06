@@ -2867,7 +2867,8 @@ function tabRead(){
    annoncer du tout. */
 const NOTIF0 = () => ({on:false, vu:{}, lastPost:null, luPost:null,
                        vuLikes:null, vuAmis:null, vuDefis:null,
-                       pushOn:false, demande:null, vuTro:null, vuSept26:false});
+                       pushOn:false, demande:null, vuTro:null, vuSept26:false,
+                       vuAgeAns:false});
 
 let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false, drinkMore:false,
@@ -10481,6 +10482,10 @@ function profSave(k, v){
   S.prof.at = new Date().toISOString();
   if(k === 'situe') S.prof.situeAt = S.prof.at;
   if(k === 'kit') applyKit(v);
+  /* L'âge exact remplace les anciens boutons de tranche ; la tranche
+     (a18/a40/a60/a75) reste dérivée automatiquement pour ne rien casser
+     de ce qui s'appuie dessus (CAL_AGE, profOk, AGE_LAB…). */
+  if(k === 'ageAns') S.prof.age = ageToTranche(v);
   if(/^(calKnow|calVal|objNut)$/.test(k)) calMirror();
   save();
   if(TASTE_KEYS.includes(k)) tastePush();
@@ -10495,7 +10500,17 @@ let protPoids = null;
 let protAjuste = false;
 const protGkg2 = () => S.prof.objProtGkg != null ? S.prof.objProtGkg : protGkg();
 
-const AGE_OPTS = [['a18','18 – 39'],['a40','40 – 59'],['a60','60 – 74'],['a75','75 +']];
+/* Dérive la tranche calorique (CAL_AGE) depuis l'âge exact saisi par
+   l'utilisateur. Remplace les anciens boutons de tranche large : l'âge
+   précis permet en plus un seuil net pour le repère fer (cxFerCible),
+   que « 40-59 ans » ne permettait pas de distinguer. */
+function ageToTranche(age){
+  if(age == null || isNaN(age)) return null;
+  if(age < 40) return 'a18';
+  if(age < 60) return 'a40';
+  if(age < 75) return 'a60';
+  return 'a75';
+}
 
 /* Première étape : les deux données qui servent aux références énergétiques.
    Le compte a déjà été créé sur l'écran d'accueil, il est simplement rappelé
@@ -10521,14 +10536,13 @@ function sexeAgeCorps(){
       </div>
     </div>
     <div class="qfield">
-      <label>Tranche d’âge</label>
-      <div class="qmini">
-        ${AGE_OPTS.map(([v, l]) =>
-          `<button data-age="${v}" aria-pressed="${S.prof.age === v}">${l}</button>`).join('')}
-      </div>
+      <label for="q_age">Âge</label>
+      <input class="search" id="q_age" type="number" inputmode="numeric" min="15" max="120"
+             placeholder="55" value="${S.prof.ageAns != null ? S.prof.ageAns : ''}" style="margin:0">
     </div>
-    <div class="src" style="margin-top:10px">Sexe et âge servent aux références énergétiques de
-      l’ANSES, établies séparément. Ils restent sur l’appareil et ne sont partagés avec personne.</div>`;
+    <div class="src" style="margin-top:10px">Sexe et âge servent aux références énergétiques et
+      nutritionnelles de l’ANSES, établies par tranche à partir de cet âge exact. Ils restent sur
+      l’appareil et ne sont partagés avec personne.</div>`;
 }
 
 /* Le questionnaire vit à deux endroits : plein écran pendant le parcours
@@ -10541,8 +10555,6 @@ function bindIdent(i){
   const sh = QROOT();
   sh.querySelectorAll('[data-sexe]').forEach(b => b.onclick = () => {
     profSave('sexe', b.dataset.sexe); profQuiz(i); });
-  sh.querySelectorAll('[data-age]').forEach(b => b.onclick = () => {
-    profSave('age', b.dataset.age); profQuiz(i); });
 }
 
 /* Deux habillages pour le même contenu. En parcours d'entrée : plein écran,
@@ -10683,7 +10695,11 @@ function profQuiz(i){
     bindIdent(i);
     const nx = $('#q_next');
     if(nx) nx.onclick = () => {
-      if(!S.prof.sexe || !S.prof.age) return toast('Indiquez le sexe et la tranche d’âge');
+      const ageEl = $('#q_age');
+      const ageVal = ageEl && ageEl.value !== '' ? parseInt(ageEl.value, 10) : S.prof.ageAns;
+      if(!S.prof.sexe || ageVal == null || isNaN(ageVal) || ageVal < 15 || ageVal > 120)
+        return toast('Indiquez le sexe et un âge valide (15 à 120 ans)');
+      profSave('ageAns', ageVal);
       profQuiz(i + 1);
     };
   }
@@ -14080,14 +14096,19 @@ function cxFibreCible(){
 }
 
 /* Repère fer : 16 mg/j pour une femme non ménopausée (pertes menstruelles),
-   11 mg/j sinon — ANSES, apports nutritionnels conseillés. Le profil ne
-   distingue que des tranches d'âge larges (a18=18-39, a40=40-59), donc
-   « non ménopausée » est approché par ces deux tranches ; imparfait au
-   bord de la cinquantaine, mais plus juste qu'un repère unique pour tous. */
+   11 mg/j dès la ménopause — ANSES, apports nutritionnels conseillés. La
+   ménopause elle-même n'est pas demandée (trop intrusif pour ce que ça
+   change), donc l'âge exact sert de seuil : 51 ans, âge moyen de la
+   ménopause en France. Ça reste une approximation — une femme peut être
+   ménopausée avant ou après — mais un seuil nettement plus juste qu'une
+   tranche « 40-59 ans » entière traitée comme non ménopausée.
+   Pour les profils enregistrés avant l'ajout de l'âge exact (ageAns
+   absent), on retombe sur l'ancienne approximation par tranche. */
 function cxFerCible(){
   const P = S.prof || {};
-  if(P.sexe === 'f' && (P.age === 'a18' || P.age === 'a40')) return 16;
-  return 11;
+  if(P.sexe !== 'f') return 11;
+  if(P.ageAns != null) return P.ageAns < 51 ? 16 : 11;
+  return (P.age === 'a18' || P.age === 'a40') ? 16 : 11;
 }
 
 /* Repère oméga-3 (ALA, l'oméga-3 végétal — noix, colza, lin) : ~2,5 g/j
@@ -14471,7 +14492,7 @@ function exportSanteTexte(periode){
 
   L.push('--- Profil déclaré dans l’app ---');
   L.push(`Sexe : ${P.sexe === 'f' ? 'Femme' : P.sexe === 'h' ? 'Homme' : 'non renseigné'}`);
-  L.push(`Tranche d'âge : ${AGE_LAB[P.age] || 'non renseignée'}`);
+  L.push(`Âge : ${P.ageAns != null ? P.ageAns + ' ans' : (AGE_LAB[P.age] || 'non renseigné')}`);
   L.push(`Niveau d'activité : ${ACT_LAB[P.act] || 'non renseigné'}`);
   if(P.regime) L.push(`Régime alimentaire : ${REG_LAB[P.regime] || P.regime}`);
   if(act === 'sportif') L.push(`Mode d'entraînement courant : ${(MODES_ENTR[mode] || {}).l || mode}`);
@@ -17529,6 +17550,49 @@ function sept26Announce(){
     'badge', 'jeux');
 }
 
+/* ---------------- invite à compléter l'âge exact ----------------
+   Une seule fois, à la première ouverture qui suit le remplacement de la
+   tranche d'âge par un âge exact (repère fer notamment, voir cxFerCible) —
+   `vuAgeAns` verrouille l'invite comme `vuSept26` verrouille l'annonce du
+   défi. Ne concerne que les comptes déjà en place : quiconque passe
+   désormais l'écran d'identité saisit son âge exact directement, cette
+   invite ne sert qu'à rattraper les profils antérieurs à ce changement.
+   Verrou posé dès le premier passage, y compris si l'âge n'est finalement
+   pas saisi : on ne relance pas une question laissée de côté, elle reste
+   accessible depuis le profil. */
+function ageAnsAnnounce(){
+  if(S.notif.vuAgeAns) return;
+  S.notif.vuAgeAns = true; save();
+  if(S.prof.ageAns != null || !profOk()) return;
+  openSheet(`
+    <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--mute)">Profil</div>
+    <h3>Compléter votre âge</h3>
+    <p class="small" style="line-height:1.7">Complétez votre âge pour affiner les recommandations
+      nutritionnelles — le repère en fer notamment diffère selon l’âge. Seule une tranche large
+      était demandée jusqu’ici.</p>
+    <div class="qfield">
+      <label for="ag_age">Âge</label>
+      <input class="search" id="ag_age" type="number" inputmode="numeric" min="15" max="120"
+             placeholder="55" style="margin:0">
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-2" id="ag_later">Plus tard</button>
+      <button class="btn btn-1" id="ag_ok">Valider</button>
+    </div>`);
+  const valider = () => {
+    const el = $('#ag_age');
+    const v = el && el.value !== '' ? parseInt(el.value, 10) : NaN;
+    if(isNaN(v) || v < 15 || v > 120) return toast('Indiquez un âge valide (15 à 120 ans)');
+    profSave('ageAns', v);
+    closeSheet();
+    pfRepeint();
+  };
+  const ok = $('#ag_ok'); if(ok) ok.onclick = valider;
+  const later = $('#ag_later'); if(later) later.onclick = closeSheet;
+  const el = $('#ag_age'); if(el) el.onkeydown = e => { if(e.key === 'Enter') valider(); };
+}
+
 /* Repeindre le profil s'il est à l'écran, et rien d'autre sinon. La nuance
    compte : cette fonction est aussi appelée par la fenêtre de première
    ouverture, et un « Oui, activer » qui projetterait sur la page Profil serait
@@ -17972,6 +18036,9 @@ else{
      cèdent déjà le passage à l'écran d'accueil : deux fenêtres coup sur coup
      n'en font pas une meilleure. */
   setTimeout(sept26Announce, 900);
+  /* Encore décalée derrière l'annonce du défi, pour la même raison : le temps
+     qu'une fenêtre se lise et se ferme avant qu'une autre ne s'ouvre. */
+  setTimeout(ageAnsAnnounce, 1400);
 }
 
 /* Retour au premier plan. Une PWA iOS n'est pas rechargée quand on y revient :
