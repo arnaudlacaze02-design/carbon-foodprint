@@ -2892,7 +2892,7 @@ function save(){
         prof:S.prof, people:S.people, notif:S.notif, nutri:S.nutri,
         marques:S.marques, pmVu:S.pmVu, frigo:S.frigo, parts:S.parts,
         podium:S.podium, skip:S.skip, noask:S.noask, mesRec:S.mesRec, mrPartage:S.mrPartage,
-        catStyle:S.catStyle, partOrdre:S.partOrdre, recOrdre:S.recOrdre})); }catch(e){}
+        catStyle:S.catStyle, partOrdre:S.partOrdre, recOrdre:S.recOrdre, mrOrdre:S.mrOrdre})); }catch(e){}
   /* Les signaux d'attente se recalculent à partir de S : les repeindre ici,
      c'est garantir qu'ils ne mentent jamais après une écriture, sans avoir à
      penser à les appeler depuis chacun des vingt endroits qui écrivent.
@@ -2903,7 +2903,7 @@ function load(){
   S.favs=[]; S.hist=[]; S.tomb=[]; S.starred=[]; S.stdInit=false; S.lastSync=null; S.prof={};
   S.people=[]; S.notif=NOTIF0(); S.nutri=true; S.marques={}; S.pmVu=false; S.frigo=[];
   S.parts=[]; S.partner=null; S.podium={or:0, argent:0, bronze:0};
-  S.partOrdre=[]; S.recOrdre=[];
+  S.partOrdre=[]; S.recOrdre=[]; S.mrOrdre=[];
   /* Repas déclarés sautés, et créneaux qu'on ne veut plus voir proposés. Deux
      listes de clés « AAAA-MM-JJ|serv ». Volontairement locales et non
      synchronisées, comme le frigo : c'est une déclaration d'intention sur un
@@ -2929,6 +2929,9 @@ function load(){
       /* Les ordres personnels des deux listes réorganisables. Absents d'une
          sauvegarde antérieure : liste vide, donc ordre d'origine. */
       S.partOrdre = o.partOrdre || []; S.recOrdre = o.recOrdre || [];
+      /* Même principe pour le carnet Mes recettes (cf. plus bas) : ordre
+         personnel par glisser-déposer, vide tant qu'on n'y a jamais touché. */
+      S.mrOrdre = o.mrOrdre || [];
       /* Absent d'une sauvegarde antérieure au tutoriel : on considère qu'un
          utilisateur déjà installé n'a pas besoin qu'on le lui impose. */
       S.pmVu = 'pmVu' in o ? !!o.pmVu : true;
@@ -7107,10 +7110,11 @@ function cuiRecettes(){
      grille qui est l'écran d'accueil — un mur de titres n'aide pas à choisir,
      alors que six carrés se lisent d'un coup d'œil. */
   const choisi = S.mrCat != null;
-  const rows = !choisi ? [] : L
-    .filter(r => S.mrCat === '' || (S.mrCat === '~' ? !r.cat : r.cat === S.mrCat))
-    .map(r => ({r, kg: kgOf(r.ing), pers: Math.max(1, r.ingp || r.pers)}))
-    .sort((a, b) => (b.r.ts || 0) - (a.r.ts || 0));
+  const rows = !choisi ? [] : ordreApplique(
+    L.filter(r => S.mrCat === '' || (S.mrCat === '~' ? !r.cat : r.cat === S.mrCat))
+      .map(r => ({r, kg: kgOf(r.ing), pers: Math.max(1, r.ingp || r.pers)}))
+      .sort((a, b) => (b.r.ts || 0) - (a.r.ts || 0)),
+    S.mrOrdre, x => x.r.id);
 
   return `
   ${(() => {
@@ -7198,11 +7202,20 @@ function cuiRecettes(){
                bouton dans un bouton n'est pas du HTML valide — le navigateur
                remonte le nœud hors de son parent et le geste part sur la
                mauvaise cible. `tabindex` et la gestion d'Entrée/Espace plus bas
-               rendent au div ce que le <button> donnait gratuitement. */
+               rendent au div ce que le <button> donnait gratuitement.
+
+               Le tri se fait par appui long n'importe où sur la carte
+               (ordreBind, cf. bindRecettes) ; les trois traits en haut à droite
+               ne sont qu'un repère visuel de ce geste — l'affordance UX
+               habituelle —, pas une seconde zone de prise séparée : la carte
+               entière reste la poignée. */
             return `<div class="wcard${ouv ? ' on' : ''}" data-wc="${esc(r.id)}"
               ${co ? `data-co="${co}"` : ''} role="button" tabindex="0"
               aria-expanded="${ouv}">
-              <span class="wt">${esc(r.t)}</span>
+              ${rows.length > 1 ? `<span aria-hidden="true" style="position:absolute; top:15px; right:17px; opacity:.45">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+              </span>` : ''}
+              <span class="wt"${rows.length > 1 ? ' style="padding-right:26px"' : ''}>${esc(r.t)}</span>
               <span class="wk">${n2(kg / pers)} kg CO₂e / pers</span>
               <span class="wm">${r.cat ? esc(catLabel(r.cat)) + ' · ' : ''}${
                 r.ing.length} ingrédient${r.ing.length > 1 ? 's' : ''}${
@@ -7344,7 +7357,23 @@ function bindRecettes(){
   if(S.mrPartage) mrPublishAll();
 
   /* La pile. Toucher une carte l'ouvre, la retoucher la referme : c'est le même
-     geste dans les deux sens, et il n'y a donc pas de croix à viser. */
+     geste dans les deux sens, et il n'y a donc pas de croix à viser.
+
+     Le tri par appui long (ordreBind) est branché AVANT ce clic d'ouverture,
+     et dans cet ordre précis : c'est ce qui permet à son garde-fou interne
+     (dataset.ordreFait) d'intercepter le clic qui suit un glisser-déposer
+     avant qu'il n'ouvre la carte qu'on vient de ranger. Même recette que pour
+     le carnet du composeur (cf. plus bas, .list .dish). */
+  if(S.mrCat != null){
+    const L = S.mesRec || [];
+    const rows = ordreApplique(
+      L.filter(r => S.mrCat === '' || (S.mrCat === '~' ? !r.cat : r.cat === S.mrCat))
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0)),
+      S.mrOrdre, r => r.id);
+    ordreBind(view, '#wallet .wcard',
+      () => rows.map(r => r.id),
+      l => { S.mrOrdre = l; save(); renderCuisine(); toast('Ordre de vos recettes enregistré'); });
+  }
   view.querySelectorAll('[data-wc]').forEach(c => {
     const ouvre = () => {
       S.mrOpen = S.mrOpen === c.dataset.wc ? null : c.dataset.wc;
@@ -12827,6 +12856,20 @@ function phaseAuto(dateISO){ return phaseAtJ(joursAvantCourse(dateISO)); }
    phase se trouvait CHAQUE jour de l'historique, pas seulement aujourd'hui. */
 function phaseForDate(courseDateISO, refISO){ return phaseAtJ(joursAvant(courseDateISO, refISO)); }
 
+/* Nombre de jours écoulés depuis une date donnée, aujourd'hui inclus — une
+   date d'hier vaut donc 2, pas 1. Sert à borner les moyennes et courbes du
+   Coach Nutrition à la seule phase d'entraînement en cours (cf.
+   S.prof.modeEntrDepuis) : sans cette borne, passer de Chill à Prépa fait
+   apparaître un « saut » artificiel dans la moyenne glissante, qui mélange
+   des jours saisis sous deux cibles différentes sans que rien ne le signale.
+   Retourne null si aucune date n'est connue, à distinguer d'un vrai 0. */
+function joursDepuisDate(dateISO){
+  if(!dateISO) return null;
+  const d = new Date(dateISO + 'T00:00:00');
+  const t = new Date(); t.setHours(0,0,0,0);
+  return Math.max(1, Math.round((t - d) / 86400000) + 1);
+}
+
 /* Sports et sous-catégories couverts dans un premier temps : course à pied,
    vélo, natation, triathlon, Hyrox. Chaque sous-catégorie porte trois
    informations qui ne doivent SURTOUT PAS être mélangées :
@@ -12943,7 +12986,11 @@ function coachTargets(mode){
 }
 
 /* `jours` derniers jours civils, aujourd'hui compris, glissants — jamais une
-   semaine calendaire fixe. */
+   semaine calendaire fixe. `rempli` distingue un jour sans aucune saisie d'un
+   jour réellement à zéro : nuParJour() ne crée une entrée que pour les jours
+   où l'historique porte au moins un repas, donc son absence ici veut dire
+   « rien saisi », pas « rien mangé ». La moyenne (coachMoyenne) s'appuie sur
+   ce indicateur pour ne diviser que par les jours effectivement remplis. */
 function coachDonnees(jours){
   const nu = nuParJour();
   const out = [];
@@ -12952,18 +12999,25 @@ function coachDonnees(jours){
     const iso_ = iso(d);
     const v = nu[iso_] || {kcal:0, prot:0, lip:0, gluc:0, fib:0, fer:0, sodium:0, omega3:0};
     out.push({d:iso_, kcal:v.kcal, prot:v.prot, lip:v.lip, gluc:v.gluc, fib:v.fib,
-              fer:v.fer, sodium:v.sodium, omega3:v.omega3});
+              fer:v.fer, sodium:v.sodium, omega3:v.omega3, rempli:!!nu[iso_]});
   }
   return out;
 }
 
 /* Moyenne par jour sur la période affichée : c'est elle, et non le seul
    aujourd'hui, qui alimente l'anneau et la légende — cohérent avec le choix
-   d'une période d'évaluation. */
+   d'une période d'évaluation.
+
+   Divisée par les seuls jours remplis, pas par la longueur de la période.
+   Un jour sans saisie n'est pas un jour à zéro calorie : le compter au
+   dénominateur tirerait chaque moyenne vers le bas dès qu'un jour manque,
+   pénalisant qui a oublié de saisir plutôt que qui a mal mangé. À défaut du
+   moindre jour rempli, la moyenne retombe sur zéro plutôt que de planter. */
 function coachMoyenne(data){
-  const n = data.length || 1;
+  const remplis = data.filter(d => d.rempli);
+  const n = remplis.length || 1;
   const s = {kcal:0, prot:0, lip:0, gluc:0, fib:0, fer:0, sodium:0, omega3:0};
-  data.forEach(d => { s.kcal+=d.kcal; s.prot+=d.prot; s.lip+=d.lip; s.gluc+=d.gluc; s.fib+=d.fib;
+  remplis.forEach(d => { s.kcal+=d.kcal; s.prot+=d.prot; s.lip+=d.lip; s.gluc+=d.gluc; s.fib+=d.fib;
     s.fer+=d.fer; s.sodium+=d.sodium; s.omega3+=d.omega3; });
   return {kcal:s.kcal/n, prot:s.prot/n, lip:s.lip/n, gluc:s.gluc/n, fib:s.fib/n,
           fer:s.fer/n, sodium:s.sodium/n, omega3:s.omega3/n};
@@ -13474,12 +13528,15 @@ function coachModesHTML(mode){
      raceDayCalc), il a son propre bandeau plus bas plutôt qu'un bouton
      Appliquer qui n'aurait rien de sensé à appliquer. */
   const mismatch = phase && MODES_ENTR[phase] && phase !== mode;
+  const depuis = S.prof && S.prof.modeEntrDepuis;
 
   return `<div class="coachnu-modes-row">
     <div class="coachnu-modes">${Object.entries(MODES_ENTR).map(([k,m]) =>
       `<button data-cnm="${k}" aria-pressed="${mode===k}"><b>${m.l}</b></button>`).join('')}</div>
     <button class="coachnu-course-btn${hasCourse ? ' on' : ''}" id="cn_course" aria-label="Ma prochaine course">\ud83c\udfc1</button>
   </div>
+  <button class="modeline" id="cn_depuis" style="margin-top:6px">
+    <span><b>${MODES_ENTR[mode].l}</b> depuis ${depuis ? `le ${dLabel(depuis)}` : 'toujours'}</span><i>changer</i></button>
   ${hasCourse && phase === 'jourj' ? `<button type="button" class="coachnu-course-jourj" id="cn_jourj">\ud83c\udfc1 C\u2019est aujourd\u2019hui \u2014 ${esc(label)} \u00b7 Plan ravito</button>` : ''}
   ${hasCourse && phase !== 'jourj' ? `<div class="coachnu-course-hint">
     <span>${esc(label)} \u00b7 ${j > 0 ? `J-${j}` : `J+${Math.abs(j)}`}</span>
@@ -13487,6 +13544,39 @@ function coachModesHTML(mode){
       <button class="coachnu-apply-btn" data-cnauto="${phase}">Appliquer</button>` : ''}
     <button class="coachnu-apply-btn" id="cn_jourj" style="border-color:var(--line); color:var(--ink)">Plan ravito</button>
   </div>` : ''}`;
+}
+
+/* Feuille de réglage de la date de début du mode courant. Elle sert à deux
+   choses à la fois : dire à quelle date remonte la phase active — pour que
+   les moyennes et courbes du Coach Nutrition (cf. joursDepuisDate) cessent de
+   mélanger des jours saisis sous Chill avec des jours saisis sous Prépa —, et
+   permettre de la corriger après coup, pour le cas fréquent où le passage de
+   mode dans l'app arrive après le vrai début de la phase (on l'annonce
+   souvent a posteriori, pas pile le jour J). Une valeur vide revient au
+   comportement d'avant : aucune borne, l'historique entier compte. */
+function coachModeDepuisSheet(){
+  const P = S.prof || {};
+  const mode = ((P.act === 'sportif') ? P.modeEntr : null) || 'prepa';
+  const depuis = P.modeEntrDepuis || '';
+  openSheet(`
+    <h3>Depuis quand \u00eates-vous en ${esc(MODES_ENTR[mode].l)} ?</h3>
+    <div class="small mute" style="margin-bottom:10px">Les moyennes et les courbes du Coach Nutrition ne regarderont pas avant cette date, pour ne pas m\u00e9langer cette phase avec la pr\u00e9c\u00e9dente. Laissez vide pour ne poser aucune borne.</div>
+    <input type="date" id="cnDepuisDate" value="${depuis}" max="${today()}" style="width:100%">
+    <div class="actions" style="margin-top:14px">
+      <button class="btn btn-1" id="cnDepuisOk">Enregistrer</button>
+      ${depuis ? `<button class="btn btn-2" id="cnDepuisClear">Retirer la borne</button>` : ''}
+    </div>`);
+  $('#cnDepuisOk').onclick = () => {
+    S.prof = S.prof || {};
+    const v = $('#cnDepuisDate').value;
+    S.prof.modeEntrDepuis = v || null;
+    save(); closeSheet(); tvSante(agg());
+  };
+  const clr = $('#cnDepuisClear');
+  if(clr) clr.onclick = () => {
+    S.prof = S.prof || {}; S.prof.modeEntrDepuis = null;
+    save(); closeSheet(); tvSante(agg());
+  };
 }
 
 /* Feuille « Ma prochaine course » : sport, puis format (les cats d'
@@ -13803,6 +13893,19 @@ function coachProfilSheet(){
   });
 }
 
+/* Période réellement utilisée pour la moyenne et les courbes : la période
+   choisie par l'utilisateur (S.cnPeriode), plafonnée au nombre de jours
+   écoulés depuis le début du mode courant (S.prof.modeEntrDepuis) quand cette
+   date est connue. Sans ce plafond, choisir « 90 jours » deux jours après un
+   passage de Chill à Prépa mélangerait 88 jours de Chill et 2 jours de Prépa
+   dans la même moyenne, comparée à la cible Prépa — d'où le saut artificiel
+   de calories/protéines que rien ne signalait. */
+function coachPeriodeEffective(periode, mode, sportif){
+  const depuis = sportif ? (S.prof && S.prof.modeEntrDepuis) : null;
+  const plafond = depuis ? joursDepuisDate(depuis) : null;
+  return plafond ? Math.min(periode, plafond) : periode;
+}
+
 /* Feuille d'explication du score central : jamais un nombre affiché seul,
    sans dire ce qu'il mesure ni pourquoi il est là où il est. Recalcule tout
    depuis l'état courant (mode, période) plutôt que de recevoir des valeurs
@@ -13810,11 +13913,13 @@ function coachProfilSheet(){
    juste avant de cliquer. */
 function coachScoreSheet(){
   const act = (S.prof && S.prof.act) || 'actif';
-  const mode = act === 'sportif' ? ((S.prof && S.prof.modeEntr) || 'prepa') : 'prepa';
+  const sportif = act === 'sportif';
+  const mode = sportif ? ((S.prof && S.prof.modeEntr) || 'prepa') : 'prepa';
   const t = coachTargets(mode);
   if(!t) return;
   const periode = COACH_PERIODES.includes(S.cnPeriode) ? S.cnPeriode : 7;
-  const moy = coachMoyenne(coachDonnees(periode));
+  const periodeEff = coachPeriodeEffective(periode, mode, sportif);
+  const moy = coachMoyenne(coachDonnees(periodeEff));
   const eq = coachEq(moy, t);
   const axes = ['kcal','prot','lip','gluc'].filter(k => t[k] && t[k].v);
   const lignes = axes.map(k => {
@@ -13830,7 +13935,7 @@ function coachScoreSheet(){
   }).join('');
   openSheet(`
     <h3>Score actuel : ${eq!=null?n1(eq):'\u2013'}/10</h3>
-    <div class="small mute" style="margin-bottom:10px">Une note sur 10 qui résume en un seul chiffre à quel point vos calories, protéines, lipides et glucides des ${periode} ${periode===1?'dernier jour':'derniers jours'} collent aux repères de votre profil. 10 = tout est pile dans la cible ; le calcul fait la moyenne des écarts de chaque axe (un excès de protéines n'est jamais compté contre vous, faute de plafond utile pour cet axe).</div>
+    <div class="small mute" style="margin-bottom:10px">Une note sur 10 qui résume en un seul chiffre à quel point vos calories, protéines, lipides et glucides des ${periodeEff} ${periodeEff===1?'dernier jour':'derniers jours'} collent aux repères de votre profil. 10 = tout est pile dans la cible ; le calcul fait la moyenne des écarts de chaque axe (un excès de protéines n'est jamais compté contre vous, faute de plafond utile pour cet axe).${periodeEff < periode ? ` Limité aux ${periodeEff} jours depuis votre passage en ${esc(MODES_ENTR[mode].l)} : les jours d'avant, saisis sous une autre cible, ne compteraient pas juste.` : ''}</div>
     ${lignes}
     <div class="small mute" style="margin-top:10px">Un score bas ne veut pas dire « mauvais » — juste que vous vous éloignez de la cible calculée pour votre profil sur cette période. Changez la période d'évaluation (icône réglage en haut de l'anneau) pour voir si c'est ponctuel ou installé.</div>`);
 }
@@ -13854,7 +13959,8 @@ function coachBloc(){
   </div>`;
   const periode = COACH_PERIODES.includes(S.cnPeriode) ? S.cnPeriode : 7;
   S.cnPeriode = periode;
-  const data = coachDonnees(periode);
+  const periodeEff = coachPeriodeEffective(periode, mode, sportif);
+  const data = coachDonnees(periodeEff);
   S.cnKey = S.cnKey || 'kcal';
   const selIdx = (S.cnDay == null || S.cnDay >= data.length) ? data.length - 1 : S.cnDay;
   const moy = coachMoyenne(data);
@@ -13877,7 +13983,7 @@ function coachBloc(){
       </div>
       <div class="coachnu-histo">
         <div class="coachnu-histo-head">
-          <span class="small mute">${COACH_KEYS.find(k=>k.k===S.cnKey).icon} ${COACH_KEYS.find(k=>k.k===S.cnKey).label} \u00b7 moyenne sur ${periode} ${periode===1?'jour':'jours'}</span>
+          <span class="small mute">${COACH_KEYS.find(k=>k.k===S.cnKey).icon} ${COACH_KEYS.find(k=>k.k===S.cnKey).label} \u00b7 moyenne sur ${periodeEff} ${periodeEff===1?'jour':'jours'}${periodeEff < periode ? ` (depuis le passage en ${esc(MODES_ENTR[mode].l)})` : ''}</span>
         </div>
         ${coachChartHTML(data, t, S.cnKey, selIdx, S.cnKey === 'eq' ? eqMoy : moy[S.cnKey])}
         ${coachRepasHTML(data[selIdx].d)}
@@ -13891,11 +13997,20 @@ function coachBloc(){
 function coachBind(){
   const wrap = $('#tv'); if(!wrap) return;
   wrap.querySelectorAll('[data-cnm]').forEach(b => b.onclick = () => {
-    S.prof = S.prof || {}; S.prof.modeEntr = b.dataset.cnm; save(); tvSante(agg());
+    S.prof = S.prof || {};
+    const nv = b.dataset.cnm;
+    /* Une date de début n'a de sens que si le mode change vraiment : recliquer
+       sur le mode déjà actif ne doit pas réinitialiser le repère à aujourd'hui. */
+    if(S.prof.modeEntr !== nv) S.prof.modeEntrDepuis = today();
+    S.prof.modeEntr = nv; save(); tvSante(agg());
   });
   wrap.querySelectorAll('[data-cnauto]').forEach(b => b.onclick = () => {
-    S.prof = S.prof || {}; S.prof.modeEntr = b.dataset.cnauto; save(); tvSante(agg());
+    S.prof = S.prof || {};
+    const nv = b.dataset.cnauto;
+    if(S.prof.modeEntr !== nv) S.prof.modeEntrDepuis = today();
+    S.prof.modeEntr = nv; save(); tvSante(agg());
   });
+  const cnd = $('#cn_depuis'); if(cnd) cnd.onclick = coachModeDepuisSheet;
   const crs = $('#cn_course'); if(crs) crs.onclick = courseSheet;
   const jj = $('#cn_jourj'); if(jj) jj.onclick = jourJSheet;
   wrap.querySelectorAll('[data-cnk]').forEach(b => b.onclick = () => { S.cnKey = b.dataset.cnk; tvSante(agg()); });
@@ -13990,29 +14105,34 @@ const CX_SEL_MAX = 6; // g/j, ANSES — au-delà de 2,5 g de sodium/j
 
 /* Grammes de viande rouge sur la période, ramenés à une moyenne hebdo :
    c'est à la semaine que l'ANSES exprime son repère (500 g max), jamais au
-   jour, un seul steak un jour donné ne veut rien dire seul. */
+   jour, un seul steak un jour donné ne veut rien dire seul.
+   Divisée par les jours effectivement remplis, comme coachMoyenne : un jour
+   sans saisie n'est pas un jour sans viande rouge, juste un jour muet, et le
+   compter au dénominateur ferait paraître plus vertueux qui saisit peu. */
 function cxRedSemaine(periode){
-  let total = 0;
+  let total = 0, jours = 0;
   for(let i = 0; i < periode; i++){
     const d = new Date(); d.setDate(d.getDate() - i);
     const iso_ = iso(d);
-    S.hist.filter(e => e.d === iso_).forEach(e =>
-      e.l.forEach(([slug, g]) => { if(RED.has(slug)) total += g; }));
+    const es = S.hist.filter(e => e.d === iso_);
+    if(es.length) jours++;
+    es.forEach(e => e.l.forEach(([slug, g]) => { if(RED.has(slug)) total += g; }));
   }
-  return periode ? total / periode * 7 : 0;
+  return jours ? total / jours * 7 : 0;
 }
 
 /* Même logique pour la charcuterie (jambon, saucisson, saucisse, merguez,
    viande séchée…), repère ANSES distinct et plus bas : 150 g max/semaine. */
 function cxCharcSemaine(periode){
-  let total = 0;
+  let total = 0, jours = 0;
   for(let i = 0; i < periode; i++){
     const d = new Date(); d.setDate(d.getDate() - i);
     const iso_ = iso(d);
-    S.hist.filter(e => e.d === iso_).forEach(e =>
-      e.l.forEach(([slug, g]) => { if(CHARC.has(slug)) total += g; }));
+    const es = S.hist.filter(e => e.d === iso_);
+    if(es.length) jours++;
+    es.forEach(e => e.l.forEach(([slug, g]) => { if(CHARC.has(slug)) total += g; }));
   }
-  return periode ? total / periode * 7 : 0;
+  return jours ? total / jours * 7 : 0;
 }
 
 /* Miroir de coachCouleurMin : ici seul un dépassement compte, jamais un
@@ -14823,61 +14943,114 @@ function nuBlock(lignes){
 function entrySheet(id, back){
   const e = S.hist.find(x => x.id === id);
   if(!e) return;
-  const lines = e.l.map(([sl,g]) => `${esc(F.get(sl).n)} · ${g} g · ${n2(F.get(sl).t*g/1000)}`).join('<br>');
-  openSheet(`
-    ${back ? `<button id="es_back" class="backlink">‹ ${esc(back.l)}</button>` : ''}
-    <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">
-      ${MEAL[e.m].l} · ${dLabel(e.d)}</div>
-    <h3>${esc(e.n)}</h3>
-    <div class="small mute" style="margin-bottom:10px">${n2(kgOf(e.l))} kg CO₂e · ${e.l.length} aliment${e.l.length>1?'s':''}</div>
-    <div class="small" style="line-height:1.7">${lines}</div>
-    ${nuBlock(e.l)}
-    <div class="hr"></div>
-    <div class="actions">
-      <button class="btn btn-1" id="e_edit">Modifier</button>
-      <button class="btn btn-2" id="e_dup">Dupliquer</button>
-    </div>
-    <div class="actions" style="margin-top:8px">
-      <button class="btn btn-2" id="e_del" style="color:var(--brick)">Supprimer</button>
-    </div>`);
-  if(back){ const bb = $('#es_back'); if(bb) bb.onclick = back.fn; }
+  /* Bascule d'affichage locale (le titre devient un champ de saisie) plutôt
+     qu'une feuille empilée par-dessus : la fiche du repas reste seule à
+     l'écran, comme pour la confirmation de suppression un peu plus bas. */
+  let renommer = false;
 
-  $('#e_edit').onclick = () => {
-    /* La provenance (frais / surgelé / resto) vit sur chaque ligne du repas
-       enregistré, mais rien ici ne la reversait dans S.mode : elle restait à
-       ce qu'elle valait avant l'ouverture de cette fiche, y compris null en
-       tout début de session. Or l'écran de saisie masque tout — recherche
-       comprise — tant que S.mode n'est pas posé : rouvrir un repas pour y
-       ajouter un aliment n'affichait alors que « Provenance à choisir », sans
-       rien en dessous. On la relit donc depuis la première ligne du repas, et
-       à défaut (repas antérieur à ce champ) on retombe sur « frais », comme le
-       fait déjà l'habitude de petit-déjeuner un peu plus haut. */
-    const m = (e.l[0] && e.l[0][3]) || 'frais';
-    S.draft = e.l.map(l => [l[0], l[1], l[2] || 'plat', l[3] || m]);
-    S.meal = e.m; S.path = 'compose'; S.editId = id; S.entryDate = e.d;
-    S.step = 'saisie'; S.wiz = null; S.comCat = 'plat'; S.mode = m;
-    closeSheet(); go('saisie');
-    toast('Repas ouvert pour modification');
-  };
-  $('#e_dup').onclick = () => {
-    S.hist.push({id:'e'+Date.now(), c:CLIENT_ID, u:new Date().toISOString(),
-                 d:today(), m:e.m, n:e.n, l:e.l.map(l => [...l])});
-    save(); closeSheet(); renderTracker(); toast('Repas dupliqué sur aujourd’hui');
-    if(SESS) syncNow(true);
-  };
-  $('#e_del').onclick = () => {
-    const b = $('#e_del');
-    if(b.dataset.ok){
-      /* pierre tombale : sans elle, la synchro suivante ferait réapparaître ce
-         repas depuis un autre appareil qui l'a encore */
-      const del = S.hist.find(x => x.id === id);
-      if(del) S.tomb.push({c:del.c || CLIENT_ID, id:del.id, at:new Date().toISOString()});
-      S.hist = S.hist.filter(x => x.id !== id);
-      save(); closeSheet(); renderTracker(); toast('Repas supprimé');
-      if(SESS) syncNow(true);
+  const peint = () => {
+    const lines = e.l.map(([sl,g]) => `${esc(F.get(sl).n)} · ${g} g · ${n2(F.get(sl).t*g/1000)}`).join('<br>');
+    const dejaEnreg = (S.mesRec || []).some(r => r.t === e.n);
+
+    openSheet(`
+      ${back ? `<button id="es_back" class="backlink">‹ ${esc(back.l)}</button>` : ''}
+      <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">
+        ${MEAL[e.m].l} · ${dLabel(e.d)}</div>
+      ${renommer
+        ? `<input class="search" id="es_nom" maxlength="70" value="${esc(e.n)}" style="margin:4px 0 8px">`
+        : `<h3>${esc(e.n)}</h3>`}
+      <div class="small mute" style="margin-bottom:10px">${n2(kgOf(e.l))} kg CO₂e · ${e.l.length} aliment${e.l.length>1?'s':''}</div>
+      <div class="small" style="line-height:1.7">${lines}</div>
+      ${nuBlock(e.l)}
+      <div class="hr"></div>
+      ${renommer ? `
+      <div class="actions">
+        <button class="btn btn-1" id="es_nom_ok">Enregistrer le nom</button>
+        <button class="btn btn-2" id="es_nom_annule">Annuler</button>
+      </div>` : `
+      <div class="actions">
+        <button class="btn btn-1" id="e_edit">Modifier</button>
+        <button class="btn btn-2" id="e_dup">Dupliquer</button>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn btn-2" id="e_rename">Renommer</button>
+        <button class="btn btn-2" id="e_tomrec" ${dejaEnreg ? 'disabled' : ''}>${
+          dejaEnreg ? 'Déjà dans mes recettes' : 'Enregistrer dans mes recettes'}</button>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn btn-2" id="e_del" style="color:var(--brick)">Supprimer</button>
+      </div>`}`);
+
+    if(back){ const bb = $('#es_back'); if(bb) bb.onclick = back.fn; }
+
+    if(renommer){
+      const inp = $('#es_nom');
+      inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length);
+      $('#es_nom_ok').onclick = () => {
+        const v = (inp.value || '').trim().slice(0, 70);
+        if(v) e.n = v;
+        renommer = false; save(); if(SESS) syncNow(true);
+        renderTracker(); peint();
+      };
+      $('#es_nom_annule').onclick = () => { renommer = false; peint(); };
+      return;
     }
-    else { b.dataset.ok = '1'; b.textContent = 'Confirmer la suppression'; }
+
+    $('#e_edit').onclick = () => {
+      /* La provenance (frais / surgelé / resto) vit sur chaque ligne du repas
+         enregistré, mais rien ici ne la reversait dans S.mode : elle restait à
+         ce qu'elle valait avant l'ouverture de cette fiche, y compris null en
+         tout début de session. Or l'écran de saisie masque tout — recherche
+         comprise — tant que S.mode n'est pas posé : rouvrir un repas pour y
+         ajouter un aliment n'affichait alors que « Provenance à choisir », sans
+         rien en dessous. On la relit donc depuis la première ligne du repas, et
+         à défaut (repas antérieur à ce champ) on retombe sur « frais », comme le
+         fait déjà l'habitude de petit-déjeuner un peu plus haut. */
+      const m = (e.l[0] && e.l[0][3]) || 'frais';
+      S.draft = e.l.map(l => [l[0], l[1], l[2] || 'plat', l[3] || m]);
+      S.meal = e.m; S.path = 'compose'; S.editId = id; S.entryDate = e.d;
+      S.step = 'saisie'; S.wiz = null; S.comCat = 'plat'; S.mode = m;
+      closeSheet(); go('saisie');
+      toast('Repas ouvert pour modification');
+    };
+    $('#e_dup').onclick = () => {
+      S.hist.push({id:'e'+Date.now(), c:CLIENT_ID, u:new Date().toISOString(),
+                   d:today(), m:e.m, n:e.n, l:e.l.map(l => [...l])});
+      save(); closeSheet(); renderTracker(); toast('Repas dupliqué sur aujourd’hui');
+      if(SESS) syncNow(true);
+    };
+    $('#e_rename').onclick = () => { renommer = true; peint(); };
+    /* Recette au sens du carnet (S.mesRec), construite depuis les lignes
+       réellement mesurées de ce repas — pas les grammages par personne d'un
+       plat type (S.favs), qui supposeraient une remise à l'échelle qu'on n'a
+       aucun moyen de connaître ici. bodyToMesRec fait déjà ce travail pour une
+       recette d'ami ; un repas du tracker n'est qu'une autre source pour la
+       même forme `b`. */
+    const btnMr = $('#e_tomrec');
+    if(btnMr) btnMr.onclick = () => {
+      if((S.mesRec || []).some(r => r.t === e.n)) return toast('Déjà dans vos recettes');
+      const b = {title: e.n, pers: 1, ing: e.l.map(([s,g]) => [s, g])};
+      S.mesRec = S.mesRec || [];
+      S.mesRec.unshift(bodyToMesRec(b, null));
+      save();
+      toast(`« ${e.n} » enregistré dans vos recettes`);
+      peint();
+    };
+    $('#e_del').onclick = () => {
+      const b = $('#e_del');
+      if(b.dataset.ok){
+        /* pierre tombale : sans elle, la synchro suivante ferait réapparaître ce
+           repas depuis un autre appareil qui l'a encore */
+        const del = S.hist.find(x => x.id === id);
+        if(del) S.tomb.push({c:del.c || CLIENT_ID, id:del.id, at:new Date().toISOString()});
+        S.hist = S.hist.filter(x => x.id !== id);
+        save(); closeSheet(); renderTracker(); toast('Repas supprimé');
+        if(SESS) syncNow(true);
+      }
+      else { b.dataset.ok = '1'; b.textContent = 'Confirmer la suppression'; }
+    };
   };
+  peint();
 }
 
 function tvAn(a){
