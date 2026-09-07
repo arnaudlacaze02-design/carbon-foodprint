@@ -2214,6 +2214,8 @@ html[data-gate="1"] .phone{display:none}
 .coachnu-arc{fill:none; stroke-width:22; stroke-linecap:round; cursor:pointer;
   transition:stroke-dashoffset .8s cubic-bezier(.25,1,.5,1), stroke-width .2s ease}
 .coachnu-arc:hover, .coachnu-arc.sel{stroke-width:26}
+.coachnu-arc-ring{fill:none; stroke:var(--forest); stroke-width:31; stroke-linecap:round;
+  opacity:.3; pointer-events:none}
 .coachnu-icons{position:absolute; inset:0; pointer-events:none}
 .coachnu-icon{position:absolute; transform:translate(-50%,-50%) scale(1); font-size:18px; line-height:1;
   filter:drop-shadow(0 1px 2px rgba(0,0,0,.25)); z-index:5}
@@ -2267,8 +2269,7 @@ html[data-gate="1"] .phone{display:none}
    propriété ne le signale dans l'inspecteur. */
 .coachnu-val{position:absolute; left:50%; transform:translateX(-50%); font-size:9.5px; font-weight:800;
   color:var(--ink); white-space:nowrap; font-family:var(--mono)}
-.coachnu-col.on .coachnu-val{font-size:12.5px; color:var(--forest);
-  background:var(--card); padding:1px 6px; border-radius:6px; border:1px solid var(--line)}
+.coachnu-col.on .coachnu-val{color:var(--forest)}
 .coachnu-days{display:flex; margin-top:4px}
 .coachnu-day{flex:0 0 auto; text-align:center; cursor:pointer;
   font-size:9.5px; font-weight:700; color:var(--mute)}
@@ -13218,6 +13219,9 @@ function coachAnneauHTML(moy, t, selKey, scale){
   COACH_KEYS.forEach((ax, i) => {
     const start = i*(arcLen+gap) - 90 + gap/2, end = start + arcLen;
     const sel = ax.k === selKey ? ' sel' : '';
+    if(ax.k === selKey){
+      svg += `<path class="coachnu-arc-ring" d="${coachArc(start,end,cx,cy,r)}"></path>`;
+    }
     svg += `<path class="coachnu-arc${sel}" d="${coachArc(start,end,cx,cy,r)}" stroke="${ax.color}" data-cnk="${ax.k}"></path>`;
 
     const midRad = (start + arcLen/2) * Math.PI/180;
@@ -13295,8 +13299,7 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
        bord de la boîte plutôt que de la déborder. Le mélange % / px dans
        max()/calc() se résout à la taille réelle de .coachnu-col, pas
        besoin de connaître sa hauteur en pixels ici. */
-    const place = i === selIdx ? 26 : 17; // hauteur du label + marge, par variante
-    const valTop = `max(2px, calc((100% - ${h}%) - ${place}px))`;
+    const valTop = `max(2px, calc((100% - ${h}%) - 17px))`;
     return `<div class="coachnu-col${i===selIdx?' on':''}" data-cnd="${i}" style="width:${colW}px">
       <div class="coachnu-val" style="top:${valTop}">${isEq?n1(val):n0(val)}${i===selIdx?' '+ax.unit:''}</div>
       <div class="coachnu-bar" style="height:${h}%;background:${color}"></div>
@@ -13591,10 +13594,7 @@ function coachJourneesHTML(t){
   return `<div class="card" style="margin-top:12px">
     <div class="coachnu-jour-head" id="cnJourHead" style="cursor:pointer">
       <div class="coachnu-jour-title">Id\u00e9e recette</div>
-      <div style="display:flex; align-items:center; gap:6px">
-        ${badgeTxt ? `<span class="coachnu-jour-badge" style="background:${coachCouleur(constate,cible)}">\u26a0\ufe0f ${badgeTxt}</span>` : ''}
-        <span class="cx-chev" style="transform:rotate(${JOUR_OPEN?180:0}deg)">\u25be</span>
-      </div>
+      <span class="cx-chev" style="transform:rotate(${JOUR_OPEN?180:0}deg)">\u25be</span>
     </div>
     ${corps}
   </div>`;
@@ -14067,7 +14067,7 @@ function coachBloc(){
       </div>
       <div class="coachnu-histo">
         <div class="coachnu-histo-head">
-          <span class="small mute">${COACH_KEYS.find(k=>k.k===S.cnKey).icon} ${COACH_KEYS.find(k=>k.k===S.cnKey).label} \u00b7 moyenne sur ${periodeEff} ${periodeEff===1?'jour':'jours'}${periodeEff < periode ? ` (depuis le passage en ${esc(MODES_ENTR[mode].l)})` : ''}</span>
+          <span class="small mute">${COACH_KEYS.find(k=>k.k===S.cnKey).icon} <b>${COACH_KEYS.find(k=>k.k===S.cnKey).label}</b> \u00b7 moyenne sur ${periodeEff} ${periodeEff===1?'jour':'jours'}${periodeEff < periode ? ` (depuis le passage en ${esc(MODES_ENTR[mode].l)})` : ''}</span>
         </div>
         ${coachChartHTML(data, t, S.cnKey, selIdx, S.cnKey === 'eq' ? eqMoy : moy[S.cnKey])}
         ${coachRepasHTML(data[selIdx].d)}
