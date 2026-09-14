@@ -6095,11 +6095,13 @@ function postCard(x){
 
   const t = TROPHIES.find(y => y.s === b.key);
   return `<div class="post">${tete}
-    <div class="stage">${t ? medal(t, troNeed(t), 'p' + String(x.id).replace(/[^\w-]/g, ''))
-      : `<div style="font-size:66px;line-height:1">${esc(b.emoji || '🏅')}</div>`}</div>
-    <div class="cap">
-      <h4>${t ? '' : esc(b.emoji || '🏅') + ' '}${esc(b.label || b.key || 'Badge')}</h4>
-      <p>${esc(t ? t.d : (b.txt || 'Trophée décroché.'))}</p>
+    <div class="badgepost" data-popen="${esc(x.id)}" style="cursor:pointer">
+      <div class="stage">${t ? medal(t, troNeed(t), 'p' + String(x.id).replace(/[^\w-]/g, ''))
+        : `<div style="font-size:66px;line-height:1">${esc(b.emoji || '🏅')}</div>`}</div>
+      <div class="cap">
+        <h4>${t ? '' : esc(b.emoji || '🏅') + ' '}${esc(b.label || b.key || (t ? 'Badge' : 'Récap'))}</h4>
+        <p>${esc(t ? t.d : (b.txt || (t ? 'Trophée décroché.' : 'Partage.')))}</p>
+      </div>
     </div>
     ${pactBar(x)}
   </div>`;
@@ -6155,14 +6157,15 @@ function postOpen(id, tab){
     const t = TROPHIES.find(y => y.s === b.key);
 
     openSheet(`
-      <div class="unit">${rec ? 'Idée de recette' : 'Trophée partagé'} · ${esc(qui)}</div>
-      <h3 style="margin:2px 0 3px">${esc(rec ? (b.title || 'Sans titre') : (b.label || b.key || 'Badge'))}</h3>
+      <div class="unit">${rec ? 'Idée de recette' : (t ? 'Trophée partagé' : 'Récap partagé')} · ${esc(qui)}</div>
+      <h3 style="margin:2px 0 3px">${esc(rec ? (b.title || 'Sans titre') : (b.label || b.key || (t ? 'Badge' : 'Récap')))}</h3>
       ${rec
         ? `<div class="small mute">${kg != null
              ? `${n2(kgBase / base)} kg CO₂e par personne · ${n2(kg)} kg pour ${pers}`
              : 'Recette en texte libre, antérieure aux ingrédients mesurés'}</div>`
-        : (t ? `<div style="margin-top:12px">${medal(t, troNeed(t), 'sh')}</div>
-               <p class="small" style="margin-top:10px">${esc(t.d)}</p>` : '')}
+        : t ? `<div style="margin-top:12px">${medal(t, troNeed(t), 'sh')}</div>
+               <p class="small" style="margin-top:10px">${esc(t.d)}</p>`
+        : `<p class="small mute" style="margin-top:8px">${esc(b.txt || 'Partage.')}</p>`}
 
       ${rec ? `<div class="rtabs">
         <button data-rt="ing"  aria-pressed="${S.rtab === 'ing'}">Ingrédients</button>
