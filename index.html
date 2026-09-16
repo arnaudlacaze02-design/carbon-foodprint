@@ -2501,6 +2501,16 @@ const DB = {"foods":[{"s":"steakhache5","n":"Steak hach\u00e9 5 % MG","g":"Viand
 const $ = s => document.querySelector(s);
 const view = $('#view');
 const F = new Map(DB.foods.map(f => [f.s, f]));
+/* Constantes de l'avatar (hexagone + découpe CSS), utilisées par paintAva()
+   qui s'exécute dès le tout premier rendu (topbar(), appelé par le go()
+   d'amorçage). Elles doivent donc être initialisées avant ce point — une
+   `const` déclarée plus bas dans le script, comme c'était le cas ici, reste
+   en zone morte temporelle tant que sa ligne n'a pas été exécutée : la
+   référencer plus tôt lève une ReferenceError qui interrompt tout le script
+   d'amorçage, plantage silencieux qui explique une page blanche au
+   démarrage aussi bien que l'avatar ou la planche d'animation jamais prêts. */
+const AVA_HEXPTS = '50,4 92,29 92,79 50,104 8,79 8,29';
+const AVA_CLIP = 'polygon(50% 3.6%, 92% 25.9%, 92% 70.5%, 50% 92.9%, 8% 70.5%, 8% 25.9%)';
 
 /* ---------------- catalogues de marque ----------------
    Certains plats types viennent d'un service d'abonnement : les proposer à
@@ -11511,22 +11521,26 @@ function paintAva(){
   if(!a) return;
   a.dataset.on = SESS ? '1' : '0';
   a.setAttribute('aria-label', SESS ? 'Profil · ' + SESS.username : 'Profil, aucun compte');
-  const idx = S.prof && S.prof.avatar;
-  if(a.dataset.avaIdx === String(idx || '')) return;
-  a.dataset.avaIdx = String(idx || '');
-  if(!idx){
-    a.innerHTML = `<svg viewBox="0 0 100 112" aria-hidden="true">
-      <polygon class="hex" points="${AVA_HEXPTS}"/>
-      <g class="who"><circle cx="50" cy="44" r="12.5"/>
-      <path d="M27 88c0-12.7 10.3-23 23-23s23 10.3 23 23z"/></g></svg>`;
-    return;
-  }
-  avaLoad(urls => {
-    if(urls && urls[idx]){
-      a.innerHTML = avaHexSVG(urls[idx], 32, 36, 'topHexClip',
-        SESS ? 'var(--straw)' : 'var(--on-topbar-mute)');
+  /* La pastille est purement cosmétique : un souci ici (image indisponible,
+     etc.) ne doit jamais remonter et bloquer le reste du rendu. */
+  try{
+    const idx = S.prof && S.prof.avatar;
+    if(a.dataset.avaIdx === String(idx || '')) return;
+    a.dataset.avaIdx = String(idx || '');
+    if(!idx){
+      a.innerHTML = `<svg viewBox="0 0 100 112" aria-hidden="true">
+        <polygon class="hex" points="${AVA_HEXPTS}"/>
+        <g class="who"><circle cx="50" cy="44" r="12.5"/>
+        <path d="M27 88c0-12.7 10.3-23 23-23s23 10.3 23 23z"/></g></svg>`;
+      return;
     }
-  });
+    avaLoad(urls => {
+      if(urls && urls[idx]){
+        a.innerHTML = avaHexSVG(urls[idx], 32, 36, 'topHexClip',
+          SESS ? 'var(--straw)' : 'var(--on-topbar-mute)');
+      }
+    });
+  }catch(e){ console.error('paintAva', e); }
 }
 
 function bindAccount(){
@@ -16402,10 +16416,7 @@ const BADGE_IMG = {
    de trajet et les trois médailles de podium. medal() ne leur ajoute qu'un filet
    fin — un double anneau par-dessus leur bord ferait deux cadres empilés. */
 const BADGE_CADRE = new Set(['b-france.webp', 'b-rome.webp', 'b-ny.webp',
-                             'b-semaine.svg',
-                             'b-jan.webp', 'b-fev.webp', 'b-mar.webp', 'b-avr.webp',
-                             'b-mai.webp', 'b-jun.webp', 'b-jul.webp', 'b-aou.webp',
-                             'b-sep.webp', 'b-oct.webp', 'b-nov.webp', 'b-dec.webp']);
+                             'b-semaine.svg']);
 
 /* Illustrations qui ne reçoivent rien du tout : ni disque, ni anneau, ni
    découpe. Les trois médailles de podium sont déjà des médailles — bord dentelé,
@@ -16414,6 +16425,16 @@ const BADGE_CADRE = new Set(['b-france.webp', 'b-rome.webp', 'b-ny.webp',
    circulaire rognait les dents, qui sont précisément ce qui fait reconnaître une
    médaille. Elles occupent donc tout le cadre, telles quelles. */
 const BADGE_BRUT = new Set(['m-or.webp', 'm-argent.webp', 'm-bronze.webp']);
+
+/* Badges mensuels V3 : un écusson à bord doré déjà complet — fond, dégradé,
+   personnages, liseré. Les faire passer par le disque circulaire commun
+   rognerait les coins de l'écusson, qui est nettement plus large qu'un
+   cercle. Ils gardent donc leur forme intacte dans les deux états : couleurs
+   pleines une fois obtenus, ternis et en niveaux de gris tant que non acquis
+   — sans anneau de progression, l'écusson lui-même portant déjà son cadre. */
+const BADGE_FORME = new Set(['b-jan.webp', 'b-fev.webp', 'b-mar.webp', 'b-avr.webp',
+                             'b-mai.webp', 'b-jun.webp', 'b-jul.webp', 'b-aou.webp',
+                             'b-sep.webp', 'b-oct.webp', 'b-nov.webp', 'b-dec.webp']);
 
 function badgeSrc(nom){ return (nom && BADGE_IMG[nom]) || null; }
 
@@ -16459,6 +16480,13 @@ function medal(t, done, i){
        et c'est voulu — ils disent la même chose. */
     if(BADGE_BRUT.has(t.img) && got) return `<svg viewBox="0 0 88 88" aria-hidden="true">
       <image href="${img}" x="1" y="1" width="86" height="86" preserveAspectRatio="xMidYMid meet"/>
+    </svg>`;
+
+    /* Écussons mensuels : forme intacte dans les deux états, jamais de disque
+       ni d'anneau — voir la note sur BADGE_FORME plus haut. */
+    if(BADGE_FORME.has(t.img)) return `<svg viewBox="0 0 88 88" aria-hidden="true">
+      <image href="${img}" x="1" y="1" width="86" height="86" preserveAspectRatio="xMidYMid meet"
+        ${got ? '' : 'opacity=".4" style="filter:grayscale(1)"'}/>
     </svg>`;
 
     const cadre = BADGE_CADRE.has(t.img);
@@ -17281,7 +17309,12 @@ function go(tab){
   /* D'où l'on vient, pour le lien de retour du profil. Le profil n'a pas de
      bouton dans la barre : sans ce souvenir, on y resterait coincé. */
   if(tab === 'profil' && S.tab !== 'profil') pfFrom = S.tab;
-  S.tab = tab; tabSave(); topbar();
+  /* topbar() ne fait que repeindre l'en-tête (pastille, série, cloche) :
+     une erreur là-dedans ne doit jamais empêcher l'onglet demandé de
+     s'afficher — sinon un bug cosmétique isolé bloquerait l'app entière,
+     comme cela s'est produit une fois avec une constante mal placée. */
+  S.tab = tab; tabSave();
+  try{ topbar(); }catch(e){ console.error('topbar', e); }
   document.querySelectorAll('#tabbar button').forEach(b =>
     b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
   window.scrollTo(0,0);
@@ -18380,10 +18413,13 @@ const FX_LABEL = (() => {
   });
   return l;
 })();
-const AVA_HEXPTS = '50,4 92,29 92,79 50,104 8,79 8,29';
-const AVA_CLIP = 'polygon(50% 3.6%, 92% 25.9%, 92% 70.5%, 50% 92.9%, 8% 70.5%, 8% 25.9%)';
-
-let avaURLs = null, avaWait = null;
+/* `var` et non `let` : ces deux variables de cache peuvent être lues par
+   paintAva() dès le tout premier rendu (si un avatar était déjà choisi lors
+   d'une session précédente), qui s'exécute avant que cette ligne ne soit
+   atteinte dans l'ordre normal du script. `var` est hissée avec une valeur
+   `undefined` dès le début du script — pas de zone morte temporelle — là où
+   `let`/`const` aurait levé une ReferenceError dans ce cas précis. */
+var avaURLs = null, avaWait = null;
 /* Découpe la planche en 32 miniatures PNG, indépendamment de fxCharge/fxTuiles
    (l'animation de repas) : deux chemins de décodage séparés, pour qu'un souci
    sur l'un n'entraîne jamais un blocage silencieux sur l'autre. Résout
