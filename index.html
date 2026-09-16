@@ -17083,12 +17083,27 @@ function saisOf(slug, mois){
   return f.m ? f.m.includes(mois) : null;
 }
 
-const SAIS_PER = [['tout','Depuis toujours'], ['mois','30 derniers jours'], ['sem','7 derniers jours']];
+const SAIS_PER = [['tout','Depuis toujours'], ['moiscourant','Mois en cours'],
+                   ['mois','30 derniers jours'], ['sem','7 derniers jours']];
 
+/* « Mois en cours » est calendaire — du 1er du mois à aujourd'hui —, à ne pas
+   confondre avec « 30 derniers jours », qui est une fenêtre glissante et peut
+   donc chevaucher deux mois civils (à mi-mois, elle prend pour moitié le mois
+   précédent). C'est précisément ce qui peut faire diverger les deux chiffres :
+   un « 30 derniers jours » à cheval sur août et septembre n'a aucune raison de
+   coïncider avec le seul septembre écoulé jusqu'ici. Rien d'autre ne change
+   entre les quatre périodes : même filtre saisOf(), mêmes lignes, seule la
+   borne de date diffère. */
 function saisStats(per){
   const bornes = {tout:null, mois:30, sem:7};
-  const n = bornes[per];
-  const depuis = n ? iso(new Date(Date.now() - n * 864e5)) : null;
+  let depuis;
+  if(per === 'moiscourant'){
+    const now = new Date();
+    depuis = iso(new Date(now.getFullYear(), now.getMonth(), 1));
+  } else {
+    const n = bornes[per];
+    depuis = n ? iso(new Date(Date.now() - n * 864e5)) : null;
+  }
   let ok = 0, tot = 0, jours = new Set();
   const contre = new Map();               /* ce qui tire le score vers le bas */
   S.hist.forEach(e => {
