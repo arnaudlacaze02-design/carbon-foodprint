@@ -5178,7 +5178,7 @@ async function frSocial(){
   const [l, c] = await Promise.all([
     SB.rest('post_likes?select=post,member&limit=2000'),
     SB.rest('post_comments?select=id,post,author,body,created_at,' +
-            'aut:profiles!post_comments_author_fkey(username)&order=created_at.asc&limit=500')
+            'aut:profiles!post_comments_author_fkey(username,avatar)&order=created_at.asc&limit=500')
   ]);
 
   const absent = r => /PGRST205|schema cache|does not exist/i.test(JSON.stringify(r.body || {}));
@@ -5229,7 +5229,7 @@ async function comAdd(id, texte){
   const body = (texte || '').trim();
   if(body.length < 1) return false;
   const r = await SB.rest('post_comments?select=id,post,author,body,created_at,' +
-      'aut:profiles!post_comments_author_fkey(username)',
+      'aut:profiles!post_comments_author_fkey(username,avatar)',
     {method:'POST', headers:{Prefer:'return=representation'},
      body: JSON.stringify({post:id, author:SESS.uid, body:body.slice(0, 800)})});
   if(!r.ok || !r.body || !r.body.length){
@@ -5274,7 +5274,7 @@ async function frPosts(){
   if(S.posts === undefined) S.posts = null;
   feedPaint();
 
-  let r = await SB.rest(POSTS_SEL + ',aut:profiles!posts_author_fkey(username)' + POSTS_ORD);
+  let r = await SB.rest(POSTS_SEL + ',aut:profiles!posts_author_fkey(username,avatar)' + POSTS_ORD);
   let degrade = false;
   if(!r.ok && r.status !== 0){
     const r2 = await SB.rest(POSTS_SEL + POSTS_ORD);
@@ -6074,9 +6074,11 @@ function pactBar(x){
 function postCard(x){
   const b = x.body || {}, moi = x.author === SESS.uid;
   const qui = moi ? (SESS.username || 'Vous') : ((x.aut || {}).username || '—');
+  const avaIdx = moi ? S.prof.avatar : ((x.aut || {}).avatar || null);
   const quand = new Date(x.created_at).toLocaleDateString('fr-FR', {day:'numeric', month:'long'});
   const tete = `<div class="ph">
-      <span class="av">${esc((qui[0] || '?').toUpperCase())}</span>
+      ${avaRondHTML(avaIdx, 'avpost' + String(x.id).replace(/[^\w-]/g, ''),
+        (qui[0] || '?').toUpperCase())}
       <span class="pw"><b>${esc(qui)}</b><span>${quand}</span></span>
       ${moi ? `<button class="px" data-pdel="${esc(x.id)}" aria-label="Supprimer">×</button>` : ''}
     </div>`;
@@ -6149,9 +6151,10 @@ function comBloc(x){
   return `
     ${cs.length ? cs.map(c => {
       const nom = c.author === SESS.uid ? (SESS.username || 'Vous') : ((c.aut || {}).username || '—');
+      const avaIdx = c.author === SESS.uid ? S.prof.avatar : ((c.aut || {}).avatar || null);
       const mien = c.author === SESS.uid || x.author === SESS.uid;
       return `<div class="cmt">
-        <span class="av">${esc((nom[0] || '?').toUpperCase())}</span>
+        ${avaRondHTML(avaIdx, 'avcom' + String(c.id).replace(/[^\w-]/g, ''), (nom[0] || '?').toUpperCase())}
         <span class="bd"><b>${esc(nom)}</b><i>${new Date(c.created_at)
           .toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}</i>
           <p>${lien(c.body)}</p></span>
@@ -11564,6 +11567,7 @@ function bindAccount(){
     load(); go(S.tab);
     const a = anonPayload();
     if(!S.hist.length && a) offerImport();
+    syncAvatarLogin();
     await syncNow(true); go(S.tab);
   };
   const up = $('#ac_up');
@@ -16165,7 +16169,15 @@ const uLabel = (u, n) => (u === 'kg' || /s$/.test(u)) ? u : (n > 1 ? u + 's' : u
    de saison. */
 const SAIS_MOIS_MIN = 15;   /* repas minimum dans le mois pour qu'il soit jugé */
 
-function saisMoisPart(m){
+/* capEnCours=true (par défaut) : c'est la valeur qui décide du déverrouillage
+   du trophée (via troValue/got, partout dans l'app) — un mois encore en cours
+   ne peut jamais l'atteindre, quel que soit le score réel du moment, pour
+   éviter qu'un badge apparaisse puis disparaisse en cours de mois.
+   capEnCours=false : la même meilleure année, mais sans ce plafond — c'est la
+   valeur honnête à afficher à l'utilisateur (troSheet), pour que le chiffre
+   qu'il lit corresponde à ses vraies données plutôt qu'à un plancher artificiel
+   posé pour des raisons d'affichage du badge. */
+function saisMoisPart(m, capEnCours = true){
   const par = new Map();
   const now = new Date(), ym = now.getFullYear() * 12 + now.getMonth();
   S.hist.forEach(e => {
@@ -16180,9 +16192,8 @@ function saisMoisPart(m){
     if(o.n < SAIS_MOIS_MIN) continue;
     const p = saisPart(o.l, m);
     if(p == null) continue;
-    /* mois encore en cours : on montre sans décerner */
     const clos = an * 12 + m < ym;
-    best = Math.max(best, clos ? p : Math.min(p, SAIS_MIN - 1));
+    best = Math.max(best, (clos || !capEnCours) ? p : Math.min(p, SAIS_MIN - 1));
   }
   return Math.round(best);
 }
@@ -16280,51 +16291,51 @@ const TROPHIES = [
   {s:'Saison Janvier', n:'Cuisine de saison · Janvier', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-jan.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de janvier entier — poireau, chou, betterave. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(0)},
+   m:() => saisMoisPart(0), disp:() => saisMoisPart(0, false)},
   {s:'Saison Février', n:'Cuisine de saison · Février', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-fev.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de février entier — chou-fleur, endive, panais. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(1)},
+   m:() => saisMoisPart(1), disp:() => saisMoisPart(1, false)},
   {s:'Saison Mars', n:'Cuisine de saison · Mars', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-mar.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de mars entier — asperge, épinard, brocoli. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(2)},
+   m:() => saisMoisPart(2), disp:() => saisMoisPart(2, false)},
   {s:'Saison Avril', n:'Cuisine de saison · Avril', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-avr.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de avril entier — radis, navet, jeune pousse. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(3)},
+   m:() => saisMoisPart(3), disp:() => saisMoisPart(3, false)},
   {s:'Saison Mai', n:'Cuisine de saison · Mai', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-mai.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de mai entier — courgette, petit pois, fraise. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(4)},
+   m:() => saisMoisPart(4), disp:() => saisMoisPart(4, false)},
   {s:'Saison Juin', n:'Cuisine de saison · Juin', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-jun.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de juin entier — artichaut, cerise, concombre. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(5)},
+   m:() => saisMoisPart(5), disp:() => saisMoisPart(5, false)},
   {s:'Saison Juillet', n:'Cuisine de saison · Juillet', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-jul.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de juillet entier — tomate, maïs, poivron. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(6)},
+   m:() => saisMoisPart(6), disp:() => saisMoisPart(6, false)},
   {s:'Saison Août', n:'Cuisine de saison · Août', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-aou.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de août entier — aubergine, melon, haricot vert. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(7)},
+   m:() => saisMoisPart(7), disp:() => saisMoisPart(7, false)},
   {s:'Saison Septembre', n:'Cuisine de saison · Septembre', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-sep.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de septembre entier — raisin, carotte, chou-fleur. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(8)},
+   m:() => saisMoisPart(8), disp:() => saisMoisPart(8, false)},
   {s:'Saison Octobre', n:'Cuisine de saison · Octobre', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-oct.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de octobre entier — courge, poire, champignon. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(9)},
+   m:() => saisMoisPart(9), disp:() => saisMoisPart(9, false)},
   {s:'Saison Novembre', n:'Cuisine de saison · Novembre', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-nov.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de novembre entier — poireau, endive, pomme de terre. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(10)},
+   m:() => saisMoisPart(10), disp:() => saisMoisPart(10, false)},
   {s:'Saison Décembre', n:'Cuisine de saison · Décembre', e:'🌤️', need:SAIS_MIN, u:'%', pal:'green',
    img:'b-dec.webp',
    d:`Au moins ${SAIS_MIN} % de fruits et légumes de saison sur un mois de décembre entier — chou, carotte, salsifis. Le mois doit être terminé et compter ${SAIS_MOIS_MIN} repas au minimum.`,
-   m:() => saisMoisPart(11)},
+   m:() => saisMoisPart(11), disp:() => saisMoisPart(11, false)},
 
   /* ---------- repères d’équivalence, en CO₂e évité ---------- */
   {s:'Jour dans le budget', n:'Premier jour dans le budget 2050', e:'🎯', need:1, u:'journée', pal:'green',
@@ -16536,6 +16547,12 @@ function medal(t, done, i){
 
 function troSheet(i){
   const sc = scoring(), t = TROPHIES[i], v = troValue(t, sc), got = v >= troNeed(t);
+  /* v décide seule du déverrouillage (inchangé, potentiellement plafonné pour
+     les trophées « Cuisine de saison · <mois> » tant que le mois n'est pas
+     terminé). disp est ce qu'on affiche à l'utilisateur : pour ces mêmes
+     trophées, t.disp renvoie le vrai score, non plafonné — sinon le compteur
+     affiché ne correspond pas à ce que l'utilisateur a réellement saisi. */
+  const disp = t.disp ? t.disp(sc) : v;
   const fmt = x => t.u === 'kg' ? (x >= 1000 ? n2(x/1000) + ' t' : n0(x) + ' kg') : n0(x);
   openSheet(`
     <div class="unit">${got ? 'Trophée obtenu' : 'Trophée à venir'}</div>
@@ -16546,10 +16563,12 @@ function troSheet(i){
     <p class="small">${esc(t.d)}</p>
     <div class="hr"></div>
     <div class="wnow">
-      <div class="l">Votre compteur</div><div class="v">${fmt(v)}</div>
-      <div class="tr"><i style="width:${Math.min(100, v/troNeed(t)*100).toFixed(0)}%;background:${PAL[t.pal].jonc}"></i></div>
+      <div class="l">Votre compteur</div><div class="v">${fmt(disp)}</div>
+      <div class="tr"><i style="width:${Math.min(100, disp/troNeed(t)*100).toFixed(0)}%;background:${PAL[t.pal].jonc}"></i></div>
       <div class="l small mute" style="grid-column:1/-1">${got ? 'Acquis.'
-        : `Il reste ${fmt(Math.max(0, troNeed(t) - v))} pour l’obtenir.`}</div>
+        : disp >= troNeed(t)
+          ? 'Seuil déjà atteint sur cette période — le trophée s’obtient une fois le mois terminé.'
+          : `Il reste ${fmt(Math.max(0, troNeed(t) - disp))} pour l’obtenir.`}</div>
     </div>
     ${got && SB.ready() ? `<button class="btn btn-2" id="tro_share" style="margin-top:12px">${
       SESS ? 'Partager sur le feed' : 'Partager — il faut un compte'}</button>
@@ -16596,12 +16615,13 @@ function badgeBlock(sc){
   return `<div class="bfamttl">${n1(sc.saved)} kg CO₂e évités</div>
     <div class="bfamsub">${acquisN} trophée${acquisN > 1 ? 's' : ''} sur ${vis.length}</div>
     <div class="bgrid">
-      ${list.map(t => { const i = TROPHIES.indexOf(t), v = troValue(t, sc), got = v >= troNeed(t);
+      ${list.map(t => { const i = TROPHIES.indexOf(t), v = troValue(t, sc), got = v >= troNeed(t),
+          disp = t.disp ? t.disp(sc) : v;
         return `<button class="badge${got ? '' : ' locked'}" data-tro="${i}">
           ${medal(t, v, i)}
           <div class="be">${badgeSrc(t.img) ? '' : t.e}</div>
           <div class="bt">${t.s}</div>
-          <div class="bp">${fmt(v, t.u)} <s>/</s> ${fmt(troNeed(t), t.u)}</div>
+          <div class="bp">${fmt(disp, t.u)} <s>/</s> ${fmt(troNeed(t), t.u)}</div>
         </button>`; }).join('')}
     </div>
     <button class="seemore" id="troMore">${S.troAll
@@ -18332,7 +18352,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', badgeSync);
 paintAlertes();
 /* synchro d'ouverture, discrète : un échec hors ligne ne doit rien signaler */
-if(SESS) syncNow(true).then(ok => { if(ok && S.tab === 'tracker') renderTracker(); });
+if(SESS){ syncAvatarLogin(); syncNow(true).then(ok => { if(ok && S.tab === 'tracker') renderTracker(); }); }
 
 /* La proposition de rappels attend que le premier écran soit posé : surgir
    pendant le rendu initial donnerait l'impression d'une alerte, pas d'une
@@ -18418,8 +18438,10 @@ let fxTuiles = null, fxAttente = null, fxRaf = 0;
    Réutilise la même planche FOOD_SPRITES et le même découpage que l'animation
    de validation (fxCharge, FX_TILE, FX_COLS) : aucune image supplémentaire à
    charger. Le choix est stocké dans S.prof.avatar (indice 1..31, l'indice 0 de
-   la planche ne servant à aucun aliment) et suit le même sort que le reste du
-   profil — local à l'appareil, non synchronisé au compte. */
+   la planche ne servant à aucun aliment), lu localement partout dans l'app —
+   et, avec un compte, renvoyé à la colonne `avatar` de `profiles` (voir
+   syncAvatar/syncAvatarLogin plus bas) pour apparaître dans les publications
+   vues par les amis. */
 const FX_LABEL = (() => {
   const l = {};
   Object.keys(FX_MAP).forEach(k => {
@@ -18441,7 +18463,16 @@ var avaURLs = null, avaWait = null;
    toujours — jamais de callback qui ne revient pas — avec `null` en cas
    d'échec de décodage, que la feuille sait afficher clairement. */
 function avaLoad(cb){
-  if(avaURLs){ cb(avaURLs); return; }
+  /* Le `then()` est nécessaire même quand la planche est déjà en cache : sans
+     lui, un appelant qui construit son DOM APRÈS avoir appelé avaLoad(cb) (cas
+     de renderProfil, qui insère #pf_hexslot dans le HTML rendu juste après)
+     voit son callback s'exécuter tout de suite, avant que cet élément existe
+     — le slot ne se peint jamais, silencieusement. En reportant même le cas
+     déjà-en-cache à la microtâche suivante, le callback tombe toujours après
+     la fin du bloc synchrone qui l'a déclenché, donc après l'insertion du DOM
+     qui l'accompagne. paintAva() n'en dépendait pas (il capture son élément
+     avant d'appeler avaLoad), mais ça ne change rien pour lui. */
+  if(avaURLs){ Promise.resolve().then(() => cb(avaURLs)); return; }
   if(avaWait){ avaWait.push(cb); return; }
   avaWait = [cb];
   const finir = (urls) => {
@@ -18484,6 +18515,50 @@ function avaImgHTML(url){
   return `<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;
     clip-path:${AVA_CLIP};display:block">`;
 }
+/* Portrait rond utilisé dans l'en-tête d'une publication ou d'un commentaire —
+   mêmes 31 personnages que la photo de profil, dans une pastille ronde plutôt
+   que l'hexagone. `idx` vient de S.prof.avatar pour vos propres publications
+   (purement local, connu tout de suite), et de la colonne `avatar` de
+   `profiles` — renvoyée par la jointure `aut:` — pour celles d'un ami. Tant
+   qu'un ami n'a encore rien choisi, ou n'a pas rouvert l'app depuis l'ajout de
+   cette colonne, `idx` est null et sa pastille reste la lettre de son pseudo. */
+function avaRondHTML(idx, slotId, lettre){
+  if(!idx) return `<span class="av">${esc(lettre)}</span>`;
+  avaLoad(urls => {
+    const slot = $('#' + slotId);
+    if(slot && urls && urls[idx]) slot.innerHTML =
+      `<img src="${urls[idx]}" alt="" style="width:100%;height:100%;object-fit:cover;display:block">`;
+  });
+  return `<span class="av" id="${esc(slotId)}" style="padding:0;overflow:hidden">${esc(lettre)}</span>`;
+}
+
+/* Envoie l'avatar choisi (ou son retrait, avec idx=null) à la colonne
+   `avatar` de `profiles`, pour qu'il apparaisse dans les publications vues
+   par les amis. Best-effort et silencieux : le reste de l'app lit toujours
+   S.prof.avatar en local, donc un envoi qui échoue (hors ligne, colonne pas
+   encore créée côté base) ne bloque ni n'annule rien pour l'utilisateur —
+   il sera simplement retenté au prochain choix ou à la prochaine connexion. */
+async function syncAvatar(idx){
+  if(!SESS || !SB.ready()) return;
+  try{
+    await SB.rest('profiles?id=eq.' + encodeURIComponent(SESS.uid),
+      {method:'PATCH', headers:{Prefer:'return=minimal'}, body: JSON.stringify({avatar: idx})});
+  }catch(e){}
+}
+/* Réconciliation à la connexion, pour qu'un compte retrouve son avatar sur un
+   nouvel appareil. Le choix fait sur CET appareil gagne toujours s'il existe
+   déjà (on republie plutôt que d'écraser un choix qu'on vient de faire) ;
+   sinon, celui du compte est adopté. */
+async function syncAvatarLogin(){
+  if(!SESS || !SB.ready()) return;
+  try{
+    const r = await SB.rest('profiles?select=avatar&id=eq.' + encodeURIComponent(SESS.uid) + '&limit=1');
+    if(!r.ok || !r.body || !r.body[0]) return;
+    const distant = r.body[0].avatar || null;
+    if(S.prof.avatar){ if(distant !== S.prof.avatar) await syncAvatar(S.prof.avatar); }
+    else if(distant){ S.prof.avatar = distant; save(); paintAva(); }
+  }catch(e){}
+}
 
 /* Feuille de sélection : grille des 31 portraits disponibles. */
 function avatarSheet(){
@@ -18498,7 +18573,7 @@ function avatarSheet(){
   const cl = $('#ava_close'); if(cl) cl.onclick = closeSheet;
   const rm = $('#ava_clear');
   if(rm) rm.onclick = () => {
-    S.prof.avatar = null; save(); closeSheet(); paintAva();
+    S.prof.avatar = null; save(); closeSheet(); paintAva(); syncAvatar(null);
     if(S.tab === 'profil') renderProfil();
   };
   /* Filet de sécurité purement visuel : avaLoad résout toujours de son côté,
@@ -18530,7 +18605,7 @@ function avatarSheet(){
     grid.querySelectorAll('.avapick').forEach(b => {
       b.onclick = () => {
         S.prof.avatar = parseInt(b.dataset.i, 10);
-        save(); closeSheet(); paintAva();
+        save(); closeSheet(); paintAva(); syncAvatar(S.prof.avatar);
         if(S.tab === 'profil') renderProfil();
         toast('Avatar mis à jour');
       };
