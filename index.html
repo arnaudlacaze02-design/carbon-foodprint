@@ -197,6 +197,15 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .rgl .bar i{position:absolute; inset:0 auto 0 0; border-radius:6px}
 .rgl .mk{position:absolute; top:-3px; bottom:-3px; width:2.5px; border-radius:2px; transform:translateX(-50%)}
 .rgl .wrap{position:relative}
+/* Trait pointillé entre le repère « Objectif » et le repère « Budget 2050 » :
+   les deux traits verticaux existaient déjà, mais l'écart entre eux — ce que
+   l'objectif du user a de plus (ou de moins) strict que le budget soutenable —
+   ne se lisait nulle part. */
+.rgl .gapln{position:absolute; top:-8px; height:0; border-top:1.5px dashed var(--mute)}
+.rgl .gaplbl{font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; color:var(--mute);
+  display:block; width:100%; margin-top:2px}
+.rgl .gaplbl b{font-family:var(--display); font-weight:800; font-size:12px; color:var(--ink);
+  font-variant-numeric:tabular-nums}
 .rgl .rgll{display:flex; flex-wrap:wrap; gap:4px 13px; margin-top:9px;
   font-family:var(--mono); font-size:9.5px; letter-spacing:.04em; color:var(--mute)}
 .rgl .rgll span{display:inline-flex; align-items:center; gap:5px; white-space:nowrap}
@@ -245,6 +254,30 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .wdots i.miss{background:transparent; box-shadow:inset 0 0 0 1.6px var(--brick)}
 .wdots i.soon{background:var(--line-soft)}
 .wdots i.tdy{outline:1.5px solid var(--straw); outline-offset:1px}
+
+/* Rangée de la semaine : un carré par jour, sa lettre dessous. Remplace les
+   .wdots ci-dessus (gardés tels quels ailleurs, inutilisés ici) parce qu'un
+   simple point « renseigné / pas renseigné » ne disait rien du dépassement.
+   `.over` est un carré plein qui a dépassé son objectif (ou le budget si pas
+   d'objectif) ; `.flag` est un repère minuscule posé sur le carré du LENDEMAIN
+   d'un dépassement — le rappel visuel qu'hier a débordé, sans rejuger hier une
+   deuxième fois. Les carrés `.xtra`, ajoutés après dimanche, matérialisent un
+   dépassement du budget de la semaine entière : littéralement des jours de
+   trop, dessinés comme le reste. */
+.wrow{display:flex; gap:3px; align-items:flex-end}
+.wcell{display:flex; flex-direction:column; align-items:center; gap:2px; flex:0 0 auto}
+.wsq{width:6px; height:6px; border-radius:1.5px; background:var(--line); flex:0 0 auto; position:relative}
+.wsq.on{background:var(--forest)}
+.wsq.over{background:var(--brick)}
+.wsq.miss{background:transparent; box-shadow:inset 0 0 0 1.6px var(--brick)}
+.wsq.soon{background:var(--line-soft)}
+.wsq.tdy{outline:1.5px solid var(--straw); outline-offset:1px}
+.wsq.flag::before{content:''; position:absolute; top:-4px; left:50%; transform:translateX(-50%);
+  width:3px; height:3px; border-radius:50%; background:var(--brick)}
+.wsq.xtra{opacity:.85}
+.wlet{font-family:var(--mono); font-size:6.5px; font-weight:600; letter-spacing:.02em;
+  color:var(--mute); line-height:1}
+.wcell.tdyc .wlet{color:var(--straw)}
 
 /* ---------------- fête néon d'un défi en cours ----------------
    Seul endroit de l'app à sortir de la charte : un défi qui court doit se voir
@@ -12270,12 +12303,21 @@ function reglette(o){
   const pos = v => Math.max(1.5, Math.min(98.5, v / sc * 100));
   const col = o.tot <= (o.obj != null ? Math.min(o.obj, o.bud) : o.bud) ? 'var(--forest)'
             : o.tot <= Math.max(o.obj || 0, o.bud) ? 'var(--s4)' : 'var(--brick)';
+  /* o.gap : trace un pointillé entre le repère Objectif et le repère Budget
+     2050, et chiffre l'écart en légende. Réservé aux réglettes où les deux
+     repères existent — la journée peut n'avoir pas d'objectif défini. */
+  const hasGap = o.gap && o.obj != null;
+  const gapln = hasGap ? `<div class="gapln" style="left:${Math.min(pos(o.obj), pos(o.bud))}%;
+      width:${Math.abs(pos(o.obj) - pos(o.bud)).toFixed(2)}%"></div>` : '';
+  const gaplbl = hasGap ? `<span class="gaplbl">Écart objectif ↔ budget 2050
+      <b>${n2(Math.abs(o.obj - o.bud))} kg</b></span>` : '';
   return `<div class="rgl">
     <div class="wrap">
       <div class="bar"><i style="width:${pos(o.tot)}%;background:${col}"></i></div>
+      ${gapln}
       ${refs.map(r => `<div class="mk" style="left:${pos(r.v)}%;background:${r.c}"></div>`).join('')}
     </div>
-    <div class="rgll">${refs.map(r => reglRefLegend(r)).join('')}</div>
+    <div class="rgll">${refs.map(r => reglRefLegend(r)).join('')}${gaplbl}</div>
     ${infoCap(o.cap)}
   </div>`;
 }
@@ -12389,6 +12431,29 @@ function duoData(a){
   return {day, week, t};
 }
 
+/* La rangée de la semaine : un carré par jour (lundi → dimanche, lettre
+   dessous), plus les carrés de trop-plein après dimanche si la semaine entière
+   a dépassé son budget. Le seuil de dépassement d'un jour est son objectif
+   quand il existe, sinon le budget du jour — jamais l'inverse, pour rester
+   cohérent avec dayVerdict() plus haut. */
+function weekBars(a, week, t){
+  const od = week.objDay, thr = od != null ? od : week.budDay;
+  const overDay = d => { const dd = a.days[d]; return !!dd && dd.tot > thr; };
+  const cells = week.days.map((d, i) => {
+    const has = a.days[d], flagged = i > 0 && overDay(week.days[i - 1]);
+    const cls = has ? (overDay(d) ? 'over' : 'on') : (d <= t ? 'miss' : 'soon');
+    return `<span class="wcell${d === t ? ' tdyc' : ''}">
+        <i class="wsq ${cls}${d === t ? ' tdy' : ''}${flagged ? ' flag' : ''}"></i>
+        <b class="wlet">${JRS[i]}</b>
+      </span>`;
+  }).join('');
+  const overBudget = week.tot > week.bud;
+  const extraN = overBudget ? Math.min(3, Math.ceil((week.tot - week.bud) / week.budDay)) : 0;
+  const extra = Array.from({length: extraN}).map(() =>
+    `<span class="wcell"><i class="wsq over xtra"></i><b class="wlet">+</b></span>`).join('');
+  return `<span class="wrow">${cells}${extra}</span>`;
+}
+
 /* Verdict du soir. Ne s'affiche qu'une fois le dîner enregistré : avant, la
    journée n'est pas jouée et tout message serait prématuré. La consolation
    hebdomadaire est taboue le dimanche — la semaine est finie, il n'y a plus
@@ -12440,8 +12505,7 @@ function duoCards(a){
         ${donut({scale:week.scale, segs:segs(week.byMeal), ticks:tk(week),
           big:n1(week.tot), unit:'KG CO₂E',
           col:week.over ? 'var(--brick)' : 'var(--ink)'})}
-        <span class="wdots">${week.days.map(d =>
-          `<i class="${a.days[d] ? 'on' : d <= t ? 'miss' : 'soon'}${d === t ? ' tdy' : ''}"></i>`).join('')}</span>
+        ${weekBars(a, week, t)}
       </button>
 
       <button class="dcell" id="dqSais" aria-label="Détail de la saisonnalité">
@@ -12484,8 +12548,8 @@ function duoBind(a){
 
   const dw = $('#dqWeek');
   if(dw) dw.onclick = () => fiche('Semaine du ' + dLabel(week.days[0]), week, `
-    ${reglette({tot:week.tot, bud:week.bud, obj:week.obj, fr:FR_J * 7,
-      cap:'Barre pleine : la semaine. Repères ramenés à sept jours.'})}
+    ${reglette({tot:week.tot, bud:week.bud, obj:week.obj, fr:FR_J * 7, gap:true,
+      cap:'Barre pleine : la semaine. Repères ramenés à sept jours. Le pointillé mesure l\u2019écart entre votre objectif et le budget 2050.'})}
     <div class="hr"></div>
     <div class="unit" style="margin-bottom:6px">Où vous devriez en être</div>
     <div class="stagelist">
