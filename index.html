@@ -34,7 +34,7 @@
 <style>
 :root{
   /* palette de marque, invariante */
-  --forest:#0E4D45; --forest-2:#3A6E5C; --straw:#D9C05B; --brick:#A32E2B;
+  --forest:#0E4D45; --forest-2:#3A6E5C; --straw:#D9C05B; --brick:#A32E2B; --sky:#3B6EA5;
   /* --forest est une couleur de marque : elle sert de FOND, et à ce titre elle
      ne doit pas changer d'un thème à l'autre. Le problème, c'est qu'elle
      servait aussi de couleur de TEXTE à une trentaine d'endroits. En thème
@@ -112,6 +112,7 @@
   --axe-kg:#6FC2A6; --axe-kcal:#C3CE8C; --axe-prot:#7FC3AB;
   --cn-cal:#F6C85F; --cn-prot:#F2626D; --cn-lip:#9DBF9E; --cn-gluc:#A5C8ED; --cn-fib:#F29E74; --cn-eq:#D3A7DC;
   --cn-good:#52B788; --cn-yellow:#F6C85F; --cn-orange:#F29E74; --cn-red:#F2626D;
+  --sky:#6FA8D8;
   --kpi-good:#223324;
   --shell:#0A0E0D;
   --tabbar:rgba(20,26,24,.92);
@@ -294,6 +295,34 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 .wlet{font-family:var(--mono); font-size:6.5px; font-weight:600; letter-spacing:.02em;
   color:var(--mute); line-height:1}
 .wcell.tdyc .wlet{color:var(--straw)}
+
+/* ---------------- grille « ledger » de la semaine (fiche détaillée) ----------
+   Un jour = une ligne, un carré = 1/7 du budget (ou de l'objectif) du jour.
+   Le dépassement d'un jour glisse en dette (rouge) sur le début de la ligne du
+   lendemain ; un jour resté sous son seuil laisse des carrés en attente
+   (gris), consommés plus tard en crédit (bleu) sur leur ligne d'origine.
+   Inspiré du « spotlight » de SocialLite : toucher une légende isole une
+   catégorie, le reste s'estompe en gris. */
+.wledger{margin:4px 0 2px}
+.wl-row{display:flex; align-items:center; gap:8px; margin-bottom:3px}
+.wl-lab{width:32px; flex:0 0 auto; font-family:var(--mono); font-size:10px; color:var(--mute)}
+.wl-sqs{display:flex; gap:2.5px; flex:0 0 auto; flex-wrap:wrap}
+.wl-sq{width:16px; height:16px; border-radius:3px; background:var(--line-soft); flex:0 0 auto;
+  transition:opacity .35s ease, filter .35s ease;
+  animation:wlIn .3s cubic-bezier(.22,.75,.32,1.25) both}
+@keyframes wlIn{from{opacity:0; transform:scale(.4)} to{opacity:1; transform:none}}
+.wl-sq.g{background:var(--forest)}
+.wl-sq.b{background:var(--sky)}
+.wl-sq.r{background:var(--brick)}
+.wl-cap{display:flex; align-items:center; gap:8px; margin:8px 2px 10px}
+.wl-cap i{width:12px; height:12px; border-radius:3px; flex:0 0 auto}
+.wl-legend{display:flex; justify-content:space-around; border-top:1px solid var(--line-soft);
+  padding-top:10px; margin-top:2px}
+.wl-leg{display:flex; flex-direction:column; align-items:center; gap:5px; background:none;
+  border:1.5px solid transparent; border-radius:10px; padding:6px 10px}
+.wl-leg i{width:14px; height:14px; border-radius:4px; flex:0 0 auto}
+.wl-leg span{font-size:11px; color:var(--mute)}
+@media (prefers-reduced-motion:reduce){.wl-sq{animation:none}}
 
 /* ---------------- fête néon d'un défi en cours ----------------
    Seul endroit de l'app à sortir de la charte : un défi qui court doit se voir
@@ -12484,6 +12513,121 @@ function weekBars(a, week, t){
   return `<span class="wrow">${cells}${extra}</span>`;
 }
 
+/* Calcule, jour par jour depuis lundi jusqu'à aujourd'hui, la répartition en
+   carrés verts (budget du jour), bleus (crédit d'un jour précédent consommé
+   maintenant) et rouges (dette empruntée sur les jours suivants). Un carré
+   vaut le seuil du jour ÷ 7 — l'objectif s'il existe, sinon le budget 2050.
+   Le solde repart de zéro chaque lundi : aucune mémoire d'une semaine à
+   l'autre, pas plus qu'ailleurs dans le cadran hebdomadaire. */
+function weekLedger(a, week, t){
+  const CAP = 7;
+  const dayQuota = week.objDay != null ? week.objDay : week.budDay;
+  const unit = dayQuota / CAP;
+  const elapsed = week.days.filter(d => d <= t);
+  const rows = elapsed.map(d => ({day:d, red:0, green:0, blue:0, empty:0}));
+  const credit = [];   /* file des carrés en attente, plus ancien d'abord */
+  let pendingRed = 0;
+  elapsed.forEach((d, i) => {
+    const dd = a.days[d], row = rows[i];
+    let cap = CAP;
+    const used = Math.min(pendingRed, cap);
+    pendingRed -= used; cap -= used; row.red += used;
+    let need = dd ? Math.round(dd.tot / unit) : 0;
+    while(need > 0 && credit.length){
+      const e = credit[0], take = Math.min(need, e.squares);
+      rows[e.i].blue += take; rows[e.i].empty -= take;
+      e.squares -= take;
+      if(e.squares === 0) credit.shift();
+      need -= take;
+    }
+    const green = Math.min(need, cap);
+    row.green += green; need -= green;
+    const leftover = cap - green;
+    if(leftover > 0){ row.empty += leftover; credit.push({i, squares:leftover}); }
+    pendingRed += need;
+  });
+  /* Débordement garanti : même à zéro sur les jours restants, la dette
+     actuelle ne rentrerait plus dans ce qu'il leur reste de capacité. */
+  const remainingDays = 7 - elapsed.length;
+  const overshoot = Math.max(0, pendingRed - remainingDays * CAP);
+  return {unit, rows, overshoot};
+}
+
+/* Le rendu de la grille : une ligne par jour (dimanche en haut, lundi en bas —
+   la semaine « pousse » vers le bas), plus une ligne de dette tout en haut si
+   le débordement dépasse ce que la fin de semaine peut encore couvrir. */
+function weekGrid(a, week, t){
+  const {unit, rows, overshoot} = weekLedger(a, week, t);
+  const ABR = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const CAP = 7;
+  const full = week.days.map((d, i) => rows[i] || {red:0, green:0, blue:0, empty:CAP});
+  const sqHtml = (row, ri) => {
+    const seq = [];
+    for(let i = 0; i < row.red; i++) seq.push('r');
+    for(let i = 0; i < row.green; i++) seq.push('g');
+    for(let i = 0; i < row.blue; i++) seq.push('b');
+    for(let i = 0; i < row.empty; i++) seq.push('');
+    return seq.map((k, ci) => `<span class="wl-sq${k ? ' ' + k : ''}"
+      style="animation-delay:${ri * 60 + ci * 12}ms"></span>`).join('');
+  };
+  let dIdx = 0;
+  const overshootRow = overshoot > 0 ? (() => {
+    const n = Math.min(overshoot, 14);
+    const html = `<div class="wl-row"><span class="wl-lab">Dette</span><span class="wl-sqs">${
+      Array.from({length: n}).map((_, ci) =>
+        `<span class="wl-sq r" style="animation-delay:${ci * 12}ms"></span>`).join('')
+    }</span></div>`;
+    dIdx = 1;
+    return html;
+  })() : '';
+  const dayRows = full.slice().reverse().map((row, ri) =>
+    `<div class="wl-row"><span class="wl-lab">${ABR[full.length - 1 - ri]}</span>
+      <span class="wl-sqs">${sqHtml(row, dIdx + ri)}</span></div>`).join('');
+  const totals = full.reduce((s, r) => ({green:s.green + r.green, blue:s.blue + r.blue, red:s.red + r.red}),
+    {green:0, blue:0, red:0});
+  return `<div class="wledger" id="wledger">
+    <div class="unit">Un jour = ${week.objDay != null ? 'ton objectif' : 'le budget 2050'}</div>
+    <div class="small" style="margin:2px 0 8px">Un carré = ${n2(unit)} kg</div>
+    ${overshootRow}${dayRows}
+    <div class="wl-cap"><i id="wlCapDot" style="background:var(--forest)"></i>
+      <span class="small" id="wlCapTxt">Budget respecté · ${totals.green} carré${totals.green > 1 ? 's' : ''}</span></div>
+    <div class="wl-legend">
+      <button type="button" class="wl-leg" data-k="g"><i style="background:var(--forest)"></i><span>Budget</span></button>
+      <button type="button" class="wl-leg" data-k="b"><i style="background:var(--sky)"></i><span>Crédit</span></button>
+      <button type="button" class="wl-leg" data-k="r"><i style="background:var(--brick)"></i><span>Dette</span></button>
+    </div>
+  </div>`;
+}
+
+/* Câblage du spotlight, à appeler juste après avoir inséré weekGrid() dans le
+   DOM (openSheet a déjà écrit le HTML). Touche une légende : isole sa
+   couleur, estompe le reste ; la retoucher revient à tout montrer. */
+function wireWeekLedger(){
+  const root = $('#wledger');
+  if(!root) return;
+  const info = {g:['Budget respecté', 'var(--forest)'], b:['Crédit utilisé', 'var(--sky)'], r:['Dette empruntée', 'var(--brick)']};
+  let active = null;
+  const apply = () => {
+    root.querySelectorAll('.wl-sq').forEach(sq => {
+      const empty = !sq.classList.contains('g') && !sq.classList.contains('b') && !sq.classList.contains('r');
+      if(!active){ sq.style.opacity = '1'; sq.style.filter = 'none'; return; }
+      if(empty){ sq.style.opacity = '.35'; sq.style.filter = 'none'; return; }
+      const mine = sq.classList.contains(active);
+      sq.style.opacity = mine ? '1' : '.28';
+      sq.style.filter = mine ? 'none' : 'grayscale(60%)';
+    });
+    root.querySelectorAll('.wl-leg').forEach(btn => {
+      btn.style.borderColor = btn.dataset.k === active ? info[btn.dataset.k][1] : 'transparent';
+    });
+    const k = active || 'g', n = root.querySelectorAll('.wl-sq.' + k).length;
+    $('#wlCapDot').style.background = info[k][1];
+    $('#wlCapTxt').textContent = `${info[k][0]} · ${n} carré${n > 1 ? 's' : ''}`;
+  };
+  root.querySelectorAll('.wl-leg').forEach(btn => {
+    btn.onclick = () => { active = active === btn.dataset.k ? null : btn.dataset.k; apply(); };
+  });
+}
+
 /* Verdict du soir. Ne s'affiche qu'une fois le dîner enregistré : avant, la
    journée n'est pas jouée et tout message serait prématuré. La consolation
    hebdomadaire est taboue le dimanche — la semaine est finie, il n'y a plus
@@ -12577,7 +12721,10 @@ function duoBind(a){
   if(ds) ds.onclick = saisSheet;
 
   const dw = $('#dqWeek');
-  if(dw) dw.onclick = () => fiche('Semaine du ' + dLabel(week.days[0]), week, `
+  if(dw) dw.onclick = () => {
+    fiche('Semaine du ' + dLabel(week.days[0]), week, `
+    ${weekGrid(a, week, today())}
+    <div class="hr"></div>
     ${reglette({tot:week.tot, bud:week.bud, obj:week.obj, fr:FR_J * 7, gap:true,
       cap:'Barre pleine : la semaine. Repères ramenés à sept jours. Le pointillé mesure l\u2019écart entre votre objectif et le budget 2050.'})}
     <div class="hr"></div>
@@ -12605,6 +12752,8 @@ function duoBind(a){
       L'intensité ci-dessus, elle, ne porte que sur les jours mesurés : c'est la seule
       grandeur comparable d'une semaine à l'autre.</div>
     ${semaineJeu()}`);
+    wireWeekLedger();
+  };
 }
 
 /* Le suivi hebdomadaire des épreuves, rapatrié de l'onglet Trophées. Il parlait
