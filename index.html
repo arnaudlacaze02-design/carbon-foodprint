@@ -11687,7 +11687,7 @@ const P_TV = {
 function renderTracker(){
   topbar();
   const a = agg();
-  const tabs = [['repas','Par repas','repas'],['sante','Santé','sante'],['an','Sur un an','an'],['cumule','Cumulé','cumule']];
+  const tabs = [['repas','Par repas','repas'],['sante','Santé','sante'],['cumule','Cumulé','an']];
   view.innerHTML = `
     <div class="seg tall" style="margin-bottom:12px">${tabs.map(([k,l,ic]) =>
       `<button data-tv="${k}" aria-pressed="${S.tv===k}">
@@ -11707,7 +11707,7 @@ function renderTracker(){
     </div>`;
   view.querySelectorAll('[data-tv]').forEach(b => b.onclick = () => { S.tv = b.dataset.tv; renderTracker(); });
   bindRappel();
-  ({repas:tvRepas, sante:tvSante, an:tvAn, cumule:tvCumule})[S.tv](a);
+  ({repas:tvRepas, sante:tvSante, cumule:tvCumule})[S.tv](a);
 
   /* Le conseil du jour ouvre la recette qu'il nomme. Délégué après le rendu de
      la vue, parce que tvRepas() réécrit le contenu et emporterait un handler
@@ -15501,13 +15501,6 @@ function entrySheet(id, back){
 function tvAn(a){
   const proj = a.avg * 365;
   const f = DB.facts;
-  /* Remonté depuis « Par repas » : la moyenne par jour est une lecture de long
-     terme, elle appartient à la même famille que l'extrapolation annuelle. */
-  const perDay = MEALS.map(m => {
-    const sum = S.hist.filter(e => e.m === m.k).reduce((x,e) => x + kgOf(e.l), 0);
-    return {...m, perDay: a.nd ? sum / a.nd : 0};
-  });
-  const mxd = Math.max(...perDay.map(p => p.perDay), .001);
 
   /* « Où vous situez-vous » : quatre repères en barres verticales plutôt
      qu'horizontales — plus lisible pour comparer un point isolé (vous) à
@@ -15542,25 +15535,6 @@ function tvAn(a){
     </div>`;
   };
   $('#tv').innerHTML = `
-    <h2 class="sec">Moyenne / jour</h2>
-    <div class="card">
-      <div class="total" style="margin-top:0">
-        <div><div class="unit">Sur ${a.nd} jour${a.nd>1?'s':''} renseigné${a.nd>1?'s':''}</div>
-          <div class="small mute">Budget cible : ${n2(BUDGET_J)} kg/j</div></div>
-        <div class="v" style="color:${a.avg > BUDGET_J ? 'var(--brick)' : 'var(--forest)'}">${n2(a.avg)} <span class="unit">kg/j</span></div>
-      </div>
-      <div class="hr"></div>
-      <div class="bars">
-        ${perDay.map(p => `<div class="row">
-          <div class="lab">${p.l}</div>
-          <div class="val">${n2(p.perDay)}</div>
-          <div class="tr"><i style="width:${(p.perDay/mxd*100).toFixed(1)}%;background:${p.c}"></i></div>
-        </div>`).join('')}
-      </div>
-      ${infoCap('Contribution moyenne de chaque repas à une journée, en kg CO₂e. Le total des '
-        + 'quatre barres fait la moyenne quotidienne ci-dessus.')}
-    </div>
-
     <h2 class="sec">Extrapolation annuelle</h2>
     <div class="kpis">
       <div class="kpi"><div class="v">${n0(proj)} <small>kg</small></div>
@@ -15860,6 +15834,14 @@ function tvCumule(a){
   const gs = Object.entries(byGroup).sort((x,y) => y[1]-x[1]);
   const gmax = gs.length ? gs[0][1] : 1;
 
+  /* Remonté depuis « Sur un an » : la moyenne par jour est une lecture de
+     l'historique complet, au même titre que le cumul. */
+  const perDay = MEALS.map(m => {
+    const sum = S.hist.filter(e => e.m === m.k).reduce((x,e) => x + kgOf(e.l), 0);
+    return {...m, perDay: a.nd ? sum / a.nd : 0};
+  });
+  const mxd = Math.max(...perDay.map(p => p.perDay), .001);
+
   $('#tv').innerHTML = `
     ${podiumBloc(a)}
 
@@ -15923,6 +15905,25 @@ function tvCumule(a){
       + ' : une colonne qui dépasse sort du cadre clair.')}
 
     ${nuOn() ? nutCumul(a, last) : ''}
+
+    <h2 class="sec">Moyenne / jour</h2>
+    <div class="card">
+      <div class="total" style="margin-top:0">
+        <div><div class="unit">Sur ${a.nd} jour${a.nd>1?'s':''} renseigné${a.nd>1?'s':''}</div>
+          <div class="small mute">Budget cible : ${n2(BUDGET_J)} kg/j</div></div>
+        <div class="v" style="color:${a.avg > BUDGET_J ? 'var(--brick)' : 'var(--forest)'}">${n2(a.avg)} <span class="unit">kg/j</span></div>
+      </div>
+      <div class="hr"></div>
+      <div class="bars">
+        ${perDay.map(p => `<div class="row">
+          <div class="lab">${p.l}</div>
+          <div class="val">${n2(p.perDay)}</div>
+          <div class="tr"><i style="width:${(p.perDay/mxd*100).toFixed(1)}%;background:${p.c}"></i></div>
+        </div>`).join('')}
+      </div>
+      ${infoCap('Contribution moyenne de chaque repas à une journée, en kg CO₂e. Le total des '
+        + 'quatre barres fait la moyenne quotidienne ci-dessus.')}
+    </div>
 
     <h2 class="sec">D’où vient le cumul</h2>
     <div class="card bars">
