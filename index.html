@@ -265,8 +265,24 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
    dépassement du budget de la semaine entière : littéralement des jours de
    trop, dessinés comme le reste. */
 .wrow{display:flex; gap:3px; align-items:flex-end}
-.wcell{display:flex; flex-direction:column; align-items:center; gap:2px; flex:0 0 auto}
+.wcell{display:flex; flex-direction:column; align-items:center; gap:2px; flex:0 0 auto;
+  animation:wIn .32s cubic-bezier(.22,.75,.32,1.3) both}
+@keyframes wIn{from{opacity:0; transform:scale(.4) translateY(4px)} to{opacity:1; transform:none}}
 .wsq{width:6px; height:6px; border-radius:1.5px; background:var(--line); flex:0 0 auto; position:relative}
+/* .pop : le carré vient de changer d'état depuis le dernier rendu (typiquement
+   celui du jour, juste après l'enregistrement d'un repas) — un petit rebond en
+   plus de l'apparition normale, pour que l'œil aille droit dessus. */
+.wsq.pop{animation:wPop .6s cubic-bezier(.34,1.56,.64,1) both}
+@keyframes wPop{
+  0%{transform:scale(1); filter:none}
+  35%{transform:scale(2); filter:brightness(1.4)}
+  65%{transform:scale(.82); filter:brightness(1.1)}
+  100%{transform:scale(1); filter:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .wcell{animation:none}
+  .wsq.pop{animation:none}
+}
 .wsq.on{background:var(--forest)}
 .wsq.over{background:var(--brick)}
 .wsq.miss{background:transparent; box-shadow:inset 0 0 0 1.6px var(--brick)}
@@ -12436,21 +12452,35 @@ function duoData(a){
    a dépassé son budget. Le seuil de dépassement d'un jour est son objectif
    quand il existe, sinon le budget du jour — jamais l'inverse, pour rester
    cohérent avec dayVerdict() plus haut. */
+/* Mémoire (en session, non persistée) du statut affiché à chaque jour lors du
+   dernier rendu : sert uniquement à savoir si un carré vient de changer — pour
+   lui donner le petit rebond .pop — sans rejouer l'animation sur toute la
+   rangée à chaque passage sur l'onglet Tracker. Le tout premier rendu établit
+   la base sans jamais « pop »-er : sinon toute une semaine déjà remplie
+   clignoterait au démarrage de l'appli. */
+let WBAR_STATE = {}, WBAR_SEEN = false;
+
 function weekBars(a, week, t){
+  const JR = ['L','M','M','J','V','S','D']; /* copie locale : ne pas dépendre de
+    la var JRS déclarée dans un <script> plus loin dans le fichier — au premier
+    rendu, ce bloc n'a pas encore couru et JRS y serait undefined. */
   const od = week.objDay, thr = od != null ? od : week.budDay;
   const overDay = d => { const dd = a.days[d]; return !!dd && dd.tot > thr; };
   const cells = week.days.map((d, i) => {
     const has = a.days[d], flagged = i > 0 && overDay(week.days[i - 1]);
     const cls = has ? (overDay(d) ? 'over' : 'on') : (d <= t ? 'miss' : 'soon');
-    return `<span class="wcell${d === t ? ' tdyc' : ''}">
-        <i class="wsq ${cls}${d === t ? ' tdy' : ''}${flagged ? ' flag' : ''}"></i>
-        <b class="wlet">${JRS[i]}</b>
+    const pop = WBAR_SEEN && WBAR_STATE[d] !== cls;
+    WBAR_STATE[d] = cls;
+    return `<span class="wcell${d === t ? ' tdyc' : ''}" style="animation-delay:${i * 30}ms">
+        <i class="wsq ${cls}${d === t ? ' tdy' : ''}${flagged ? ' flag' : ''}${pop ? ' pop' : ''}"></i>
+        <b class="wlet">${JR[i]}</b>
       </span>`;
   }).join('');
+  WBAR_SEEN = true;
   const overBudget = week.tot > week.bud;
   const extraN = overBudget ? Math.min(3, Math.ceil((week.tot - week.bud) / week.budDay)) : 0;
-  const extra = Array.from({length: extraN}).map(() =>
-    `<span class="wcell"><i class="wsq over xtra"></i><b class="wlet">+</b></span>`).join('');
+  const extra = Array.from({length: extraN}).map((_, i) =>
+    `<span class="wcell" style="animation-delay:${(week.days.length + i) * 30}ms"><i class="wsq over xtra"></i><b class="wlet">+</b></span>`).join('');
   return `<span class="wrow">${cells}${extra}</span>`;
 }
 
