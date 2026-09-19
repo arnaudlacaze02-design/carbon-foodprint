@@ -14858,6 +14858,54 @@ function cxSourcesGrammesHtml(list, prefix, emoji){
   }).join('');
 }
 
+/* Encore une variante du même patron, pour les nutriments présents sur tous
+   les aliments plutôt que sur un sous-ensemble ciblé — fibres, fer, sel.
+   Là où RED/CHARC/EPADHA ne concernent qu'une poignée d'aliments, presque
+   tout ce qui est saisi contribue un peu de fibres ou de sodium : la liste
+   est donc plafonnée aux 8 plus gros contributeurs, sans quoi elle listerait
+   la totalité du journal. `valFn(f, g)` lit la bonne valeur au 100 g. */
+function cxSourcesNutriment(periode, valFn){
+  const parAliment = {};
+  for(let i = 0; i < periode; i++){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const iso_ = iso(d);
+    S.hist.filter(e => e.d === iso_).forEach(e => e.l.forEach(([slug, g]) => {
+      const f = F.get(slug);
+      if(!f) return;
+      const v = valFn(f, g);
+      if(!v) return;
+      const o = parAliment[slug] || (parAliment[slug] = {total:0, jours:{}});
+      o.total += v;
+      const key = iso_ + '|' + e.m;
+      o.jours[key] = (o.jours[key] || 0) + v;
+    }));
+  }
+  return Object.entries(parAliment).map(([slug, o]) => ({
+    slug, total:o.total,
+    jours: Object.entries(o.jours)
+      .map(([k, v]) => { const [d, m] = k.split('|'); return {d, m, v}; })
+      .sort((a,b) => b.d.localeCompare(a.d)),
+  })).sort((a,b) => b.total - a.total).slice(0, 8);
+}
+
+function cxSourcesNutrimentHtml(list, prefix, emoji, unite){
+  if(!list.length) return '<div class="food-item"><span>Aucun aliment saisi sur la période</span></div>';
+  return list.map((s, i) => {
+    const f = F.get(s.slug);
+    if(!f) return '';
+    const id = `${prefix}${i}`;
+    return `<div class="food-item">
+        <span>${emoji} ${esc(f.n)} <span class="fi-impact">${n1(s.total)} ${unite}</span></span>
+        <button class="fi-add" data-cxsrc="${id}" aria-label="Voir les jours">+</button>
+      </div>
+      <div class="cx-src-days" data-cxdays="${id}">
+        ${s.jours.map(j => `<button class="cx-src-day" data-cxday="${esc(j.d)}" data-cxmeal="${esc(j.m)}">
+          <span>${esc(dLabel(j.d))} · ${esc(MEAL[j.m].l)}</span><span class="unit">${n1(j.v)} ${unite}</span>
+        </button>`).join('')}
+      </div>`;
+  }).join('');
+}
+
 function cxBloc(){
   const periode = CX_PERIODES.includes(S.cxPeriode) ? S.cxPeriode : 14;
   S.cxPeriode = periode;
@@ -14960,6 +15008,10 @@ function cxBloc(){
         </div>
         <div class="n-ref">Moy. ${periode}j : ${n1(moyFib)} g/j</div>
         ${cxJauge(moyFib, cibleFib, fibCouleur, `${n1(moyFib)}g`, `${n0(cibleFib)}g`, null)}
+        <div class="cx-src-box">
+          <div class="fs-label">Aliments concernés sur la période</div>
+          ${cxSourcesNutrimentHtml(cxSourcesNutriment(periode, (f, g) => f.nu ? f.nu[4] * g / 100 : 0), 'fib', '🌾', 'g')}
+        </div>
         ${fibBad ? `<button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
         <div class="food-box">
           <div class="fs-label">Aliments qui comblent l’écart</div>
@@ -14977,6 +15029,10 @@ function cxBloc(){
         </div>
         <div class="n-ref">Moy. ${periode}j : ${n1(moyFer)} mg/j${(S.prof||{}).sexe==='f' ? ' · repère ajusté à votre profil' : ''}</div>
         ${cxJauge(moyFer, cibleFer, ferCouleur, `${n1(moyFer)}mg`, `${n0(cibleFer)}mg`, null)}
+        <div class="cx-src-box">
+          <div class="fs-label">Aliments concernés sur la période</div>
+          ${cxSourcesNutrimentHtml(cxSourcesNutriment(periode, (f, g) => f.nu2 ? f.nu2[0] * g / 100 : 0), 'fer', '🩸', 'mg')}
+        </div>
         ${ferBad ? `<button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
         <div class="food-box">
           <div class="fs-label">Aliments qui comblent l’écart</div>
@@ -15032,6 +15088,10 @@ function cxBloc(){
         </div>
         <div class="n-ref">Moy. ${periode}j : ${n1(selMoy)} g/j</div>
         ${cxJauge(selMoy, CX_SEL_MAX, selCouleur, `${n1(selMoy)}g`, `${CX_SEL_MAX}g`, selBad ? Math.round((selMoy-CX_SEL_MAX)/CX_SEL_MAX*100) : null)}
+        <div class="cx-src-box">
+          <div class="fs-label">Aliments concernés sur la période</div>
+          ${cxSourcesNutrimentHtml(cxSourcesNutriment(periode, (f, g) => f.nu2 ? f.nu2[1] * g / 100 * 2.5 / 1000 : 0), 'sel', '🧂', 'g')}
+        </div>
         ${selBad ? `<button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
         <div class="food-box">
           <div class="fs-label">Leviers pour réduire</div>
