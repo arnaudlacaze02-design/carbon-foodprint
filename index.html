@@ -2451,6 +2451,19 @@ html[data-gate="1"] .phone{display:none}
 .cx-body .fi-add{font-family:inherit; font-size:10.5px; font-weight:700; color:var(--forest); background:var(--card);
   border:1px solid var(--forest-2); padding:4px 10px; border-radius:999px; cursor:pointer; flex:0 0 auto}
 
+/* Boîte « Aliments concernés » de la carte EPA/DHA : visible dès que la carte
+   est dépliée, contrairement au food-box de suggestions qui reste derrière
+   son propre bouton — ici il n'y a rien à demander, juste à regarder. */
+.cx-body .cx-src-box{display:none; margin-top:10px; padding:11px 12px; background:var(--paper);
+  border:1px solid var(--line); border-radius:10px}
+.cx-body .card.expanded .cx-src-box{display:block}
+.cx-body .cx-src-days{display:none; flex-direction:column; gap:5px; padding:0 0 8px 0}
+.cx-body .cx-src-days.open{display:flex}
+.cx-body .cx-src-day{display:flex; align-items:center; justify-content:space-between; width:100%;
+  text-align:left; background:var(--card); border:1px solid var(--line); border-radius:8px;
+  padding:7px 10px; font-family:inherit; font-size:12.5px; color:var(--ink); cursor:pointer}
+.cx-body .cx-src-day .unit{font-family:var(--mono); font-size:10.5px; color:var(--mute); margin-left:8px}
+
 .cx-body .more-info{margin-top:12px}
 .cx-body .mi-label{font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.05em;
   color:var(--mute); margin-bottom:8px}
@@ -14584,6 +14597,44 @@ function cxAlaCible(){
   return P.sexe === 'f' ? 2.0 : 2.5;
 }
 
+/* Oméga-3 marins (EPA + DHA) : table à part plutôt qu'un champ de plus dans
+   la base DB.foods, pour ne pas rouvrir les ~250 entrées de ce fichier pour
+   une seule carte. Ne couvre que les poissons et fruits de mer saisis
+   directement — pas les plats composés (gratins, risottos) qui contiennent
+   du poisson en faible proportion : une estimation manquante vaut mieux
+   qu'une estimation invisible qui prétendrait couvrir la recette entière.
+   Valeurs en g d'EPA+DHA pour 100 g de produit tel que saisi (cru, sauf
+   mention), tirées des tables nutritionnelles usuelles (Ciqual/USDA) : les
+   poissons gras (saumon, sardine) portent l'essentiel de l'apport, les
+   poissons blancs et crustacés n'en apportent presque pas. */
+const EPADHA = {
+  saumon: 2.3, saumonfume: 2.0, sardines: 1.5, thon: 0.3,
+  cabillaud: 0.2, lieu: 0.2, merlu: 0.2, dorade: 0.5, perche: 0.3,
+  moules: 0.5, huitres: 0.3, crevettes: 0.3, saintjacques: 0.2,
+};
+
+/* Repère ANSES (ANC) : 250 mg/j d'EPA+DHA combinés pour l'adulte, identique
+   homme/femme — contrairement à l'ALA, ce repère ne dépend pas du sexe. */
+const CX_EPADHA_CIBLE = 0.25;
+
+/* Moyenne journalière d'EPA+DHA sur la période, même logique que
+   coachMoyenne : divisée par les jours effectivement remplis, pas par la
+   période entière, pour ne pas pénaliser un jour sans saisie. */
+function cxEpaDhaMoyenne(periode){
+  let total = 0, jours = 0;
+  for(let i = 0; i < periode; i++){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const iso_ = iso(d);
+    const es = S.hist.filter(e => e.d === iso_);
+    if(es.length) jours++;
+    es.forEach(e => e.l.forEach(([slug, g]) => {
+      const v = EPADHA[slug];
+      if(v) total += v * g / 100;
+    }));
+  }
+  return jours ? total / jours : 0;
+}
+
 const CX_SEL_MAX = 6; // g/j, ANSES — au-delà de 2,5 g de sodium/j
 
 
@@ -14685,6 +14736,62 @@ function cxSuggestionsOmega3(){
   }).join('');
 }
 
+function cxSuggestionsEpaDha(){
+  const choix = [['saumon','🐟'], ['sardines','🐟']];
+  return choix.map(([sl, ic]) => {
+    const f = F.get(sl);
+    if(!f) return '';
+    const g = EPADHA[sl] * f.p / 100;
+    return `<div class="food-item"><span>${ic} ${esc(f.n)} (${f.p} g)</span>
+      <span class="fi-impact">+${n1(g)}g</span></div>`;
+  }).join('');
+}
+
+/* Aliments ayant réellement contribué à l'apport EPA/DHA sur la période,
+   regroupés par aliment puis par jour·repas — contrairement à
+   cxSuggestionsEpaDha ci-dessus, qui propose des aliments à ajouter, ceci
+   remonte ce qui a été effectivement saisi. Sert la carte cliquable : un
+   aliment ouvre ses jours de consommation, un jour ouvre la fiche du repas. */
+function cxSourcesEpaDha(periode){
+  const parAliment = {};
+  for(let i = 0; i < periode; i++){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const iso_ = iso(d);
+    S.hist.filter(e => e.d === iso_).forEach(e => e.l.forEach(([slug, g]) => {
+      const v = EPADHA[slug];
+      if(!v) return;
+      const apport = v * g / 100;
+      const o = parAliment[slug] || (parAliment[slug] = {total:0, jours:{}});
+      o.total += apport;
+      const key = iso_ + '|' + e.m;
+      o.jours[key] = (o.jours[key] || 0) + apport;
+    }));
+  }
+  return Object.entries(parAliment).map(([slug, o]) => ({
+    slug, total:o.total,
+    jours: Object.entries(o.jours)
+      .map(([k, apport]) => { const [d, m] = k.split('|'); return {d, m, apport}; })
+      .sort((a,b) => b.d.localeCompare(a.d)),
+  })).sort((a,b) => b.total - a.total);
+}
+
+function cxSourcesHtml(list){
+  if(!list.length) return '<div class="food-item"><span>Aucun poisson ou fruit de mer riche en EPA/DHA saisi sur la période</span></div>';
+  return list.map((s, i) => {
+    const f = F.get(s.slug);
+    if(!f) return '';
+    return `<div class="food-item">
+        <span>🐟 ${esc(f.n)} <span class="fi-impact">+${n2(s.total)}g</span></span>
+        <button class="fi-add" data-cxsrc="${i}" aria-label="Voir les jours">+</button>
+      </div>
+      <div class="cx-src-days" data-cxdays="${i}">
+        ${s.jours.map(j => `<button class="cx-src-day" data-cxday="${esc(j.d)}" data-cxmeal="${esc(j.m)}">
+          <span>${esc(dLabel(j.d))} · ${esc(MEAL[j.m].l)}</span><span class="unit">+${n2(j.apport)}g</span>
+        </button>`).join('')}
+      </div>`;
+  }).join('');
+}
+
 function cxBloc(){
   const periode = CX_PERIODES.includes(S.cxPeriode) ? S.cxPeriode : 14;
   S.cxPeriode = periode;
@@ -14721,6 +14828,13 @@ function cxBloc(){
     ? `<span class="pill" style="background:${alaCouleur}">Sous repère</span>`
     : `<span class="pill" style="background:var(--cn-good)">Dans la cible</span>`;
 
+  const moyEpaDha = cxEpaDhaMoyenne(periode);
+  const epaCouleur = coachCouleurMin(moyEpaDha, CX_EPADHA_CIBLE);
+  const epaBad = moyEpaDha < CX_EPADHA_CIBLE;
+  const epaPill = epaBad
+    ? `<span class="pill" style="background:${epaCouleur}">Sous repère</span>`
+    : `<span class="pill" style="background:var(--cn-good)">Dans la cible</span>`;
+
   const redMax = 500; // repère ANSES, sert de marqueur sur la jauge
   const redSeuil = 400; // seuil d'affichage et de passage à l'orange (80 % du repère)
   const redSem = cxRedSemaine(periode);
@@ -14742,7 +14856,7 @@ function cxBloc(){
     ? `<span class="pill" style="background:${charcCouleur}">Au-dessus du repère max</span>`
     : `<span class="pill" style="background:var(--cn-good)">Dans la cible</span>`;
 
-  const flags = (fibBad?1:0) + (ferBad?1:0) + (selBad?1:0) + (alaBad?1:0) + (redBad?1:0) + (charcBad?1:0);
+  const flags = (fibBad?1:0) + (ferBad?1:0) + (selBad?1:0) + (alaBad?1:0) + (epaBad?1:0) + (redBad?1:0) + (charcBad?1:0);
 
   return `<div class="cx-wrap${CX_OPEN ? ' open' : ''}" id="cxWrap">
     <div class="cx-head" id="cxHead">
@@ -14755,6 +14869,7 @@ function cxBloc(){
         ${ferBad ? `<span class="cx-dot" style="background:${ferCouleur}"></span>` : ''}
         ${selBad ? `<span class="cx-dot" style="background:${selCouleur}"></span>` : ''}
         ${alaBad ? `<span class="cx-dot" style="background:${alaCouleur}"></span>` : ''}
+        ${epaBad ? `<span class="cx-dot" style="background:${epaCouleur}"></span>` : ''}
         ${redBad ? `<span class="cx-dot" style="background:${redCouleur}"></span>` : ''}
         ${charcBad ? `<span class="cx-dot" style="background:${charcCouleur}"></span>` : ''}
         <span class="cx-chev">▾</span>
@@ -14819,6 +14934,27 @@ function cxBloc(){
           ${cxSuggestionsOmega3()}
         </div>` : ''}
         <div class="n-detail">Ce repère porte sur l’oméga-3 d’origine végétale (ALA — noix, colza, lin), pas sur l’EPA/DHA du poisson gras, qui répond à un repère distinct. Un plat riche en saumon ou sardines n’améliore donc pas ce score-ci.
+          <span class="src">Source : ANSES, références nutritionnelles</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="n-top" data-cxcard="1">
+          <div class="n-name">🐟 Oméga-3 (EPA/DHA) <span class="chevron">▾</span></div>
+          ${epaPill}
+        </div>
+        <div class="n-ref">Moy. ${periode}j : ${n2(moyEpaDha)} g/j</div>
+        ${cxJauge(moyEpaDha, CX_EPADHA_CIBLE, epaCouleur, `${n2(moyEpaDha)}g`, `${n2(CX_EPADHA_CIBLE)}g`, null)}
+        <div class="cx-src-box">
+          <div class="fs-label">Aliments concernés sur la période</div>
+          ${cxSourcesHtml(cxSourcesEpaDha(periode))}
+        </div>
+        ${epaBad ? `<button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
+        <div class="food-box">
+          <div class="fs-label">Aliments qui comblent l’écart</div>
+          ${cxSuggestionsEpaDha()}
+        </div>` : ''}
+        <div class="n-detail">Ce repère porte sur l’oméga-3 marin (EPA/DHA — saumon, sardine, maquereau), distinct de l’ALA végétal ci-dessus. Il n’est estimé ici que sur les poissons et fruits de mer saisis directement, pas sur les plats composés qui en contiennent.
           <span class="src">Source : ANSES, références nutritionnelles</span>
         </div>
       </div>
@@ -14913,6 +15049,15 @@ function cxBind(){
   });
   $('#tv').querySelectorAll('[data-cxadd]').forEach(btn => btn.onclick = (ev) => {
     ev.stopPropagation(); quickAdd(btn.dataset.cxadd);
+  });
+  $('#tv').querySelectorAll('[data-cxsrc]').forEach(btn => btn.onclick = (ev) => {
+    ev.stopPropagation();
+    const days = $(`.cx-src-days[data-cxdays="${btn.dataset.cxsrc}"]`);
+    if(days) days.classList.toggle('open');
+  });
+  $('#tv').querySelectorAll('.cx-src-day').forEach(btn => btn.onclick = (ev) => {
+    ev.stopPropagation();
+    mealSheet(btn.dataset.cxmeal, btn.dataset.cxday, 'kg');
   });
 }
 
