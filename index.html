@@ -247,6 +247,10 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   text-anchor:middle}
 .dnt .du{font-family:var(--mono); font-size:7px; fill:var(--mute); text-anchor:middle;
   letter-spacing:.06em}
+/* Remplissage animé du cadran à un seul segment (Saisonnalité) : le trait part
+   entièrement masqué (dashoffset = circonférence) puis rejoint sa valeur finale
+   via une transition CSS déclenchée en JS après le premier rendu. */
+.dnt-fill-anim{transition:stroke-dashoffset .9s cubic-bezier(.22,.68,.32,1)}
 .wdots{display:flex; gap:3px; align-items:center}
 .wdots i{width:6px; height:6px; border-radius:50%; background:var(--line); flex:0 0 auto}
 .wdots i.on{background:var(--forest)}
@@ -3488,12 +3492,18 @@ function carteAxeGrande(o){
      sur le bandeau. `hachureAuDela` reste accepté en paramètre pour ne pas
      casser l'appelant, mais n'a plus d'effet visuel. */
   const overZone = '';
+  /* o.animer : le chiffre part de zéro et rejoint sa valeur via un compteur JS
+     déclenché après l'insertion dans le DOM (cf. animerChiffreCarbone). Un
+     `id` est nécessaire pour retrouver le bon span — plusieurs cartes de ce
+     type peuvent coexister (carbone, calories, protéines) sur le même écran. */
+  const numAttrs = o.animer ? ` id="${o.id}" data-final="${o.total}"` : '';
+  const figsNum = `<span class="figs-num"${numAttrs}>${o.animer ? o.fmt(0) : o.fmt(o.total)}</span>`;
   return `<div class="card axeb"${o.premier ? '' : ' style="margin-top:10px"'}>
     <div class="hero">
       <div class="bg">${segs}</div>${tick}${refTickSpans}${overZone}
       <div class="fg">
         <div class="ttl">${o.titre}</div>
-        <div class="figs"${o.couleur ? ` style="color:${o.couleur}"` : ''}>${o.fmt(o.total)} <small>${o.unite}</small></div>
+        <div class="figs"${o.couleur ? ` style="color:${o.couleur}"` : ''}>${figsNum} <small>${o.unite}</small></div>
         <div class="sous">${o.sous}</div>
       </div>
     </div>
@@ -12291,10 +12301,23 @@ function weekDays(){
 function donut(o){
   const R = 40, C = 2 * Math.PI * R, sc = o.scale || 1;
   let acc = 0;
-  const arcs = (o.segs || []).filter(x => x.v > 0).map(x => {
+  const segsPos = (o.segs || []).filter(x => x.v > 0);
+  /* Le remplissage animé n'a de sens que pour un cadran à un seul segment
+     (Saisonnalité) : avec plusieurs repas empilés, animer chaque tronçon
+     indépendamment ferait defiler les couleurs dans le désordre. */
+  const animArc = !!o.animate && segsPos.length === 1;
+  const arcs = segsPos.map(x => {
     const len = Math.max(0, Math.min(x.v, sc - acc)) / sc * C;
     const off = -acc / sc * C;
     acc += x.v;
+    if(animArc){
+      /* Technique standard des anneaux de progression : dasharray = C C rend le
+         trait masqué quand dashoffset = C, et le révèle progressivement à
+         mesure que dashoffset rejoint sa valeur finale (C - len). */
+      return `<circle cx="50" cy="50" r="${R}" fill="none" stroke="${x.c}" stroke-width="10"
+        stroke-dasharray="${C.toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}"
+        data-fill-final="${(C - len).toFixed(2)}" class="dnt-fill-anim"/>`;
+    }
     return `<circle cx="50" cy="50" r="${R}" fill="none" stroke="${x.c}" stroke-width="10"
       stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}"
       stroke-dashoffset="${off.toFixed(2)}"/>`;
@@ -12320,6 +12343,21 @@ function donut(o){
     <text x="50" y="50" class="dv" fill="${o.col}">${o.big}</text>
     <text x="50" y="62" class="du">${o.unit}</text>
   </svg>`;
+}
+
+/* Déclenche le remplissage animé des cadrans marqués .dnt-fill-anim présents
+   dans `root`. Le double requestAnimationFrame garantit que le navigateur a
+   bien peint l'état initial (masqué) avant de basculer vers la valeur finale
+   — sans ce délai, les deux états sont fusionnés en une seule image et rien
+   ne bouge. Respecte la préférence système de réduction des animations. */
+function animerDonut(root){
+  if(!root) return;
+  if(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  const cercles = root.querySelectorAll('.dnt-fill-anim');
+  if(!cercles.length) return;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    cercles.forEach(c => { if(c.dataset.fillFinal != null) c.style.strokeDashoffset = c.dataset.fillFinal; });
+  }));
 }
 
 /* Les données des deux cadrans, calculées une fois et réutilisées par les
@@ -12694,12 +12732,13 @@ function duoCards(a){
       <button class="dcell" id="dqSais" aria-label="Détail de la saisonnalité">
         <span class="dt">Saisonnalité</span>
         ${donut({scale:100, segs:sp == null ? [] : [{v:sp, c:spCol}], ticks:[],
-          big:sp == null ? '—' : n0(sp) + ' %', unit:'DE SAISON', col:spCol})}
+          big:sp == null ? '—' : n0(sp) + ' %', unit:'DE SAISON', col:spCol, animate:true})}
       </button>
     </div>`;
 }
 
 function duoBind(a){
+  animerDonut($('#tv'));
   const {day, week} = duoData(a);
   const lignes = o => MEALS.filter(m => (o.byMeal[m.k] || 0) > 0)
     .map(m => `<span class="unit"><i class="dot" style="background:${m.c}"></i> ${m.l}</span>
@@ -15056,6 +15095,29 @@ function exportSanteOuvrir(){
     .catch(() => {});
 }
 
+/* Compteur animé du chiffre carbone du jour : part de zéro et rejoint la
+   valeur réelle à l'ouverture de l'onglet « Par repas ». Ease-out cubique —
+   rapide au départ, qui ralentit en approchant du chiffre final, comme un
+   compteur mécanique qui se pose. Respecte la préférence système de
+   réduction des animations en affichant directement la valeur finale. */
+function animerChiffreCarbone(){
+  const el = $('#figsCarbone');
+  if(!el) return;
+  const final = parseFloat(el.dataset.final);
+  if(!isFinite(final)) return;
+  if(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches){
+    el.textContent = n2(final); return;
+  }
+  const dur = 700, t0 = performance.now();
+  const tick = now => {
+    const p = Math.min(1, (now - t0) / dur);
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = n2(final * eased);
+    if(p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 function tvRepas(a){
   const t = today();
   const d = a.days[t] || {tot:0, byMeal:{}};
@@ -15095,6 +15157,7 @@ function tvRepas(a){
   const pg = $('#prot_go');
   if(pg) pg.onclick = objSheet;
   duoBind(a);
+  animerChiffreCarbone();
 }
 
 /* Teinte du chiffre calories selon l'écart à la cible, dans les deux sens : un
@@ -15155,6 +15218,7 @@ function axesDuJour(a, t){
   const carbone = carteAxeGrande({
     premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : whenWord() === 'demain' ? 'journée close' : 'journée en cours',
     total:j.kg, unite:'kg', fmt:n2, par:j.par.kg, axe:'kg',
+    animer:true, id:'figsCarbone',
     repere:BUDGET_J, repLabel:'budget', sens:'plafond', hachureAuDela:true,
     /* La moyenne française ne fournit plus de trait sur ce bandeau : elle
        gonflait l'échelle (cf. scale dans carteAxeGrande) au point de faire
