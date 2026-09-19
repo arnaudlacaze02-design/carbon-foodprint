@@ -14637,6 +14637,24 @@ function cxEpaDhaMoyenne(periode){
 
 const CX_SEL_MAX = 6; // g/j, ANSES — au-delà de 2,5 g de sodium/j
 
+/* Grammes de viande rouge réellement contenus dans une entrée. Les aliments
+   à un seul composant dans leur `c` (steak haché, merguez, pastrami…) portent
+   un facteur qui n'encode qu'une équivalence carbone, pas une composition :
+   ce sont de la viande d'un bout à l'autre, on compte le poids entier.
+   Les plats recomposés à plusieurs ingrédients (bœuf mariné, blanquette,
+   moussaka…) documentent au contraire une vraie part massique de bœuf ou
+   veau dans le plat — un bœuf mariné n'est rouge qu'à hauteur de 18 % de
+   son poids, le reste étant nouilles et légumes. Compter le plat entier
+   comme repéré ici jusqu'ici gonflait fortement le total pour ces plats-là. */
+function redGrammes(slug, g){
+  if(!RED.has(slug)) return 0;
+  const f = F.get(slug);
+  if(f && f.c && f.c.length > 1){
+    const part = f.c.filter(([s]) => RED.has(s)).reduce((s, [,frac]) => s + frac, 0);
+    return g * part;
+  }
+  return g;
+}
 
 /* Grammes de viande rouge sur la période, ramenés à une moyenne hebdo :
    c'est à la semaine que l'ANSES exprime son repère (500 g max), jamais au
@@ -14651,7 +14669,7 @@ function cxRedSemaine(periode){
     const iso_ = iso(d);
     const es = S.hist.filter(e => e.d === iso_);
     if(es.length) jours++;
-    es.forEach(e => e.l.forEach(([slug, g]) => { if(RED.has(slug)) total += g; }));
+    es.forEach(e => e.l.forEach(([slug, g]) => { total += redGrammes(slug, g); }));
   }
   return jours ? total / jours * 7 : 0;
 }
@@ -14787,6 +14805,54 @@ function cxSourcesHtml(list){
       <div class="cx-src-days" data-cxdays="${i}">
         ${s.jours.map(j => `<button class="cx-src-day" data-cxday="${esc(j.d)}" data-cxmeal="${esc(j.m)}">
           <span>${esc(dLabel(j.d))} · ${esc(MEAL[j.m].l)}</span><span class="unit">+${n2(j.apport)}g</span>
+        </button>`).join('')}
+      </div>`;
+  }).join('');
+}
+
+/* Version générique du même patron pour les cartes exprimées en grammes
+   (viande rouge, charcuterie) plutôt qu'en g d'un nutriment : même
+   regroupement par aliment puis par jour·repas, même navigation vers la
+   fiche du repas. `poidsFn` calcule le poids à imputer à l'aliment — les
+   grammes bruts pour la charcuterie, la part réelle de viande rouge
+   (redGrammes) pour la viande rouge, dont les plats composés ne comptent
+   que pour leur fraction documentée de bœuf ou veau. */
+function cxSourcesGrammes(periode, dansEnsemble, poidsFn){
+  const parAliment = {};
+  for(let i = 0; i < periode; i++){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const iso_ = iso(d);
+    S.hist.filter(e => e.d === iso_).forEach(e => e.l.forEach(([slug, g]) => {
+      if(!dansEnsemble(slug)) return;
+      const poids = poidsFn(slug, g);
+      if(!poids) return;
+      const o = parAliment[slug] || (parAliment[slug] = {total:0, jours:{}});
+      o.total += poids;
+      const key = iso_ + '|' + e.m;
+      o.jours[key] = (o.jours[key] || 0) + poids;
+    }));
+  }
+  return Object.entries(parAliment).map(([slug, o]) => ({
+    slug, total:o.total,
+    jours: Object.entries(o.jours)
+      .map(([k, poids]) => { const [d, m] = k.split('|'); return {d, m, poids}; })
+      .sort((a,b) => b.d.localeCompare(a.d)),
+  })).sort((a,b) => b.total - a.total);
+}
+
+function cxSourcesGrammesHtml(list, prefix, emoji){
+  if(!list.length) return '<div class="food-item"><span>Aucun aliment de cette catégorie saisi sur la période</span></div>';
+  return list.map((s, i) => {
+    const f = F.get(s.slug);
+    if(!f) return '';
+    const id = `${prefix}${i}`;
+    return `<div class="food-item">
+        <span>${emoji} ${esc(f.n)} <span class="fi-impact">${n0(s.total)} g</span></span>
+        <button class="fi-add" data-cxsrc="${id}" aria-label="Voir les jours">+</button>
+      </div>
+      <div class="cx-src-days" data-cxdays="${id}">
+        ${s.jours.map(j => `<button class="cx-src-day" data-cxday="${esc(j.d)}" data-cxmeal="${esc(j.m)}">
+          <span>${esc(dLabel(j.d))} · ${esc(MEAL[j.m].l)}</span><span class="unit">${n0(j.poids)} g</span>
         </button>`).join('')}
       </div>`;
   }).join('');
@@ -14985,6 +15051,10 @@ function cxBloc(){
         </div>
         <div class="n-ref">Moy. ${periode}j, ramené / semaine : ${n0(redSem)} g/sem</div>
         ${cxJauge(redSem, redMax, redCouleur, `${n0(redSem)}g`, `${redMax}g`, redPct)}
+        <div class="cx-src-box">
+          <div class="fs-label">Aliments concernés sur la période</div>
+          ${cxSourcesGrammesHtml(cxSourcesGrammes(periode, s => RED.has(s), redGrammes), 'red', '🥩')}
+        </div>
         <button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
         <div class="food-box">
           <div class="fs-label">Leviers pour repasser sous ${redMax} g/sem</div>
@@ -15004,6 +15074,10 @@ function cxBloc(){
         </div>
         <div class="n-ref">Moy. ${periode}j, ramené / semaine : ${n0(charcSem)} g/sem</div>
         ${cxJauge(charcSem, charcMax, charcCouleur, `${n0(charcSem)}g`, `${charcMax}g`, charcPct)}
+        <div class="cx-src-box">
+          <div class="fs-label">Aliments concernés sur la période</div>
+          ${cxSourcesGrammesHtml(cxSourcesGrammes(periode, s => CHARC.has(s), (s, g) => g), 'charc', '🥓')}
+        </div>
         ${charcBad ? `<button class="target-btn" data-cxtarget="1">🎯 Revenir vers la cible</button>
         <div class="food-box">
           <div class="fs-label">Leviers pour repasser sous ${charcMax} g/sem</div>
