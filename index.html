@@ -1395,6 +1395,10 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 .total{display:flex; align-items:baseline; justify-content:space-between; margin-top:12px}
 .total .v{font-family:var(--display); font-weight:800; font-size:30px; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
 .actions{display:flex; gap:8px; margin-top:12px}
+/* Bouton « Ajouter une boisson » : même brun clair que la carte Rechercher,
+   pour qu'il se voie sans voler la vedette à « Terminer le repas ». */
+.btn.btn-drink{background:var(--co-bg); color:var(--co-on); border-color:transparent}
+.btn.btn-drink:active{filter:brightness(.92)}
 .btn{flex:1; padding:13px; border-radius:11px; text-align:center; font-size:14px; font-weight:600}
 .btn-1{background:var(--forest); color:#fff}
 .btn-2{background:var(--card); border:1px solid var(--line); color:var(--ink)}
@@ -1906,9 +1910,9 @@ button.tip:active{transform:scale(.995)}
    se lisent comme ce qu'elles sont — cinq boutons de même poids, dont un est
    celui où l'on se trouve. La cible de clic passe de 20 à 40 px de haut, ce qui
    est le minimum utilisable au pouce. */
-.wizbar{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:5px; margin:10px 0 4px}
-.wizbar span{font-family:var(--display); font-weight:600; font-size:11px; line-height:1.15;
-  color:var(--mute); padding:12px 3px; border-radius:12px; background:var(--seg-bg);
+.wizbar{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:10px 0 4px; width:100%}
+.wizbar span{font-family:var(--display); font-weight:600; font-size:14px; line-height:1.15;
+  color:var(--mute); padding:15px 4px; border-radius:12px; background:var(--seg-bg);
   text-align:center; display:flex; align-items:center; justify-content:center;
   border:1px solid transparent}
 .wizbar span.on{background:var(--forest); color:#fff; font-weight:700}
@@ -8627,7 +8631,7 @@ function renderFinish(D, isToday, draftKg){
       </div>
     </div>
     <div class="actions" style="margin-top:12px">
-      <button class="btn btn-2" id="addDrink">+ Ajouter une boisson</button>
+      <button class="btn btn-2 btn-drink" id="addDrink" data-co="6">+ Ajouter une boisson</button>
       <button class="btn btn-1" id="fin">Terminer le repas</button>
     </div>
     <div class="actions" style="margin-top:8px">
