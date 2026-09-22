@@ -8243,7 +8243,13 @@ const WIZ = [
   {k:'dessert', label:'Dessert', q:'Qu’avez-vous pris en dessert ?'},
   {k:'cafethe', label:'Café ou thé', q:'Un café ou un thé pour finir ?'},
 ];
-const WIZ_KEYS = WIZ.map(w => w.k);
+/* Le parcours enchaîné ne passe plus que par les trois services qui font le
+   repas : entrée, plat, dessert. La boisson et le café restent des services à
+   part entière (lignes, fiche, carrefour), mais ils ne sont plus demandés un par
+   un : ils se proposent en une fois, sur l'écran de fin, derrière « Ajouter une
+   boisson ». Deux étapes à passer à chaque repas pour un verre d'eau, c'était
+   deux gestes de trop. */
+const WIZ_KEYS = ['entree', 'plat', 'dessert'];
 const wizIndex = k => WIZ_KEYS.indexOf(k);
 const prevCourse = k => { const i = wizIndex(k); return i > 0 ? WIZ_KEYS[i-1] : null; };
 const nextCourse = k => { const i = wizIndex(k); return i >= 0 && i < WIZ_KEYS.length-1 ? WIZ_KEYS[i+1] : null; };
@@ -8553,16 +8559,51 @@ function renderHub(D, isToday, draftKg){
     </div>
     ${!S.draft.length ? `<div class="src" style="margin-top:10px">Touchez un service pour le composer.
       Vous pouvez les remplir dans l’ordre que vous voulez, et n’en remplir qu’un.</div>` : ''}`;
-  $('#sBack').onclick = () => { S.step = 'mode'; renderSaisie(); };
+  $('#sBack').onclick = () => { S.step = 'meal'; renderSaisie(); };
   view.querySelectorAll('[data-course]').forEach(b => b.onclick = () => openCourse(b.dataset.course));
   const tf = $('#toFinish');
   if(tf && !tf.disabled) tf.onclick = () => { S.step = 'finish'; renderSaisie(); };
 }
 
-/* écran de fin : boisson chaude, digestif, ou rien */
+/* Boissons de fin de repas, en une seule feuille : verres et tasses mêlés. Le
+   service de chaque ligne suit la nature de la boisson — café, thé, rooibos et
+   digestif vont en « Café ou thé », le reste en « Boisson » — pour que la fiche
+   du repas les range là où elle les rangeait avant. La feuille reste ouverte :
+   deux verres de vin et un café se touchent d'affilée. */
+const DRINK_FIN = [...QUICK.boisson, ...QUICK.cafethe];
+function drinkSheet(){
+  const peint = () => {
+    const n = S.draft.filter(l => l[2] === 'boisson' || l[2] === 'cafethe').length;
+    openSheet(`
+      <div class="unit">Fin de repas</div>
+      <h3>Ajouter une boisson</h3>
+      <div class="small mute" style="margin-bottom:10px">Touchez une boisson pour l’ajouter,
+        deux fois s’il y en a eu deux.${n ? ` ${n} déjà ajoutée${n > 1 ? 's' : ''}.` : ''}</div>
+      <div class="drinkgrid">
+        ${DRINK_FIN.filter(([sl]) => F.has(sl)).map(([sl, l]) => `
+          <button class="dcard" data-fdrink="${sl}">
+            <span class="dn2">${l}</span>
+            <span class="dk">${n0(F.get(sl).t * F.get(sl).p)} g CO₂e</span>
+          </button>`).join('')}
+      </div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn btn-1" id="fdOk">${n ? 'C’est tout' : 'Fermer'}</button>
+      </div>`);
+    $('#sheet').querySelectorAll('[data-fdrink]').forEach(b => b.onclick = () => {
+      const sl = b.dataset.fdrink;
+      const svc = QUICK.cafethe.some(([x]) => x === sl) ? 'cafethe' : 'boisson';
+      S.draft.push([sl, F.get(sl).p, svc, S.mode]);
+      save(); renderSaisie(); toast(`${F.get(sl).n} ajouté`); peint();
+    });
+    $('#fdOk').onclick = () => { closeSheet(); renderSaisie(); };
+  };
+  peint();
+}
+
+/* écran de fin : le récapitulatif, une boisson à ajouter, ou la fin */
 function renderFinish(D, isToday, draftKg){
   view.innerHTML = `
-    <button class="backlink" id="sBack">‹ Retour au café</button>
+    <button class="backlink" id="sBack">‹ Retour au dessert</button>
     <div class="mealhead">
       <span class="mh">${MEAL[S.meal].l}</span>
       <span class="md">${isToday ? 'aujourd’hui' : dLabel(D)} · ${n2(draftKg)} kg</span>
@@ -8586,13 +8627,17 @@ function renderFinish(D, isToday, draftKg){
       </div>
     </div>
     <div class="actions" style="margin-top:12px">
-      <button class="btn btn-1" id="fin">Terminer et enregistrer</button>
+      <button class="btn btn-2" id="addDrink">+ Ajouter une boisson</button>
+      <button class="btn btn-1" id="fin">Terminer le repas</button>
+    </div>
+    <div class="actions" style="margin-top:8px">
       <button class="btn btn-2" id="favMeal">Garder en favori</button>
     </div>
     <button class="backlink" id="toHub" style="margin-top:10px">Reprendre un service ›</button>
     <div class="src" style="margin-top:4px">Le fil des services reste ouvert : vous pouvez revenir sur
-      la boisson, l’entrée, le plat, le dessert ou le café avant d’enregistrer.</div>`;
-  $('#sBack').onclick = () => openCourse('cafethe');
+      l’entrée, le plat ou le dessert avant d’enregistrer.</div>`;
+  $('#sBack').onclick = () => openCourse('dessert');
+  $('#addDrink').onclick = drinkSheet;
   $('#toHub').onclick = () => { S.step = 'hub'; renderSaisie(); };
   $('#fin').onclick = commitMeal;
   $('#favMeal').onclick = () => openSheet(`
@@ -8615,7 +8660,7 @@ function renderFinish(D, isToday, draftKg){
 function renderPdjChoix(D, isToday){
   const h = pdjHab(), kg = kgOf(h.l);
   view.innerHTML = `
-    <button class="backlink" id="sBack">‹ Changer la provenance</button>
+    <button class="backlink" id="sBack">‹ Changer de repas</button>
     <div class="mealhead">
       <span class="mh">Petit-déjeuner</span>
       <span class="md">${isToday ? 'aujourd’hui' : dLabel(D)}</span>
@@ -8643,7 +8688,7 @@ function renderPdjChoix(D, isToday){
 
     <div class="src" style="margin-top:12px">L’habitude se modifie ou se supprime dans votre profil.</div>`;
 
-  $('#sBack').onclick = () => { S.step = 'mode'; S.pdjNew = false; renderSaisie(); };
+  $('#sBack').onclick = () => { S.step = 'meal'; S.pdjNew = false; renderSaisie(); };
   $('#pd_load').onclick = () => {
     /* La provenance vient d'être choisie sur l'écran précédent : elle prime sur
        celle qu'avait l'habitude au jour où elle a été enregistrée. */
@@ -8684,7 +8729,7 @@ function modeSuite(){
     S.step = f.step; S.course = f.course; S.platVue = f.platVue || 'grille';
     return renderSaisie();
   }
-  if(S.meal === 'dej' || S.meal === 'din') return openCourse('boisson');
+  if(S.meal === 'dej' || S.meal === 'din') return openCourse('entree');
   S.comCat = 'plat'; S.path = null; S.dishQ = ''; S.step = 'saisie';
   renderSaisie();
 }
@@ -8989,7 +9034,7 @@ function voieLine(isPlat){
   const l = S.path === 'compose'  ? (S.partner ? 'Rechercher · ' + esc((partDe(S.partner)||{}).n || '') : 'Rechercher')
           : S.path === 'part'     ? (S.partner ? esc((partDe(S.partner)||{}).n || 'Partenaires') : 'Restaurants et partenaires')
           : S.path === 'recettes' ? 'Mes recettes'
-          : isPlat ? 'Plat standard' : 'Plats types';
+          : isPlat ? 'Saisie rapide' : 'Plats types';
   return `<button class="modeline" id="voieEdit" style="margin-top:2px">
     <span><b>${l}</b></span><i>changer</i></button>`;
 }
@@ -9465,8 +9510,8 @@ function renderSaisie(){
           <span class="ml">${m.l}</span>
           <span class="mv">${m.s}</span>
         </button>`; }).join('')}</div>
-      <div class="src" style="margin-top:14px">Déjeuner et dîner se composent service par service,
-        dans l’ordre : boisson, entrée, plat, dessert, café ou thé.
+      <div class="src" style="margin-top:14px">Déjeuner et dîner se composent service par service :
+        entrée, plat, dessert, puis une boisson si besoin.
         Petit-déjeuner et en-cas vont droit à la saisie.</div>`;
     bindDateRow();
     $('#sBack').onclick = () => { S.step = 'home'; renderSaisie(); };
@@ -9475,10 +9520,14 @@ function renderSaisie(){
       S.mode = null;                     /* un nouveau repas redemande le mode */
       S.pdjNew = false; S.pdjSave = false; S.pdjEdit = false;
       S.platLarge = false; S.modeFrom = null;
-      /* La provenance s'intercale ici, avant toute saisie : elle vaut pour le
-         repas entier et elle change le coefficient de chaque ligne. */
-      S.step = 'mode';
-      renderSaisie();
+      /* La page « D'où vient ce repas ? » n'est plus sur le chemin : le repas
+         part en fait maison, et la provenance se corrige depuis la ligne en tête
+         de saisie (modeLine), ou se pose d'elle-même quand un plat de
+         restaurant ou un surgelé est ajouté (modeAuto). Une question posée à
+         chaque repas pour une réponse presque toujours identique coûtait un
+         écran entier. */
+      setMealMode('frais');
+      modeSuite();
     });
     return;
   }
@@ -9668,14 +9717,14 @@ function renderSaisie(){
     <button id="canceledit">Annuler</button></div><div style="height:12px"></div>`
     : `<button class="backlink" id="sBack">‹ ${step && prevCourse(step.k)
         ? `Retour à ${(WIZ.find(w => w.k === prevCourse(step.k)).label).toLowerCase()}`
-        : 'Changer la provenance'}</button>`}
+        : 'Changer de repas'}</button>`}
 
   <div class="mealhead">
     <span class="mh">${MEAL[S.meal].l}</span>
     <span class="md">${isToday ? 'aujourd’hui' : dLabel(D)}${draftKg ? ` · ${n2(draftKg)} kg` : ''}</span>
   </div>
 
-  ${step ? `<div class="wizbar">${COURSE_HUB.map(c => `<span class="${
+  ${step ? `<div class="wizbar">${COURSE_HUB.filter(c => WIZ_KEYS.includes(c.k)).map(c => `<span class="${
       c.k === S.course ? 'on' : (S.draft.some(l => (l[2]||'plat') === c.k) ? 'done' : '')
       }" data-jump="${c.k}">${c.l}</span>`).join('')}</div>
     <div class="actions" style="margin:10px 0 2px">
@@ -9683,7 +9732,7 @@ function renderSaisie(){
         ? `Valider ${step.label.toLowerCase()} ›`
         : (nextCourse(step.k)
             ? `Passer, pas ${/^[aeéiouh]/i.test(step.label) ? 'd’' : 'de '}${step.label.toLowerCase()} ›`
-            : 'Terminer le repas ›')}</button>
+            : step.k === 'dessert' ? 'Passer, pas de dessert ›' : 'Continuer ›')}</button>
     </div>
     ${S.mode ? modeLine(true) : ''}
     <h2 class="sec">${platChoix ? 'Comment le saisir ?' : step.q}${panierBtn()}</h2>`
@@ -9720,7 +9769,7 @@ function renderSaisie(){
   <div class="modegrid" style="margin-top:12px">
     ${isPlat ? `
     <button class="mcard" data-co="7" data-path="std">
-      <span class="mct">Standard</span>
+      <span class="mct">Saisie rapide</span>
       <span class="mcn">3 choix</span>
       <span class="mcs">Une protéine, un féculent, un légume, et la taille de l’assiette.
         Le plus rapide, et suffisant pour la plupart des repas de tous les jours.</span>
@@ -9810,9 +9859,9 @@ function renderSaisie(){
   if(sb) sb.onclick = () => {
     const pv = step && prevCourse(step.k);
     if(pv) return openCourse(pv);
-    /* Pas de service précédent : on remonte à la provenance, qui est l'écran
-       d'avant depuis qu'elle a sa page. */
-    S.step = 'mode'; renderSaisie();
+    /* Pas de service précédent : on remonte au choix du repas, la provenance
+       n'étant plus sur le chemin. */
+    S.step = 'meal'; renderSaisie();
   };
   const ce = $('#canceledit');
   if(ce) ce.onclick = () => { S.editId = null; S.draft = []; S.step = 'home'; renderSaisie(); };
@@ -10017,7 +10066,7 @@ function renderSaisie(){
        redemandera pas à la validation. */
     S.platLarge = S.stdSize === 'large';
     S.stdP = null; S.stdF = null; S.stdL = null;
-    renderSaisie(); toast('Plat standard ajouté');
+    renderSaisie(); toast('Plat ajouté en saisie rapide');
   };
 
   /* « Autre » : la grille de raccourcis ne peut pas tout contenir, et allonger la
@@ -20430,8 +20479,8 @@ document.addEventListener('click', function(ev){
     S.draft = []; S.wiz = null; S.editId = null;
     S.mode = null; S.pdjNew = false; S.pdjSave = false; S.pdjEdit = false;
     S.platLarge = false; S.modeFrom = null;
-    S.step = 'mode';
-    renderSaisie();
+    setMealMode('frais');
+    modeSuite();
   }
 });
 
