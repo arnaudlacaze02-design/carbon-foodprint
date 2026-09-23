@@ -14982,6 +14982,17 @@ function cxSourcesNutrimentHtml(list, prefix, emoji, unite){
   }).join('');
 }
 
+/* Teinte d'un plancher dans Carences & excès. coachCouleurMin() tolère 5 %
+   sous la cible en vert, ce qui convient au coach (une journée à 97 % des
+   protéines est une journée réussie), mais pas ici : la pastille dit « Sous
+   repère » et un vert à côté se lit comme « tout va bien », les deux se
+   contredisent. Sous le repère, on n'est donc jamais vert : au mieux orange,
+   proche mais pas encore atteint. */
+function cxCouleurMin(val, cible){
+  const c = coachCouleurMin(val, cible);
+  return (val < cible && c === 'var(--cn-good)') ? 'var(--cn-orange)' : c;
+}
+
 function cxBloc(){
   const periode = CX_PERIODES.includes(S.cxPeriode) ? S.cxPeriode : 14;
   S.cxPeriode = periode;
@@ -14989,7 +15000,7 @@ function cxBloc(){
 
   const cibleFib = cxFibreCible();
   const moyFib = moy.fib;
-  const fibCouleur = coachCouleurMin(moyFib, cibleFib);
+  const fibCouleur = cxCouleurMin(moyFib, cibleFib);
   const fibBad = moyFib < cibleFib;
   const fibPill = fibBad
     ? `<span class="pill" style="background:${fibCouleur}">Sous repère</span>`
@@ -14997,7 +15008,7 @@ function cxBloc(){
 
   const cibleFer = cxFerCible();
   const moyFer = moy.fer;
-  const ferCouleur = coachCouleurMin(moyFer, cibleFer);
+  const ferCouleur = cxCouleurMin(moyFer, cibleFer);
   const ferBad = moyFer < cibleFer;
   const ferPill = ferBad
     ? `<span class="pill" style="background:${ferCouleur}">Sous repère</span>`
@@ -15012,14 +15023,14 @@ function cxBloc(){
 
   const cibleAla = cxAlaCible();
   const moyAla = moy.omega3;
-  const alaCouleur = coachCouleurMin(moyAla, cibleAla);
+  const alaCouleur = cxCouleurMin(moyAla, cibleAla);
   const alaBad = moyAla < cibleAla;
   const alaPill = alaBad
     ? `<span class="pill" style="background:${alaCouleur}">Sous repère</span>`
     : `<span class="pill" style="background:var(--cn-good)">Dans la cible</span>`;
 
   const moyEpaDha = cxEpaDhaMoyenne(periode);
-  const epaCouleur = coachCouleurMin(moyEpaDha, CX_EPADHA_CIBLE);
+  const epaCouleur = cxCouleurMin(moyEpaDha, CX_EPADHA_CIBLE);
   const epaBad = moyEpaDha < CX_EPADHA_CIBLE;
   const epaPill = epaBad
     ? `<span class="pill" style="background:${epaCouleur}">Sous repère</span>`
