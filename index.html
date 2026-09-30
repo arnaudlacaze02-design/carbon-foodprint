@@ -2989,7 +2989,7 @@ function tabRead(){
 const NOTIF0 = () => ({on:false, vu:{}, lastPost:null, luPost:null,
                        vuLikes:null, vuAmis:null, vuDefis:null,
                        pushOn:false, demande:null, vuTro:null, vuSept26:false,
-                       vuAgeAns:false});
+                       vuOct26:false, vuAgeAns:false});
 
 let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false, drinkMore:false,
@@ -9717,8 +9717,16 @@ function renderSaisie(){
 
   view.innerHTML = `
   ${editing ? `<div class="demo edit">
-    Modification d’un repas du ${dLabel(editing.d)}.
-    <button id="canceledit">Annuler</button></div><div style="height:12px"></div>`
+    Modification d’un repas du ${dLabel(editing.d).replace(/\.$/, '')}.
+    <button id="canceledit">Annuler</button></div>
+    <div style="height:10px"></div>
+    <div class="daterow">
+      <input type="date" id="edate" value="${D}" max="${today()}" aria-label="Jour du repas">
+      <button id="dToday" aria-pressed="${isToday}">Aujourd’hui</button>
+      <button id="dYest" aria-pressed="${D === yesterday()}">Hier</button>
+    </div>
+    ${D !== editing.d ? `<div class="pastwarn">Sera déplacé au ${dLabel(D)}</div>` : ''}
+    <div style="height:12px"></div>`
     : `<button class="backlink" id="sBack">‹ ${step && prevCourse(step.k)
         ? `Retour à ${(WIZ.find(w => w.k === prevCourse(step.k)).label).toLowerCase()}`
         : 'Changer de repas'}</button>`}
@@ -9869,6 +9877,9 @@ function renderSaisie(){
   };
   const ce = $('#canceledit');
   if(ce) ce.onclick = () => { S.editId = null; S.draft = []; S.step = 'home'; renderSaisie(); };
+  /* Le jour d'un repas enregistré se corrige depuis l'écran de modification :
+     commitMeal reprend déjà S.entryDate, il ne manquait que le champ. */
+  if(editing) bindDateRow();
 
   const pm = $('#pd_mark');
   if(pm) pm.onclick = () => { S.pdjSave = !S.pdjSave; renderSaisie(); };
@@ -16901,6 +16912,36 @@ function sept26Need(){
   return Math.max(1, Math.min(21, vegMealCountMonth(2026, 7) * 4));
 }
 
+/* ---------- défi Octobre 2026 ----------
+   Référence journalière : l'objectif personnel du profil (objKg / 365). Sans
+   objectif déclaré, la moyenne des 5 meilleures journées complètes (déjeuner et
+   dîner saisis) antérieures au 1ᵉʳ octobre — figée à cette date, pour qu'une
+   très bonne journée d'octobre ne rehausse pas l'exigence en cours de défi.
+   Moins de 5 journées : moyenne de celles qui existent ; aucune : budget 2050.
+   Le recomptage de septembre se fait avec l'objectif actuel, l'app ne gardant
+   pas l'historique des objectifs. */
+const OCT26_DEBUT = '2026-10-01';
+function oct26Ref(sc){
+  const o = objDay();
+  if(o != null) return o;
+  const T = today();
+  const kgs = Object.entries(sc.days)
+    .filter(([d, x]) => d < OCT26_DEBUT && d < T && dayComplete(x) && x.kg > 0)
+    .map(([, x]) => x.kg).sort((a, b) => a - b).slice(0, 5);
+  return kgs.length ? kgs.reduce((a, b) => a + b, 0) / kgs.length : BUDGET_J;
+}
+/* Journées révolues et complètes, entre deux dates incluses, sous la référence. */
+function heldDaysIn(sc, du, au, ref){
+  const T = today();
+  return Object.entries(sc.days)
+    .filter(([d, x]) => d >= du && d <= au && d < T && dayComplete(x) && x.kg <= ref).length;
+}
+/* Seuil : journées tenues en septembre + 5, plafonné à 25. */
+function oct26Need(sc){
+  sc = sc || scoring();
+  return Math.min(25, heldDaysIn(sc, '2026-09-01', '2026-09-30', oct26Ref(sc)) + 5);
+}
+
 /* Journées entières sous le budget quotidien. Deux garde-fous : déjeuner et
    dîner tous deux saisis, sinon une journée à moitié renseignée décroche le
    badge sans rien prouver, et la journée doit être révolue — une journée en
@@ -17065,6 +17106,11 @@ const TROPHIES = [
    need: sept26Need,
    d:'Défi ponctuel, valable uniquement en septembre 2026 : atteindre ce nombre de repas végétariens (déjeuner ou dîner) sur le mois. Le seuil reprend l’objectif végé hebdomadaire du profil × 4,1 semaines, arrondi au repas supérieur ; à défaut d’objectif déclaré, il reprend le rythme d’août 2026 (× 4, plafonné à 21).',
    m:() => vegMealCountMonth(2026, 8)},
+  {s:'Défi Octobre 2026', n:'Défi Octobre 2026', e:'🎯', pal:'sky',
+   hideBefore:OCT26_DEBUT, u:'journée',
+   need: () => oct26Need(),
+   d:'Défi ponctuel, valable uniquement en octobre 2026 : tenir son objectif journalier ce nombre de jours sur le mois (journée révolue, déjeuner et dîner saisis). Le seuil reprend les journées tenues en septembre 2026, plus 5, plafonné à 25. Sans objectif déclaré, la référence est la moyenne de vos 5 meilleures journées carbone avant le 1ᵉʳ octobre.',
+   m:sc => heldDaysIn(sc, OCT26_DEBUT, '2026-10-31', oct26Ref(sc))},
 
   /* ---------- journées sans viande rouge ---------- */
   {s:'1ʳᵉ journée', n:'Première journée sans viande rouge', e:'🥩', need:1, u:'journée', pal:'sky', img:'b-poule.webp',
@@ -18603,6 +18649,38 @@ function sept26Announce(){
     'badge', 'jeux');
 }
 
+/* ---------------- annonce du défi Octobre 2026 ----------------
+   Même mécanique que septembre : une seule fois, verrou `vuOct26` posé dès le
+   premier passage, rien de montré si le mois est déjà terminé. */
+function oct26Announce(){
+  if(S.notif.vuOct26) return;
+  const T = today();
+  if(T < OCT26_DEBUT) return;
+  S.notif.vuOct26 = true; save();
+  if(T > '2026-10-31') return;
+  const sc = scoring(), ref = oct26Ref(sc), avecObj = objDay() != null;
+  const sept = heldDaysIn(sc, '2026-09-01', '2026-09-30', ref);
+  const need = oct26Need(sc);
+  openSheet(`
+    <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;
+      text-transform:uppercase;color:var(--mute)">Défi du mois</div>
+    <h3>Défi Octobre 2026</h3>
+    <p class="small" style="line-height:1.7">Ce mois-ci : tenir votre objectif journalier
+      <b>${need} jour${need > 1 ? 's' : ''}</b> d’ici le 31 octobre pour débloquer le badge.
+      Une journée compte une fois terminée, déjeuner et dîner saisis.</p>
+    <p class="small mute" style="line-height:1.7">${sept} jour${sept > 1 ? 's' : ''} tenu${sept > 1 ? 's' : ''}
+      en septembre, + 5${sept + 5 > 25 ? ', plafonné à 25' : ''}. ${avecObj
+      ? `Référence : votre objectif de profil, ${n2(ref)} kg CO₂e par jour.`
+      : `Aucun objectif déclaré : la référence est la moyenne de vos 5 meilleures journées, ${n2(ref)} kg CO₂e.`}</p>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-1" id="o26_ok">Compris</button>
+    </div>`);
+  const b = $('#o26_ok'); if(b) b.onclick = closeSheet;
+  notifMontre('Défi Octobre 2026',
+    `Tenez votre objectif journalier ${need} jour${need > 1 ? 's' : ''} ce mois-ci pour débloquer le badge.`,
+    'badge', 'jeux');
+}
+
 /* ---------------- invite à compléter l'année de naissance ----------------
    Une seule fois, à la première ouverture qui suit le remplacement de la
    tranche d'âge par une année de naissance (âge recalculé chaque année, voir
@@ -19094,6 +19172,7 @@ else{
      cèdent déjà le passage à l'écran d'accueil : deux fenêtres coup sur coup
      n'en font pas une meilleure. */
   setTimeout(sept26Announce, 900);
+  setTimeout(oct26Announce, 950);
   /* Encore décalée derrière l'annonce du défi, pour la même raison : le temps
      qu'une fenêtre se lise et se ferme avant qu'une autre ne s'ouvre. */
   setTimeout(ageAnsAnnounce, 1400);
