@@ -688,6 +688,16 @@ input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
   0%{background:rgba(0,0,0,0)} 18%{background:rgba(0,0,0,.22)}
   70%{background:rgba(0,0,0,.22)} 100%{background:rgba(0,0,0,0)}
 }
+/* Mode médaille : le badge lui-même tourne, plus grand, et le message reste
+   lisible plus longtemps — c'est une phrase, pas une étiquette. */
+#spin[data-mark="medaille"] .m{width:168px; height:168px; background:none;
+  -webkit-mask:none; mask:none}
+#spin[data-mark="medaille"] .m svg{width:100%; height:100%; display:block}
+#spin.long{animation-duration:3.4s}
+#spin.long .m{animation-duration:3.4s}
+#spin[data-mark="medaille"] .t{bottom:22%; font:700 17px/1.35 var(--round);
+  letter-spacing:0; text-transform:none; color:var(--ink); padding:0 32px}
+:root[data-theme="dark"] #spin[data-mark="medaille"] .t{color:var(--straw)}
 /* Respecte le réglage système : deux tours complets peuvent gêner. */
 @media (prefers-reduced-motion:reduce){
   #spin .m{animation:none; opacity:1; transform:none}
@@ -2817,7 +2827,10 @@ const nrmQ = t => String(t || '').toLowerCase().normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '').replace(/œ/g, 'oe').replace(/æ/g, 'ae').trim();
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const iso = d => d.toISOString().slice(0,10);
+/* Date du jour en heure LOCALE de l'appareil (toISOString renvoie l'UTC,
+   ce qui faisait basculer au lendemain le soir hors Europe). */
+const iso = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
+  + '-' + String(d.getDate()).padStart(2,'0');
 const today = () => iso(new Date());
 const yesterday = () => { const d = new Date(); d.setDate(d.getDate()-1); return iso(d); };
 const dLabel = s => { const d = new Date(s+'T12:00');
@@ -2989,7 +3002,7 @@ function tabRead(){
 const NOTIF0 = () => ({on:false, vu:{}, lastPost:null, luPost:null,
                        vuLikes:null, vuAmis:null, vuDefis:null,
                        pushOn:false, demande:null, vuTro:null, vuSept26:false,
-                       vuOct26:false, vuAgeAns:false});
+                       vuOct26:false, vuAgeAns:false, vuSept26Win:false});
 
 let S = {tab:'saisie', group:'', q:'', meal:'dej', path:'types', draft:[], favs:[], hist:[],
          tv:'repas', openDish:null, pickQ:'', pickSlug:null, stdInit:false, drinkMore:false,
@@ -8354,15 +8367,18 @@ function celebrate(){
   }
 }
 
-function spinShow(marque, texte){
+function spinShow(marque, texte, html){
   const el = document.getElementById('spin');
   if(!el) return;
+  const long = marque === 'medaille';
   el.dataset.mark = marque;
+  el.querySelector('.m').innerHTML = html || '';
   el.querySelector('.t').textContent = texte;
-  el.classList.remove('on');
+  el.classList.remove('on', 'long');
   void el.offsetWidth;                        /* relance l'animation */
   el.classList.add('on');
-  setTimeout(() => el.classList.remove('on'), 2200);
+  if(long) el.classList.add('long');
+  setTimeout(() => el.classList.remove('on', 'long'), long ? 3500 : 2200);
 }
 
 /* Forme enregistrée d'une ligne : [aliment, g, service, provenance, plat?].
@@ -18649,6 +18665,31 @@ function sept26Announce(){
     'badge', 'jeux');
 }
 
+/* ---------------- défi Septembre 2026 réussi ----------------
+   Félicitation à l'ouverture de l'app, une seule fois (verrou `vuSept26Win`),
+   dès que le seuil est atteint — en cours de mois ou après. Le badge tourne
+   au centre de l'écran, et une notification système suit si les rappels sont
+   actifs. Mois clos sans réussite : on pose le verrou sans rien montrer.
+   Renvoie true quand l'animation part, pour décaler la fenêtre suivante. */
+function sept26Win(){
+  if(S.notif.vuSept26Win) return false;
+  const T = today();
+  if(T < '2026-09-01') return false;
+  const t = TROPHIES.find(x => x.s === 'Défi Septembre 2026');
+  if(!t) return false;
+  const v = vegMealCountMonth(2026, 8), need = troNeed(t);
+  if(v < need){
+    if(T > '2026-09-30'){ S.notif.vuSept26Win = true; save(); }
+    return false;
+  }
+  S.notif.vuSept26Win = true; save();
+  spinShow('medaille', `Bravo, vous avez atteint votre objectif de septembre · ${v} repas végé`,
+    medal(t, v, 'sp26'));
+  notifMontre('Bravo ! 🥗', `Vous avez atteint votre objectif de septembre : ${v} repas végétariens.`,
+    'badge', 'jeux');
+  return true;
+}
+
 /* ---------------- annonce du défi Octobre 2026 ----------------
    Même mécanique que septembre : une seule fois, verrou `vuOct26` posé dès le
    premier passage, rien de montré si le mois est déjà terminé. */
@@ -19172,7 +19213,13 @@ else{
      cèdent déjà le passage à l'écran d'accueil : deux fenêtres coup sur coup
      n'en font pas une meilleure. */
   setTimeout(sept26Announce, 900);
-  setTimeout(oct26Announce, 950);
+  /* La félicitation de septembre passe avant l'annonce d'octobre : le temps
+     que le badge finisse de tourner, puis la fenêtre suivante. */
+  setTimeout(() => {
+    let w = false;
+    try{ w = sept26Win(); }catch(e){ console.warn('sept26Win ·', e); }
+    setTimeout(oct26Announce, w ? 3600 : 50);
+  }, 900);
   /* Encore décalée derrière l'annonce du défi, pour la même raison : le temps
      qu'une fenêtre se lise et se ferme avant qu'une autre ne s'ouvre. */
   setTimeout(ageAnsAnnounce, 1400);
