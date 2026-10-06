@@ -9406,9 +9406,13 @@ function composePanel(res){
       ${res.length ? res.map(ligneRes).join('') +
         `<div class="count">${nAlim} aliment${nAlim > 1 ? 's' : ''} · ${nPlats} plat${
           nPlats > 1 ? 's' : ''} · classés du plus proche de « ${esc(S.dishQ.trim())} » au plus
-          lointain, les plats qui en contiennent seulement venant en dernier</div>`
-      : `<div class="empty">Rien ne correspond à « ${esc(S.dishQ.trim())} ». Essayez « pâtes »,
-          « poulet », « lentilles ».</div>`}
+          lointain, les plats qui en contiennent seulement venant en dernier</div>
+        <button class="btn btn-2" type="button" data-persocreer="${esc(S.dishQ.trim())}"
+          style="display:block;width:100%;margin-top:8px">Pas le bon ? Créer « ${esc(S.dishQ.trim())} »</button>`
+      : `<div class="empty">Rien ne correspond à « ${esc(S.dishQ.trim())} ».
+          <div style="margin-top:12px"><b>Votre aliment n’existe pas ?</b></div>
+          <button class="btn btn-1" type="button" data-persocreer="${esc(S.dishQ.trim())}"
+            style="margin-top:8px">Créer « ${esc(S.dishQ.trim())} »</button></div>`}
     </div>` : `<div class="src" style="margin:-2px 0 4px">Tapez deux lettres : la recherche couvre
         les ${DB.foods.length} aliments et les ${DISHES().length} plats types de la base, d’un
         seul tenant.</div>`}`;
@@ -11974,7 +11978,13 @@ function bindPerso(){
     renderTracker(); toast(utilise ? 'Retiré de vos aliments · les repas le gardent' : 'Aliment supprimé');
   });
 }
-function persoSheet(){
+/* Porte d'entrée depuis la recherche de la saisie : délégation sur le document,
+   parce que le panneau de résultats est réécrit à chaque frappe. */
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-persocreer]');
+  if(b){ e.preventDefault(); persoSheet(b.dataset.persocreer); }
+});
+function persoSheet(nomInit){
   const base = DB.foods.filter(f => !f.perso).slice().sort((a, b) => a.n.localeCompare(b.n, 'fr'));
   const champ = (id, lab, ph) => `<label style="display:block"><span class="small mute">${lab}</span>
     <input class="search" id="${id}" type="text" inputmode="decimal" placeholder="${ph}" style="width:100%"></label>`;
@@ -12030,6 +12040,7 @@ function persoSheet(){
     }
     out.innerHTML = html;
   };
+  if(nomInit) $('#pfN').value = String(nomInit).slice(0, 80);
   $('#sheet').querySelectorAll('input').forEach(x => x.oninput = apercu);
   apercu();
   $('#pfOk').onclick = () => {
@@ -12051,7 +12062,11 @@ function persoSheet(){
     if(!persoAdd(sl)) return toast('Création impossible');
     try{ localStorage.setItem(PERSO_KEY, JSON.stringify([...new Set([...persoListe(), sl])])); }catch(e){}
     persoEnvoyer(sl).catch(() => {});
-    closeSheet(); renderTracker(); toast(`${n} ajouté · à retrouver dans la saisie`);
+    closeSheet();
+    /* Depuis la saisie, on relance la recherche sur le nouvel aliment : il
+       apparaît aussitôt sous le doigt, prêt à être ajouté au repas. */
+    if(S.tab === 'saisie' && typeof renderSaisie === 'function'){ S.dishQ = n; renderSaisie(); toast(`${n} créé`); }
+    else { renderTracker(); toast(`${n} ajouté · à retrouver dans la saisie`); }
   };
 }
 
