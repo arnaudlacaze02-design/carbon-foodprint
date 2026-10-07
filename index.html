@@ -3612,15 +3612,18 @@ const nuOn = () => S.nutri !== false;
 function jourAxes(d){
   const es = S.hist.filter(e => e.d === d);
   const vide = () => { const o = {}; MEALS.forEach(m => o[m.k] = 0); return o; };
-  const par = {kg:vide(), kcal:vide(), prot:vide()};
-  let kg = 0, kcal = 0, prot = 0;
+  const par = {kg:vide(), kcal:vide(), prot:vide(), lip:vide(), gluc:vide(), fib:vide()};
+  let kg = 0, kcal = 0, prot = 0, lip = 0, gluc = 0, fib = 0;
   es.forEach(e => {
     const k = kgOf(e.l), n = nuOf(e.l);
     par.kg[e.m]   += k;      kg   += k;
     par.kcal[e.m] += n.kcal; kcal += n.kcal;
     par.prot[e.m] += n.prot; prot += n.prot;
+    par.lip[e.m]  += n.lip;  lip  += n.lip;
+    par.gluc[e.m] += n.gluc; gluc += n.gluc;
+    par.fib[e.m]  += n.fib;  fib  += n.fib;
   });
-  return {es, par, kg, kcal, prot, n:es.length};
+  return {es, par, kg, kcal, prot, lip, gluc, fib, n:es.length};
 }
 
 
@@ -16072,6 +16075,9 @@ function tvRepas(a){
     <h2 class="sec">Le mois</h2>
     ${calMini()}`;
   $('#calMiniBtn').onclick = () => calendarSheet();
+  $('#tv').querySelectorAll('[data-day]').forEach(b => b.onclick = () => daySheet(b.dataset.day));
+  $('#tv').querySelectorAll('[data-axesperso]').forEach(b =>
+    b.onclick = () => axesPersoSheet(() => { closeSheet(); renderTracker(); }));
   /* Les quatre entrées « définir une cible » de cet écran ouvrent toutes la même
      fenêtre de réglage, plutôt que de sauter à une étape du questionnaire : on y
      voit les autres objectifs en même temps, et on en sort par un bouton
@@ -16139,18 +16145,25 @@ function protCouleur(val, cible){
    jauge obligerait à choisir une échelle commune qui n'a aucun sens physique.
    Calories et protéines disparaissent avec l'interrupteur du Profil ; le carbone
    reste, c'est l'objet de l'app. */
-function axesDuJour(a, t){
+function axesDuJour(a, t, opt){
+  opt = opt || {};
   const j = jourAxes(t);
   const rien = j.n === 0;
+  /* Même fonction pour aujourd'hui (Tracker) et pour un jour passé (fiche du
+     calendrier) : seuls changent le mot « aujourd'hui », la teinte en cours de
+     journée et le conseil du midi, qui n'ont de sens que pour le jour même. */
+  const passe = t !== today();
+  const quand = passe ? 'ce jour-là' : 'aujourd\u2019hui';
+  const conseil = !passe && opt.conseil !== false;
 
   /* --- carbone --- */
   const restCO2 = BUDGET_J - j.kg;
   const pctCO2  = Math.round(Math.abs(restCO2) / BUDGET_J * 100);
   const objJ = objDay();
   const carbone = carteAxeGrande({
-    premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : whenWord() === 'demain' ? 'journée close' : 'journée en cours',
+    premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : (passe || whenWord() === 'demain') ? 'journée close' : 'journée en cours',
     total:j.kg, unite:'kg', fmt:n2, par:j.par.kg, axe:'kg',
-    animer:true, id:'figsCarbone',
+    animer:opt.animer !== false, id:'figsCarbone',
     repere:BUDGET_J, repLabel:'budget', sens:'plafond', hachureAuDela:true,
     /* La moyenne française ne fournit plus de trait sur ce bandeau : elle
        gonflait l'échelle (cf. scale dans carteAxeGrande) au point de faire
@@ -16163,7 +16176,7 @@ function axesDuJour(a, t){
     ].filter(Boolean),
     couleur:j.kg > BUDGET_J ? 'var(--cn-red)' : 'var(--axe-kg)',
     mot: rien
-      ? `Rien d\u2019enregistré aujourd\u2019hui. Budget du jour : ${n0(BUDGET_J*1000)} g CO\u2082e.`
+      ? `Rien d\u2019enregistré ${quand}. Budget du jour : ${n0(BUDGET_J*1000)} g CO\u2082e.`
       : restCO2 >= 0
         ? `Budget restant : <b>${n0(restCO2*1000)} g</b> CO\u2082e, soit <b>${pctCO2} %</b> de la journée.`
         : `Budget dépassé de <b>${n0(-restCO2*1000)} g</b> CO\u2082e, soit <b>${pctCO2} %</b> au-delà de la limite.`,
@@ -16175,7 +16188,7 @@ function axesDuJour(a, t){
          rentre encore » devient une information. Le dîner, lui, clôt la journée
          et passe la parole à dayVerdict(). */
       const midi = S.hist.some(e => e.d === t && e.m === 'dej');
-      const tip = (rien || !midi) ? '' : (() => {
+      const tip = (rien || !midi || !conseil) ? '' : (() => {
         const v = dayVerdict(a);
         if(v) return `<div class="tip ${v.c}"><span class="ic">${v.ic}</span><span class="tx">${v.tx}</span></div>`;
         const b = budgetTip(j.kg);
@@ -16198,7 +16211,7 @@ function axesDuJour(a, t){
     })(),
   });
 
-  if(!nuOn()) return carbone;
+  if(!nuOn()) return axesAssemble({kg:carbone}, false);
 
   /* --- calories ---
      La cible déclarée d'abord, l'estimation ANSES à défaut. Vraie cible à deux
@@ -16210,7 +16223,7 @@ function axesDuJour(a, t){
   const bCal   = besoinCal();
   const cCal   = S.prof.objCal != null ? S.prof.objCal : bCal;
   const choisie = S.prof.objCal != null;
-  const coefJ = coeffJourEnCours();
+  const coefJ = passe ? 1 : coeffJourEnCours();
   const ecartCalPct = cCal ? Math.round(Math.abs(j.kcal - cCal) / cCal * 100) : 0;
   const calories = carteAxeGrande({
     titre:'Calories', unite:'kcal', fmt:n0, total:j.kcal, par:j.par.kcal, axe:'kcal',
@@ -16218,7 +16231,7 @@ function axesDuJour(a, t){
                        : 'Aucune cible renseignée',
     repere:cCal || 0, repLabel:'cible', sens:'cible', repLabelOnChart:false,
     couleur:calCouleur(j.kcal, cCal * coefJ),
-    mot: rien ? 'Rien d\u2019enregistré aujourd\u2019hui.'
+    mot: rien ? `Rien d\u2019enregistré ${quand}.`
       : cCal == null
         ? `<b>${n0(j.kcal)} kcal</b> sur la journée. <button class="backlink" id="cal_go" style="display:inline;padding:0">Renseigner une cible \u203a</button>`
         : j.kcal <= cCal
@@ -16239,7 +16252,7 @@ function axesDuJour(a, t){
     sous: cProt != null ? 'Minimum recommandé : ' + n0(cProt) + ' g/j' : 'Aucune cible renseignée',
     repere:cProt || 0, repLabel:'minimum recommandé', sens:'plancher', repLabelOnChart:false,
     couleur:protCouleur(j.prot, cProt * coefJ),
-    mot: rien ? 'Rien d\u2019enregistré aujourd\u2019hui.'
+    mot: rien ? `Rien d\u2019enregistré ${quand}.`
       : cProt == null
         ? `<b>${n0(j.prot)} g</b> de protéines sur la journée. <button class="backlink" id="prot_go" style="display:inline;padding:0">Renseigner une cible \u203a</button>`
         : j.prot >= cProt
@@ -16249,7 +16262,93 @@ function axesDuJour(a, t){
        là où elle qualifie réellement un total qu'on est en train de lire. */
   });
 
-  return carbone + calories + proteines;
+  /* --- lipides, glucides, fibres ---
+     Ajoutables depuis « Personnaliser ». Repères ANSES rapportés à la cible
+     calorique, les mêmes que le Coach Nutrition (coachTargets) : 35 % de
+     l'énergie en lipides, 50 % en glucides, 30 g de fibres pour 2 600 kcal.
+     Lipides et glucides sont des repères, pas des cibles : aucune teinte
+     d'alerte. Les fibres sont un plancher, comme les protéines. */
+  const cLip  = cCal ? cCal * 0.35 / 9 : null;
+  const cGluc = cCal ? cCal * 0.50 / 4 : null;
+  const cFib  = cCal ? 30 * cCal / 2600 : 30;
+  const simple = (k, titre, cib, part) => carteAxeGrande({
+    titre, unite:'g', fmt:n0, total:j[k], par:j.par[k], axe:k,
+    sous: cib != null ? 'Repère : ' + n0(cib) + ' g/j' + (part ? ' (' + part + ')' : '') : 'Aucun repère',
+    repere:cib || 0, repLabel:'repère', sens:'cible', repLabelOnChart:false,
+    mot: rien ? `Rien d\u2019enregistré ${quand}.`
+      : `<b>${n0(j[k])} g</b> sur la journée${cib ? `, pour un repère de ${n0(cib)} g` : ''}.`,
+  });
+  const lipides  = simple('lip', 'Lipides', cLip, '35 % des calories');
+  const glucides = simple('gluc', 'Glucides', cGluc, '50 % des calories');
+  const fibres = carteAxeGrande({
+    titre:'Fibres', unite:'g', fmt:n0, total:j.fib, par:j.par.fib, axe:'fib',
+    sous:'Minimum recommandé : ' + n0(cFib) + ' g/j',
+    repere:cFib, repLabel:'minimum recommandé', sens:'plancher', repLabelOnChart:false,
+    couleur:protCouleur(j.fib, cFib * coefJ),
+    mot: rien ? `Rien d\u2019enregistré ${quand}.`
+      : j.fib >= cFib
+        ? `Minimum atteint : <b>${n0(j.fib)} g</b> pour ${n0(cFib)} g visés.`
+        : `Il manque <b>${n0(cFib - j.fib)} g</b> pour atteindre les ${n0(cFib)} g visés.`,
+  });
+
+  return axesAssemble({kg:carbone, kcal:calories, prot:proteines, lip:lipides, gluc:glucides, fib:fibres}, true);
+}
+
+/* ---------------- ordre des cartes du jour ----------------
+   Choisi par chaque utilisateur dans « Personnaliser l'affichage » : quelles
+   cartes, dans quel ordre. Par défaut carbone, calories, protéines — l'écran
+   d'avant. Rangé dans le profil, donc gardé d'une session à l'autre. */
+const AXES_CARTES = {kg:'Carbone', kcal:'Calories', prot:'Protéines', lip:'Lipides', gluc:'Glucides', fib:'Fibres'};
+const AXES_DEFAUT = ['kg', 'kcal', 'prot'];
+function axesOrdre(){
+  const o = S.prof && Array.isArray(S.prof.axesOrdre) ? S.prof.axesOrdre.filter(k => AXES_CARTES[k]) : null;
+  return o && o.length ? [...new Set(o)] : AXES_DEFAUT.slice();
+}
+/* Assemble dans l'ordre choisi. La marge entre cartes est recalculée ici :
+   carteAxeGrande la pose d'après « premier », qui ne dit plus rien une fois
+   l'ordre libre. */
+function axesAssemble(cartes, perso){
+  let ordre = axesOrdre().filter(k => cartes[k]);
+  if(!ordre.length) ordre = Object.keys(cartes).slice(0, 1);
+  const html = ordre.map((k, i) => {
+    const c = cartes[k].replace('<div class="card axeb" style="margin-top:10px">', '<div class="card axeb">');
+    return i ? c.replace('<div class="card axeb">', '<div class="card axeb" style="margin-top:10px">') : c;
+  }).join('');
+  return html + (perso ? `<div style="text-align:right;margin-top:8px">
+      <button class="backlink" data-axesperso style="display:inline;padding:0">Personnaliser l’affichage ›</button></div>` : '');
+}
+/* Feuille de réglage : la liste choisie, chaque carte montable, descendable
+   ou retirable, puis un « + » par carte encore disponible. `retour` repeint
+   l'écran d'où l'on vient (Tracker ou fiche d'un jour). */
+function axesPersoSheet(retour){
+  const o = axesOrdre();
+  const dispo = Object.keys(AXES_CARTES).filter(k => !o.includes(k));
+  const btn = 'class="btn btn-2" style="padding:4px 10px;min-width:38px"';
+  openSheet(`<h3>Personnaliser l’affichage</h3>
+    <p class="small mute">Les cartes affichées sous le jour, dans cet ordre.</p>
+    ${o.map((k, i) => `<div style="display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--line-soft, rgba(0,0,0,.08))">
+      <span style="flex:1"><b>${AXES_CARTES[k]}</b></span>
+      <button ${btn} data-ap="haut" data-k="${k}" ${i ? '' : 'disabled'} aria-label="Monter ${AXES_CARTES[k]}">↑</button>
+      <button ${btn} data-ap="bas" data-k="${k}" ${i < o.length - 1 ? '' : 'disabled'} aria-label="Descendre ${AXES_CARTES[k]}">↓</button>
+      <button ${btn} data-ap="ret" data-k="${k}" ${o.length > 1 ? '' : 'disabled'} aria-label="Retirer ${AXES_CARTES[k]}">✕</button>
+    </div>`).join('')}
+    ${dispo.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">${dispo.map(k =>
+      `<button class="btn btn-2" data-ap="aj" data-k="${k}">+ ${AXES_CARTES[k]}</button>`).join('')}</div>` : ''}
+    <div class="actions">
+      <button class="btn btn-1" id="apOk">Terminé</button>
+      <button class="btn btn-2" id="apRaz">Par défaut</button>
+    </div>`);
+  const ecrit = n => { S.prof = S.prof || {}; S.prof.axesOrdre = n; save(); axesPersoSheet(retour); };
+  $('#sheet').querySelectorAll('[data-ap]').forEach(b => b.onclick = () => {
+    const k = b.dataset.k, n = axesOrdre(), i = n.indexOf(k);
+    if(b.dataset.ap === 'aj') n.push(k);
+    else if(b.dataset.ap === 'ret' && n.length > 1) n.splice(i, 1);
+    else if(b.dataset.ap === 'haut' && i > 0) [n[i - 1], n[i]] = [n[i], n[i - 1]];
+    else if(b.dataset.ap === 'bas' && i < n.length - 1) [n[i + 1], n[i]] = [n[i], n[i + 1]];
+    ecrit(n);
+  });
+  $('#apRaz').onclick = () => ecrit(AXES_DEFAUT.slice());
+  $('#apOk').onclick = () => retour();
 }
 
 /* ---------------- décomposition par aliment ----------------
@@ -17319,13 +17418,18 @@ function calLegend(){
 /* bloc carré du Tracker : aperçu réduit, ouvre le calendrier en grand */
 function calMini(){
   const sc = scoring(), m = today().slice(0,7);
-  return `<button class="card calmini" id="calMiniBtn" style="width:100%;border:1px solid var(--line)">
-      <div class="mininav"><span>${calTitle(m)}</span><span class="op">Agrandir ›</span></div>
+  /* Les jours renseignés s'ouvrent directement d'ici : passer d'abord par le
+     calendrier en grand coûtait un toucher de plus pour la question la plus
+     courante, « qu'est-ce que j'ai mangé tel jour ». « Agrandir » garde la
+     navigation de mois en mois. */
+  return `<div class="card calmini" style="width:100%;border:1px solid var(--line)">
+      <button class="mininav" id="calMiniBtn" style="width:100%;background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer">
+        <span>${calTitle(m)}</span><span class="op">Agrandir ›</span></button>
       <div class="calwrap mini">
         <div class="calhead">${['L','M','M','J','V','S','D'].map(d => `<span>${d}</span>`).join('')}</div>
-        <div class="calgrid">${calCells(sc, m, false)}</div>
+        <div class="calgrid">${calCells(sc, m, true)}</div>
       </div>
-    </button>`;
+    </div>`;
 }
 
 /* calendrier plein écran, en feuille : navigation par mois, jours cliquables */
@@ -17403,8 +17507,14 @@ function daySheet(k){
         </button>`).join('')
         : '<div class="empty">Aucun repas ce jour-là.</div>'}
     </div>
-    ${coachJourEqBloc(k, es.length)}`);
+    ${coachJourEqBloc(k, es.length)}
+    <div style="margin-top:14px">${axesDuJour(null, k, {animer:false, conseil:false})}</div>`);
   $('#dsBack').onclick = () => calendarSheet(k.slice(0,7));
+  $('#sheet').querySelectorAll('.axeb [data-gm]').forEach(b =>
+    b.onclick = () => mealSheet(b.dataset.gm, k, b.dataset.ax));
+  $('#sheet').querySelectorAll('[data-axesperso]').forEach(b =>
+    b.onclick = () => axesPersoSheet(() => daySheet(k)));
+  ['#cal_go', '#prot_go'].forEach(id => { const x = $('#sheet').querySelector(id); if(x) x.onclick = objSheet; });
   $('#sheet').querySelectorAll('[data-entry]').forEach(b => b.onclick = () =>
     entrySheet(b.dataset.entry, {l:dLabel(k), fn:() => daySheet(k)}));
 }
