@@ -12010,6 +12010,69 @@ document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-persocreer]');
   if(b){ e.preventDefault(); persoSheet(b.dataset.persocreer); }
 });
+/* ---- Lecture d'un code-barres sur une photo ----
+   BarcodeDetector quand le navigateur l'a (Chrome Android) ; sinon ZXing,
+   chargé à la demande et une seule fois — Safari iOS n'a pas de détecteur
+   natif. La photo est réduite avant décodage : une image de 12 Mpx est lente
+   et, paradoxalement, se décode moins bien. Plusieurs tailles et deux
+   orientations sont essayées, le code étant souvent photographié de travers. */
+let ZXING_P = null;
+const zxing = () => ZXING_P || (ZXING_P = new Promise((ok, ko) => {
+  if(window.ZXing) return ok(window.ZXing);
+  const sc = document.createElement('script');
+  sc.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+  sc.onload = () => window.ZXing ? ok(window.ZXing) : ko(new Error('ZXing absent'));
+  sc.onerror = () => { ZXING_P = null; ko(new Error('lecteur non chargé, vérifiez la connexion')); };
+  document.head.appendChild(sc);
+}));
+async function eanDePhoto(file){
+  const url = URL.createObjectURL(file);
+  try{
+    const img = await new Promise((ok, ko) => { const i = new Image();
+      i.onload = () => ok(i); i.onerror = () => ko(new Error('image illisible')); i.src = url; });
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const essais = [];
+    for(const max of [1400, 900, 2000]) for(const rot of [0, 90]) essais.push([max, rot]);
+    let det = null;
+    if('BarcodeDetector' in window){
+      try{ det = new BarcodeDetector({formats:['ean_13', 'ean_8', 'upc_a', 'upc_e']}); }catch(e){ det = null; }
+    }
+    let Z = null, reader = null, hints = null;
+    for(const [max, rot] of essais){
+      const k = Math.min(1, max / Math.max(W, H));
+      const w = Math.round(W * k), h = Math.round(H * k);
+      const cv = document.createElement('canvas');
+      cv.width = rot ? h : w; cv.height = rot ? w : h;
+      const cx = cv.getContext('2d', {willReadFrequently:true});
+      if(rot){ cx.translate(cv.width / 2, cv.height / 2); cx.rotate(Math.PI / 2); cx.drawImage(img, -w / 2, -h / 2, w, h); }
+      else cx.drawImage(img, 0, 0, w, h);
+      if(det){
+        try{ const r = await det.detect(cv); if(r && r[0] && r[0].rawValue) return r[0].rawValue.replace(/\D/g, ''); }
+        catch(e){ det = null; }
+        if(det) continue;
+      }
+      if(!Z){
+        Z = await zxing();
+        hints = new Map();
+        hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,
+          [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]);
+        hints.set(Z.DecodeHintType.TRY_HARDER, true);
+        reader = new Z.MultiFormatReader(); reader.setHints(hints);
+      }
+      const px = cx.getImageData(0, 0, cv.width, cv.height).data;
+      const lum = new Uint8ClampedArray(cv.width * cv.height);
+      for(let i = 0, j = 0; j < lum.length; i += 4, j++)
+        lum[j] = (px[i] * 299 + px[i + 1] * 587 + px[i + 2] * 114) / 1000;
+      try{
+        const r = reader.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(
+          new Z.RGBLuminanceSource(lum, cv.width, cv.height))), hints);
+        if(r) return String(r.getText()).replace(/\D/g, '');
+      }catch(e){ /* rien à cette taille : essai suivant */ }
+      finally{ try{ reader.reset(); }catch(e){} }
+    }
+    return null;
+  }finally{ URL.revokeObjectURL(url); }
+}
 function persoSheet(nomInit){
   const base = DB.foods.filter(f => !f.perso).slice().sort((a, b) => a.n.localeCompare(b.n, 'fr'));
   const champ = (id, lab, ph) => `<label style="display:block"><span class="small mute">${lab}</span>
@@ -12018,7 +12081,9 @@ function persoSheet(nomInit){
     <div class="small mute">Remplir depuis un produit</div>
     <div style="display:flex;gap:8px;margin-top:6px">
       <input class="search" id="pfU" type="text" inputmode="url" placeholder="Lien Carrefour… ou code-barres" style="flex:1;min-width:0">
+      <button class="btn btn-2" id="pfCam" type="button" aria-label="Photographier le code-barres">📷</button>
       <button class="btn btn-2" id="pfLire" type="button">Lire</button>
+      <input id="pfPhoto" type="file" accept="image/*" capture="environment" hidden>
     </div>
     <div id="pfMsg" class="small" style="margin:6px 0 12px"></div>
     <label style="display:block"><span class="small mute">Nom</span>
@@ -12141,6 +12206,21 @@ function persoSheet(nomInit){
         : '<br><span class="mute">Pas d’empreinte AGRIBALYSE sur cette fiche : calcul par les ingrédients.</span>'));
     const cb = $('#pfAg'); if(cb) cb.onchange = apercu;
     apercu();
+  };
+  /* Photo du code-barres : l'appareil photo s'ouvre, le code est décodé sur le
+     téléphone, puis la lecture Open Food Facts part d'elle-même. */
+  $('#pfCam').onclick = () => $('#pfPhoto').click();
+  $('#pfPhoto').onchange = async e => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    msg('Lecture du code-barres…');
+    let code = null;
+    try{ code = await eanDePhoto(file); }
+    catch(err){ return msg('Décodage impossible · ' + esc(err.message || err), true); }
+    if(!code) return msg('Aucun code-barres lu. Reprenez la photo de plus près, bien à plat et nette, ou tapez les chiffres.', true);
+    $('#pfU').value = code;
+    $('#pfLire').click();
   };
   $('#sheet').querySelectorAll('input').forEach(x => x.oninput = apercu);
   apercu();
