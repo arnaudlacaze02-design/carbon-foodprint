@@ -12185,12 +12185,38 @@ async function persoRevue(){
   const corr = persoCorr();
   openSheet(`<h3>Aliments proposés</h3>
     ${L.length ? L.map((x, i) => { const d = x.def || {}, k = corr[x.slug];
-      return `<button class="btn btn-2" data-pr="${i}" style="display:block;width:100%;text-align:left;margin-top:8px">
-        <b>${esc((k && k.n) || d.n || 'Sans nom')}</b>
-        <span class="small mute"> · ${fr2((k && k.t) ?? d.t)} kg/kg · ${PST[x.statut] || x.statut} ·
-        ${new Date(x.created_at).toLocaleDateString('fr-FR')}</span></button>`; }).join('')
+      return `<div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-2" data-pr="${i}" style="flex:1;min-width:0;text-align:left">
+          <b>${esc((k && k.n) || d.n || 'Sans nom')}</b>
+          <span class="small mute"> · ${fr2((k && k.t) ?? d.t)} kg/kg · ${PST[x.statut] || x.statut} ·
+          ${new Date(x.created_at).toLocaleDateString('fr-FR')}</span></button>
+        <button class="btn btn-2" data-prdel="${i}" aria-label="Supprimer la proposition" style="padding:4px 12px">✕</button>
+      </div>`; }).join('')
       : '<p class="small mute">Aucune proposition pour l’instant.</p>'}`);
   $('#sheet').querySelectorAll('[data-pr]').forEach(b => b.onclick = () => persoCorriger(L[+b.dataset.pr]));
+  $('#sheet').querySelectorAll('[data-prdel]').forEach(b => b.onclick = () => persoSupprimer(L[+b.dataset.prdel]));
+}
+/* Suppression d'une proposition (doublon, essai, saisie fantaisiste). Elle ne
+   retire l'aliment que de la revue : les repas qui l'utilisent le gardent, sa
+   définition voyageant dans leurs lignes. Une correction déjà publiée est
+   retirée avec elle, sur demande, pour ne pas laisser de valeur orpheline. */
+async function persoSupprimer(x){
+  const nom = (x.def && x.def.n) || 'cette proposition';
+  if(!confirm(`Supprimer « ${nom} » des aliments proposés ?`)) return;
+  const corr = persoCorr()[x.slug];
+  if(corr && confirm('Retirer aussi la correction publiée ? Les utilisateurs reviendront aux valeurs d’origine.')){
+    const c = await SB.rest('aliments_corrections?slug=eq.' + encodeURIComponent(x.slug), {method:'DELETE',
+      headers:{Prefer:'return=minimal'}});
+    if(c.ok){ const m = persoCorr(); delete m[x.slug]; persoCorrAppliquer(m);
+      if(F.has(x.slug)){ const f0 = persoFood(x.slug); if(f0){ delete F.get(x.slug).corr; Object.assign(F.get(x.slug), f0); } } }
+  }
+  const r = await SB.rest('aliments_proposes?id=eq.' + x.id, {method:'DELETE', headers:{Prefer:'return=representation'}});
+  /* PostgREST répond 200 avec une liste vide quand la règle RLS filtre la
+     ligne : c'est un refus déguisé, à dire comme tel. */
+  if(!r.ok || !Array.isArray(r.body) || !r.body.length)
+    return toast('Suppression refusée · ' + (r.status || '?') + ' · droits delete à ajouter côté base');
+  if(x.statut === 'nouveau') S.persoNouveaux = Math.max(0, (S.persoNouveaux || 0) - 1);
+  toast('Proposition supprimée'); persoRevue();
 }
 function persoCorriger(x){
   const d = x.def || {}, k = persoCorr()[x.slug] || {};
@@ -12214,7 +12240,9 @@ function persoCorriger(x){
       <button class="btn btn-1" id="crOk">Enregistrer la correction</button>
       <button class="btn btn-2" id="crVal">Valider tel quel</button>
       <button class="btn btn-2" id="crRet">Retour</button>
+      <button class="btn btn-2" id="crDel">Supprimer</button>
     </div>`);
+  $('#crDel').onclick = () => persoSupprimer(x);
   const num = id => { const t = String($('#' + id).value).trim().replace(',', '.'); return t === '' ? NaN : +t; };
   const statut = async st => SB.rest('aliments_proposes?id=eq.' + x.id, {method:'PATCH',
     headers:{Prefer:'return=minimal'}, body: JSON.stringify({statut:st, updated_at:new Date().toISOString()})});
