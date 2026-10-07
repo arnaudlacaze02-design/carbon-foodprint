@@ -2660,7 +2660,14 @@ function persoFood(slug){
     x:1, perso:1, xs:o.xs || '', c:Array.isArray(o.c) ? o.c : [],
     nu:o.nu.slice(0, 5).map(v => +v || 0), nus:'pose',
     nu2:Array.isArray(o.nu2) ? o.nu2 : [0, 0, 0],
-    xn:'aliment créé par vous. Empreinte estimée à partir de ses ingrédients principaux (' + parts +
+    xn: o.src === 'off' && o.ag
+      ? 'aliment créé depuis la fiche Open Food Facts' + (o.ean ? ' (code-barres ' + o.ean + ')' : '') +
+        '. Empreinte : valeur AGRIBALYSE de la catégorie « ' + o.ag + ' », calculée par l’ADEME pour un ' +
+        'produit générique de ce type et non pour cette marque précise. Ingrédients principaux repérés (' +
+        (parts || 'aucun') + ') : ils servent aux allergènes et au régime, pas au calcul. Calories, macros ' +
+        'et sel lus sur la fiche produit' +
+        (k ? '. Valeurs revues par l’équipe Carbon FOODprint' + (k.note ? ' : ' + String(k.note).slice(0, 400) : '') : '')
+      : 'aliment créé par vous. Empreinte estimée à partir de ses ingrédients principaux (' + parts +
        '), sans compter les pertes de transformation : elle est donc souvent minorante pour un ' +
        'produit concentré — un fromage demande plusieurs kilos de lait par kilo. Calories et macros ' +
        'saisies depuis l’étiquette ; fer, sodium et oméga-3 approchés depuis les ingrédients' +
@@ -2757,13 +2764,23 @@ function persoAdd(slug){
 const PERSO_ENV_KEY = 'cfp.alimentsPersoEnvoyes';
 const persoEnvoyes = () => { try{ const a = JSON.parse(localStorage.getItem(PERSO_ENV_KEY) || '[]');
   return Array.isArray(a) ? a : []; }catch(e){ return []; } };
+/* Dernier échec d'envoi, gardé pour l'afficher : un envoi raté ne doit plus
+   passer inaperçu, c'est ce qui rendait la remontée impossible à diagnostiquer. */
+let persoErr = '';
 async function persoEnvoyer(sl){
-  if(!SESS || !SB.ready() || persoEnvoyes().includes(sl)) return false;
-  const o = persoDec(sl); if(!o) return false;
+  if(!SESS){ persoErr = 'non connecté'; return false; }
+  if(!SB.ready()){ persoErr = 'serveur non configuré'; return false; }
+  if(persoEnvoyes().includes(sl)) return true;
+  const o = persoDec(sl); if(!o){ persoErr = 'aliment illisible'; return false; }
   const r = await SB.rest('aliments_proposes?on_conflict=slug', {method:'POST',
     headers:{Prefer:'resolution=ignore-duplicates,return=minimal'},
     body: JSON.stringify({slug:sl, def:o, user_id:SESS.uid})});
-  if(r.ok){ try{ localStorage.setItem(PERSO_ENV_KEY, JSON.stringify([...persoEnvoyes(), sl])); }catch(e){} }
+  if(r.ok){ persoErr = ''; try{ localStorage.setItem(PERSO_ENV_KEY, JSON.stringify([...persoEnvoyes(), sl])); }catch(e){} }
+  else {
+    const b = r.body || {};
+    persoErr = `${r.status} · ${b.code || ''} ${b.message || b.error || ''}`.trim();
+    console.warn('aliments_proposes · envoi refusé', r.status, b);
+  }
   return r.ok;
 }
 /* Applique un jeu de corrections : cache local, puis mise à jour des aliments
@@ -11958,6 +11975,9 @@ function persoCarte(){
       <div class="actions"><button class="btn btn-1" id="persoNew">Créer un aliment</button>
         ${S.persoAdmin ? `<button class="btn btn-2" id="persoRevue">Aliments proposés${S.persoNouveaux ? ` · ${S.persoNouveaux} à revoir` : ''}</button>` : ''}</div>
       ${SESS ? '<p class="small mute" style="margin:8px 0 0">Chaque création est relue par l’équipe, qui peut en corriger les valeurs pour tout le monde.</p>' : ''}
+      ${(() => { const n = persoListe().filter(x => !persoEnvoyes().includes(x)).length;
+        return SESS && n ? `<p class="small" style="margin:8px 0 0">${n} en attente d’envoi${persoErr ? ' · ' + esc(persoErr) : ''}
+          <button class="btn btn-2" id="persoRetry" style="padding:4px 10px;margin-left:6px">Réessayer</button></p>` : ''; })()}
       ${mes.length ? `<div class="small mute" style="margin-top:12px">Vos aliments</div>
         ${mes.map(f => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line, rgba(0,0,0,.08))">
           <span style="flex:1">${esc(f.n)}${f.corr ? ' <span class="small mute">· revu</span>' : ''}</span>
@@ -11970,6 +11990,10 @@ const fr2 = v => (Math.round(v * 100) / 100).toLocaleString('fr-FR');
 function bindPerso(){
   const b = $('#persoNew'); if(b) b.onclick = persoSheet;
   const rv = $('#persoRevue'); if(rv) rv.onclick = persoRevue;
+  const rt = $('#persoRetry'); if(rt) rt.onclick = async () => {
+    for(const sl of persoListe()) await persoEnvoyer(sl);
+    renderTracker(); toast(persoErr ? 'Toujours refusé · ' + persoErr : 'Envoyé');
+  };
   view.querySelectorAll('[data-persodel]').forEach(x => x.onclick = () => {
     const sl = x.dataset.persodel, f = F.get(sl);
     try{ localStorage.setItem(PERSO_KEY, JSON.stringify(persoListe().filter(y => y !== sl))); }catch(e){}
@@ -11991,6 +12015,12 @@ function persoSheet(nomInit){
   const champ = (id, lab, ph) => `<label style="display:block"><span class="small mute">${lab}</span>
     <input class="search" id="${id}" type="text" inputmode="decimal" placeholder="${ph}" style="width:100%"></label>`;
   openSheet(`<h3>Créer un aliment</h3>
+    <div class="small mute">Remplir depuis un produit</div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <input class="search" id="pfU" type="text" inputmode="url" placeholder="Lien Carrefour… ou code-barres" style="flex:1;min-width:0">
+      <button class="btn btn-2" id="pfLire" type="button">Lire</button>
+    </div>
+    <div id="pfMsg" class="small" style="margin:6px 0 12px"></div>
     <label style="display:block"><span class="small mute">Nom</span>
       <input class="search" id="pfN" type="text" maxlength="80" placeholder="ex. Cottage cheese Nordica" style="width:100%"></label>
     <div class="small mute" style="margin-top:14px">Ingrédients principaux · 1 à 3, du plus au moins présent</div>
@@ -12013,6 +12043,10 @@ function persoSheet(nomInit){
       <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
     </div>`);
   const byName = new Map(base.map(f => [nrmQ(f.n), f]));
+  /* Produit lu sur Open Food Facts : {ean, ag, t, na}. Son empreinte AGRIBALYSE
+     remplace le calcul par ingrédients tant que la case reste cochée. */
+  let prod = null;
+  const agOn = () => !!(prod && prod.t != null && $('#pfAg') && $('#pfAg').checked);
   const num = id => { const v = String($('#' + id).value).trim().replace(',', '.'); return v === '' ? null : +v; };
   const lire = () => {
     const ing = [0, 1, 2].map(i => ({f:byName.get(nrmQ($('#pfI' + i).value.trim())),
@@ -12027,13 +12061,15 @@ function persoSheet(nomInit){
     const t = ok.reduce((a, x, i) => a + x.f.t * ws[i], 0);
     const nu2 = [0, 1, 2].map(k => +ok.reduce((a, x, i) => a + ((x.f.nu2 || [])[k] || 0) * ws[i], 0).toFixed(2));
     const nu = ['pfK', 'pfP', 'pfL', 'pfG', 'pfF'].map(num);
-    return {ing:ok, ws, t, nu2, nu, inconnu, p:num('pfQ') || 100, n:$('#pfN').value.trim()};
+    if(prod && prod.na != null) nu2[1] = prod.na;
+    return {ing:ok, ws, t: agOn() ? prod.t : t, nu2, nu, inconnu, p:num('pfQ') || 100, n:$('#pfN').value.trim()};
   };
   const apercu = () => {
     const r = lire(), out = $('#pfOut');
     if(r.inconnu) return out.innerHTML = `« ${esc(r.inconnu.brut)} » n’est pas dans la base : choisissez une proposition de la liste.`;
     if(!r.ing.length) return out.innerHTML = '<span class="mute">Choisissez au moins un ingrédient.</span>';
-    let html = `≈ <b>${fr2(r.t)} kg CO₂e/kg</b> · ${fr2(r.t * r.p / 1000)} par portion de ${r.p} g`;
+    let html = `≈ <b>${fr2(r.t)} kg CO₂e/kg</b> · ${fr2(r.t * r.p / 1000)} par portion de ${r.p} g` +
+      (agOn() ? ' <span class="mute">· AGRIBALYSE</span>' : '');
     const [k, p, l, g, fi] = r.nu;
     if(k != null && p != null && l != null && g != null){
       const calc = 4 * p + 9 * l + 4 * g + 2 * (fi || 0);
@@ -12043,6 +12079,69 @@ function persoSheet(nomInit){
     out.innerHTML = html;
   };
   if(nomInit) $('#pfN').value = String(nomInit).slice(0, 80);
+  /* Lecteur de produit. Les sites d'enseigne bloquent la lecture automatique de
+     leurs pages ; leurs liens portent en revanche presque toujours le code-barres
+     (EAN-13 en fin d'adresse chez Carrefour). C'est lui qu'on lit, sur Open Food
+     Facts : base ouverte, accessible directement depuis le navigateur, qui donne
+     ingrédients, valeurs pour 100 g et, quand le produit est classé, l'empreinte
+     AGRIBALYSE de sa catégorie — la même source ADEME que le reste de l'appli. */
+  const msg = (h, err) => { const m = $('#pfMsg'); m.innerHTML = h; m.classList.toggle('mute', !err); };
+  const setV = (id, v) => { if(v != null && isFinite(v)) $('#' + id).value = String(Math.round(v * 10) / 10).replace('.', ','); };
+  $('#pfLire').onclick = async () => {
+    const brut = $('#pfU').value.trim();
+    const codes = brut.match(/\d{13}|\d{8}/g);
+    if(!codes) return msg('Pas de code-barres dans ce lien. Collez le code à 13 chiffres imprimé sous les barres du produit.', true);
+    const ean = codes[codes.length - 1];
+    msg('Lecture du produit ' + ean + '…');
+    let p = null;
+    try{
+      const r = await fetch('https://world.openfoodfacts.org/api/v2/product/' + ean +
+        '.json?fields=product_name,product_name_fr,brands,ingredients,nutriments,ecoscore_data,environmental_score_data');
+      const j = await r.json();
+      if(j && (j.status === 1 || j.status === 'success') && j.product) p = j.product;
+    }catch(e){ return msg('Open Food Facts injoignable · ' + esc(e.message || e), true); }
+    if(!p) return msg('Produit ' + ean + ' absent d’Open Food Facts : saisissez-le à la main ci-dessous.', true);
+
+    const nom = (p.product_name_fr || p.product_name || '').trim();
+    const marque = String(p.brands || '').split(',')[0].trim();
+    if(nom) $('#pfN').value = (marque && !nrmQ(nom).includes(nrmQ(marque)) ? nom + ' · ' + marque : nom).slice(0, 80);
+
+    const n = p.nutriments || {};
+    const kcal = n['energy-kcal_100g'] != null ? +n['energy-kcal_100g']
+               : n.energy_100g != null ? +n.energy_100g / 4.184 : null;
+    setV('pfK', kcal); setV('pfP', n.proteins_100g); setV('pfL', n.fat_100g);
+    setV('pfG', n.carbohydrates_100g); setV('pfF', n.fiber_100g);
+
+    /* Ingrédients de premier niveau, dans l'ordre de l'étiquette, rapprochés de
+       la base par le même moteur que le lecteur de recettes. */
+    const vus = new Set(), pris = [], ignores = [];
+    for(const x of (p.ingredients || []).slice(0, 10)){
+      const txt = String(x.text || '').trim(); if(!txt) continue;
+      let sl;
+      try{ sl = rqSlug(rqNorm(txt)); }catch(e){ sl = undefined; }
+      const f = sl && F.get(sl);
+      if(!f || f.perso || vus.has(sl)){ if(!f) ignores.push(txt); continue; }
+      vus.add(sl);
+      if(pris.length < 3) pris.push({f, pct: +(x.percent != null ? x.percent : x.percent_estimate) || null});
+    }
+    [0, 1, 2].forEach(i => { $('#pfI' + i).value = pris[i] ? pris[i].f.n : '';
+      $('#pfW' + i).value = pris[i] && pris[i].pct ? String(Math.round(pris[i].pct)) : ''; });
+
+    const ag = (p.environmental_score_data || p.ecoscore_data || {}).agribalyse || {};
+    const co2 = +ag.co2_total;
+    prod = {ean, ag: ag.name_fr || ag.name_en || '', t: isFinite(co2) && co2 > 0 ? +co2.toFixed(3) : null,
+            na: n.sodium_100g != null ? Math.round(+n.sodium_100g * 1000) : null};
+
+    msg(`Lu sur Open Food Facts · vérifiez avant de valider.` +
+      (ignores.length ? `<br><span class="mute">Non repérés dans la base : ${esc(ignores.slice(0, 5).join(', '))}.</span>` : '') +
+      (prod.t != null ? `<label style="display:flex;gap:6px;align-items:flex-start;margin-top:6px">
+         <input type="checkbox" id="pfAg" checked style="margin-top:3px">
+         <span>Utiliser l’empreinte AGRIBALYSE de la catégorie « ${esc(prod.ag || '?')} » :
+         <b>${fr2(prod.t)} kg CO₂e/kg</b>, plus juste qu’un calcul par ingrédients pour un produit transformé.</span></label>`
+        : '<br><span class="mute">Pas d’empreinte AGRIBALYSE sur cette fiche : calcul par les ingrédients.</span>'));
+    const cb = $('#pfAg'); if(cb) cb.onchange = apercu;
+    apercu();
+  };
   $('#sheet').querySelectorAll('input').forEach(x => x.oninput = apercu);
   apercu();
   $('#pfOk').onclick = () => {
@@ -12058,12 +12157,15 @@ function persoSheet(nomInit){
       nu:r.nu.map(v => +(v || 0)), nu2:r.nu2, xs:r.ing[0].f.n,
       c:r.ing.map((x, i) => [x.f.s, +r.ws[i].toFixed(4)]),
       cn:Object.fromEntries(r.ing.map(x => [x.f.s, x.f.n]))};
+    if(agOn()){ o.src = 'off'; o.ag = String(prod.ag || '').slice(0, 120); o.ean = prod.ean; }
+    else if(prod) o.ean = prod.ean;
     if(r.ing.some(x => x.f.v === 0)) o.v = 0;
     if(r.ing.some(x => x.f.r)) o.r = 1;
     const sl = persoEnc(o);
     if(!persoAdd(sl)) return toast('Création impossible');
     try{ localStorage.setItem(PERSO_KEY, JSON.stringify([...new Set([...persoListe(), sl])])); }catch(e){}
-    persoEnvoyer(sl).catch(() => {});
+    persoEnvoyer(sl).then(ok => { if(!ok && SESS) toast('Aliment créé, mais pas encore transmis à l’équipe · ' + persoErr); })
+      .catch(e => { persoErr = String(e && e.message || e); toast('Envoi à l’équipe impossible · ' + persoErr); });
     closeSheet();
     /* Depuis la saisie, on relance la recherche sur le nouvel aliment : il
        apparaît aussitôt sous le doigt, prêt à être ajouté au repas. */
