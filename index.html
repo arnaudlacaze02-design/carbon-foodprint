@@ -3598,6 +3598,11 @@ SB.whoami = async () => {
   const t = await SB.fresh();
   if(!t) return null;
   const r = await SB.call('/auth/v1/user', {headers:{Authorization:'Bearer ' + t}});
+  /* L'adresse peut avoir changé ailleurs — lien de confirmation ouvert dans
+     Safari plutôt que dans l'app installée : on la remet à jour au passage. */
+  if(r.ok && r.body && r.body.email && SESS && SESS.email !== r.body.email){
+    SESS.email = r.body.email; SB.keepSess();
+  }
   return (r.ok && r.body && r.body.id) ? r.body.id : null;
 };
 
@@ -10979,7 +10984,7 @@ function legacySheet(){
     if(!r.ok){
       g.disabled = false; g.textContent = 'Se connecter';
       return toast(r.status === 0 ? 'Hors ligne'
-        : 'Pseudo ou mot de passe incorrect — si vous avez relié une adresse, connectez-vous avec elle');
+        : 'Pseudo ou mot de passe incorrect. Si vous avez relié une adresse e-mail, connectez-vous avec elle (même mot de passe)');
     }
     closeSheet();
     GATE.lier = true;            /* proposé une fois le parcours terminé */
