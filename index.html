@@ -2784,6 +2784,13 @@ const persoEnvoyes = () => { try{ const a = JSON.parse(localStorage.getItem(PERS
 /* Dernier échec d'envoi, gardé pour l'afficher : un envoi raté ne doit plus
    passer inaperçu, c'est ce qui rendait la remontée impossible à diagnostiquer. */
 let persoErr = '';
+/* Catalogue commun : un aliment proposé puis validé ou corrigé par l'admin porte
+   `pub` dans sa ligne aliments_corrections. Le slug contenant toute la définition,
+   il suffit de le connaître pour l'ajouter à la base de chacun — il apparaît alors
+   dans la recherche de tout le monde, sans passer par « Mes aliments ». */
+const persoPublies = map => Object.keys(map || {}).forEach(sl => {
+  if(map[sl] && map[sl].pub && !F.has(sl)) persoAdd(sl); });
+persoPublies(persoCorr());
 async function persoEnvoyer(sl){
   if(!SESS){ persoErr = 'non connecté'; return false; }
   if(!SB.ready()){ persoErr = 'serveur non configuré'; return false; }
@@ -2805,6 +2812,7 @@ async function persoEnvoyer(sl){
    à l'objet voient la nouvelle valeur. */
 function persoCorrAppliquer(map){
   try{ localStorage.setItem(PERSO_CORR_KEY, JSON.stringify(map)); }catch(e){}
+  persoPublies(map);
   Object.keys(map).forEach(sl => {
     if(!F.has(sl)) return;
     const neuf = persoFood(sl); if(neuf) Object.assign(F.get(sl), neuf);
@@ -12790,8 +12798,8 @@ function persoCorriger(x){
     <label style="display:block;margin-top:8px"><span class="small mute">Note visible par les utilisateurs (facultative)</span>
       <textarea class="search" id="crX" rows="3" maxlength="400" style="width:100%">${esc(k.note || '')}</textarea></label>
     <div class="actions">
-      <button class="btn btn-1" id="crOk">Enregistrer la correction</button>
-      <button class="btn btn-2" id="crVal">Valider tel quel</button>
+      <button class="btn btn-1" id="crOk">Corriger et publier</button>
+      <button class="btn btn-2" id="crVal">Valider tel quel et publier</button>
       <button class="btn btn-2" id="crRet">Retour</button>
       <button class="btn btn-2" id="crDel">Supprimer</button>
     </div>`);
@@ -12801,14 +12809,22 @@ function persoCorriger(x){
     headers:{Prefer:'return=minimal'}, body: JSON.stringify({statut:st, updated_at:new Date().toISOString()})});
   $('#crRet').onclick = persoRevue;
   $('#crVal').onclick = async () => {
+    /* Valider publie : la ligne de correction (existante ou vide) reçoit pub,
+       sans perdre une correction déjà faite. */
+    const def = Object.assign({}, persoCorr()[x.slug] || {}, {pub:1});
+    const w = await SB.rest('aliments_corrections?on_conflict=slug', {method:'POST',
+      headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify({slug:x.slug, def, updated_at:new Date().toISOString()})});
+    if(!w.ok) return toast('Publication refusée · ' + w.status);
+    persoCorrAppliquer(Object.assign(persoCorr(), {[x.slug]: def}));
     const r = await statut('valide');
-    toast(r.ok ? 'Validé' : 'Échec · ' + r.status); if(r.ok){ S.persoNouveaux = Math.max(0, (S.persoNouveaux || 0) - (x.statut === 'nouveau')); persoRevue(); }
+    toast(r.ok ? 'Validé · ajouté à la base de tous' : 'Échec · ' + r.status); if(r.ok){ S.persoNouveaux = Math.max(0, (S.persoNouveaux || 0) - (x.statut === 'nouveau')); persoRevue(); }
   };
   $('#crOk').onclick = async () => {
     const nu = ['crK', 'crP', 'crL', 'crG', 'crF'].map(num);
     const t = num('crT'), p = num('crQ'), n = $('#crN').value.trim();
     if(!n || !isFinite(t) || t < 0 || nu.some(z => !isFinite(z) || z < 0)) return toast('Nom, empreinte et cinq macros requis');
-    const def = {n, t, p: isFinite(p) && p > 0 ? Math.round(p) : (d.p || 100), nu, note: $('#crX').value.trim()};
+    const def = {n, t, p: isFinite(p) && p > 0 ? Math.round(p) : (d.p || 100), nu, note: $('#crX').value.trim(), pub:1};
     const w = await SB.rest('aliments_corrections?on_conflict=slug', {method:'POST',
       headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
       body: JSON.stringify({slug:x.slug, def, updated_at:new Date().toISOString()})});
@@ -12816,7 +12832,7 @@ function persoCorriger(x){
     await statut('corrige');
     persoCorrAppliquer(Object.assign(persoCorr(), {[x.slug]: def}));
     if(x.statut === 'nouveau') S.persoNouveaux = Math.max(0, (S.persoNouveaux || 0) - 1);
-    toast('Correction publiée'); persoRevue();
+    toast('Correction publiée · ajouté à la base de tous'); persoRevue();
   };
 }
 
