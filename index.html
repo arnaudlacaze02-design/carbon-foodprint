@@ -1755,6 +1755,27 @@ button.tip:active{transform:scale(.995)}
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
   padding:14px 12px; text-align:center}
 .hcard:active{background:var(--active)}
+/* Saisie express par description (IA) : une bande sous les deux carrés, pas un
+   troisième carré — c'est un raccourci vers le même brouillon, pas une voie de plus. */
+.iacard{width:100%; margin-top:10px; display:flex; align-items:center; gap:12px; text-align:left;
+  background:var(--co-bg, var(--card)); color:var(--co-on, var(--ink)); border:1px solid var(--line);
+  border-radius:var(--r); padding:14px}
+.iacard:active{filter:brightness(.95)}
+.iacard .ii{font-size:22px; line-height:1}
+.iacard .it{font-family:var(--display); font-weight:800; font-size:16px; display:block}
+.iacard .is{font-family:var(--mono); font-size:9px; letter-spacing:.04em; text-transform:uppercase; opacity:.75}
+.ialigne{display:grid; grid-template-columns:1fr auto auto; gap:6px 8px; align-items:center;
+  padding:9px 0; border-bottom:1px solid var(--line-soft)}
+.ialigne .nm{font-weight:600; font-size:14px; line-height:1.25}
+.ialigne .nm i{display:block; font-style:normal; font-size:11px; color:var(--mute); font-weight:400}
+.ialigne .nm .dout{color:var(--warn, #b26b00)}
+.ialigne input{width:64px; padding:7px 6px; border:1px solid var(--line); border-radius:8px;
+  background:var(--card); color:var(--ink); font:inherit; text-align:right}
+.ialigne select{grid-column:1 / -1; justify-self:start; padding:5px 6px; border:1px solid var(--line);
+  border-radius:8px; background:var(--card); color:var(--ink); font:inherit; font-size:12px}
+.ialigne .x{width:30px; height:30px; border-radius:50%; border:1px solid var(--line); background:var(--card);
+  color:var(--mute); font-size:15px; line-height:1}
+.iamic[aria-pressed="true"]{background:var(--forest); color:#fff; border-color:var(--forest)}
 .hcard .hi{width:44px; height:44px; border-radius:50%; background:var(--forest);
   display:flex; align-items:center; justify-content:center}
 .hcard .hi svg{width:22px; height:22px; stroke:#fff; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
@@ -9913,6 +9934,218 @@ function versValider(){
   });
 }
 
+/* ==================== saisie express par description (IA) ====================
+   L'utilisateur écrit ou dicte son repas ; l'Edge Function « analyser-repas »
+   rend des noms d'aliments de la base avec des grammes. L'IA ne fait que
+   traduire du texte libre en lignes : l'empreinte et la nutrition restent
+   calculées ici, par les mêmes facteurs que pour une saisie manuelle.
+
+   Rien n'est enregistré sans relecture. Les lignes passent par une feuille où
+   chaque grammage se corrige et chaque ligne se retire, puis tombent dans le
+   brouillon ordinaire — le même que remplit la saisie à la main. À partir de
+   là, tout le reste du parcours (boissons, favori, habitude) s'applique tel
+   quel.
+
+   La liste des noms est envoyée à chaque appel plutôt que figée côté serveur :
+   la base vit dans ce fichier, et un aliment ajouté ici doit être proposable
+   par l'IA sans redéployer la fonction. */
+const IA = {txt:'', occupe:false, res:null, err:null, meal:null, date:null, rec:null};
+
+const iaHeure = () => { const d = new Date();
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+const iaRepasParHeure = () => { const h = new Date().getHours();
+  return h < 11 ? 'pdj' : h < 15 ? 'dej' : h < 18 ? 'encas' : 'din'; };
+const IA_SVC = {entree:'Entrée', plat:'Plat', dessert:'Dessert', boisson:'Boisson', cafethe:'Café ou thé'};
+
+async function iaAnalyser(texte){
+  if(!SB.ready()) return {err:'Serveur non configuré'};
+  const tok = await SB.fresh();
+  if(!tok) return {err:'Connecte-toi pour utiliser la saisie par description'};
+  const r = await SB.call('/functions/v1/analyser-repas', {
+    method:'POST',
+    headers:{Authorization:'Bearer ' + tok},
+    body: JSON.stringify({texte, heure:iaHeure(), aliments:DB.foods.map(f => [f.n, f.p])}),
+  });
+  if(r.status === 0) return {err:'Pas de réseau'};
+  const b = r.body || {};
+  if(!r.ok || !b.ok) return {err: b.error || 'Analyse impossible · ' + (r.status || '?') +
+    (r.status === 404 ? ' · fonction analyser-repas non déployée' : '')};
+  return {res:b};
+}
+
+/* Réponse du serveur → lignes de l'app. Les noms exacts passent par la table
+   des noms ; les noms approchés par le rapprochement des recettes (rqSlug),
+   déjà rodé sur des milliers de lignes de sites culinaires, et sont marqués
+   « à vérifier ». Deux mentions du même aliment dans le même service sont
+   additionnées. */
+function iaMapper(b){
+  const noms = new Map(DB.foods.map(f => [f.n, f.s]));
+  const lignes = [], rates = [...(b.inconnus || [])];
+  const ajoute = (s, l, dout) => {
+    const svc = IA_SVC[l.service] ? l.service : 'plat';
+    const ex = lignes.find(x => x.s === s && x.svc === svc);
+    if(ex){ ex.g = Math.min(2000, ex.g + l.g); return; }
+    lignes.push({s, g:Math.round(l.g), svc, txt:l.texte || '', dout});
+  };
+  (b.lignes || []).forEach(l => {
+    const s = noms.get(l.nom);
+    s && F.has(s) ? ajoute(s, l, false) : rates.push(l.nom);
+  });
+  (b.approx || []).forEach(l => {
+    let s;
+    try{ s = rqSlug(rqNorm(l.nom)); }catch(e){ s = undefined; }
+    s && F.has(s) ? ajoute(s, l, true) : rates.push(l.texte || l.nom);
+  });
+  return {lignes, rates:[...new Set(rates.filter(Boolean))]};
+}
+
+function iaSheet(){
+  IA.res = null; IA.err = null; IA.occupe = false;
+  IA.meal = null; IA.date = today();
+  iaPaint();
+}
+
+function iaStopMic(){
+  if(IA.rec){ try{ IA.rec.stop(); }catch(e){} IA.rec = null; }
+}
+
+function iaPaint(){
+  if(IA.res) return iaPaintRelecture();
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  openSheet(`
+    <div class="unit">Saisie express</div>
+    <h3>Décris ton repas</h3>
+    <p class="small mute">Écris ou dicte ce que tu as mangé, avec les quantités si tu les connais.
+      L’IA propose les lignes, tu relis avant d’ajouter.</p>
+    <textarea class="search" id="ia_t" rows="4" maxlength="600"
+      style="font-family:inherit;resize:vertical;margin-top:8px;width:100%"
+      placeholder="Ex. ce midi, une assiette de pâtes bolognaise, un yaourt et un café"
+      >${esc(IA.txt)}</textarea>
+    ${IA.err ? `<div class="pastwarn" style="margin-top:8px">${esc(IA.err)}</div>` : ''}
+    <div class="actions" style="margin-top:10px">
+      ${SR ? `<button class="btn btn-2 iamic" id="ia_mic" aria-pressed="false">🎙 Dicter</button>` : ''}
+      <button class="btn btn-1" id="ia_go"${IA.occupe ? ' disabled' : ''}>${
+        IA.occupe ? 'Analyse en cours…' : '✨ Analyser'}</button>
+    </div>
+    ${SR ? '' : `<div class="src" style="margin-top:8px">Pour dicter, utilise le micro de ton clavier.</div>`}
+    <div class="src" style="margin-top:12px">Le texte est envoyé à un modèle d’IA (Mistral, ou Groq en
+      secours) pour être découpé en aliments de la base. Le carbone et la nutrition restent calculés
+      par l’app avec AGRIBALYSE et CIQUAL.</div>`);
+  const ta = $('#ia_t');
+  ta.oninput = () => { IA.txt = ta.value; };
+  if(!IA.occupe) setTimeout(() => { try{ ta.focus(); }catch(e){} }, 250);
+
+  const mic = $('#ia_mic');
+  if(mic) mic.onclick = () => {
+    if(IA.rec){ iaStopMic(); mic.setAttribute('aria-pressed', 'false'); mic.textContent = '🎙 Dicter'; return; }
+    let rec;
+    try{ rec = new SR(); }catch(e){ return toast('Dictée indisponible sur ce navigateur'); }
+    rec.lang = 'fr-FR'; rec.interimResults = true; rec.continuous = false;
+    const base = ta.value.trim() ? ta.value.trim() + ' ' : '';
+    rec.onresult = e => {
+      let t = '';
+      for(const r of e.results) t += r[0].transcript;
+      ta.value = base + t; IA.txt = ta.value;
+    };
+    rec.onerror = e => toast(e.error === 'not-allowed' || e.error === 'service-not-allowed'
+      ? 'Micro refusé · autorise-le ou utilise la dictée du clavier' : 'Dictée interrompue');
+    rec.onend = () => { IA.rec = null;
+      const m = $('#ia_mic'); if(m){ m.setAttribute('aria-pressed', 'false'); m.textContent = '🎙 Dicter'; } };
+    IA.rec = rec;
+    try{ rec.start(); mic.setAttribute('aria-pressed', 'true'); mic.textContent = '⏹ Arrêter'; haptic(); }
+    catch(e){ IA.rec = null; toast('Dictée indisponible'); }
+  };
+
+  $('#ia_go').onclick = async () => {
+    iaStopMic();
+    const t = (IA.txt = ta.value).trim();
+    if(t.length < 3){ IA.err = 'Décris ton repas en quelques mots'; return iaPaint(); }
+    IA.occupe = true; IA.err = null; iaPaint();
+    const r = await iaAnalyser(t);
+    IA.occupe = false;
+    if(r.err){ IA.err = r.err; return iaPaint(); }
+    const m = iaMapper(r.res);
+    if(!m.lignes.length){
+      IA.err = 'Aucun aliment reconnu' + (m.rates.length ? ' (' + m.rates.slice(0, 4).join(', ') + ')' : '') +
+               ' · précise ou saisis à la main';
+      return iaPaint();
+    }
+    IA.res = {...m, reste:r.res.reste};
+    IA.meal = r.res.repas || iaRepasParHeure();
+    iaPaint();
+  };
+}
+
+function iaPaintRelecture(){
+  const R = IA.res, m = IA.meal, courses = m === 'dej' || m === 'din';
+  const tot = kgOf(R.lignes.map(l => [l.s, l.g, l.svc, 'frais']));
+  openSheet(`
+    <div class="unit">Saisie express · relecture</div>
+    <h3>${R.lignes.length} aliment${R.lignes.length > 1 ? 's' : ''} · ${n2(tot)} kg</h3>
+    <div class="chips" style="margin-top:6px" role="group" aria-label="Repas">
+      ${MEAL_ORDER.map(k => `<button class="chip" data-iam="${k}" aria-pressed="${k === m}">${MEAL[k].l}</button>`).join('')}
+    </div>
+    <div class="chips" role="group" aria-label="Jour">
+      <button class="chip" data-iad="${today()}" aria-pressed="${IA.date === today()}">Aujourd’hui</button>
+      <button class="chip" data-iad="${yesterday()}" aria-pressed="${IA.date === yesterday()}">Hier</button>
+    </div>
+    <div style="margin-top:4px">
+      ${R.lignes.map((l, i) => { const f = F.get(l.s); return `
+        <div class="ialigne">
+          <span class="nm">${esc(f.n)}<i>${l.dout ? '<span class="dout">à vérifier · </span>' : ''}${
+            l.txt ? '« ' + esc(l.txt) + ' »' : ''}</i></span>
+          <label><input type="number" inputmode="numeric" min="1" max="2000" step="5"
+            data-iag="${i}" value="${l.g}" aria-label="Grammes de ${esc(f.n)}"> g</label>
+          <button class="x" data-iax="${i}" aria-label="Retirer ${esc(f.n)}">×</button>
+          ${courses ? `<select data-ias="${i}" aria-label="Service">${
+            ['entree','plat','dessert','boisson','cafethe'].map(k =>
+              `<option value="${k}"${k === l.svc ? ' selected' : ''}>${IA_SVC[k]}</option>`).join('')}</select>` : ''}
+        </div>`; }).join('')}
+    </div>
+    ${R.rates.length ? `<div class="src" style="margin-top:10px">Pas trouvé dans la base :
+      ${R.rates.map(esc).join(', ')}. Tu pourras les ajouter à la main.</div>` : ''}
+    <div class="actions" style="margin-top:12px">
+      <button class="btn btn-2" id="ia_back">‹ Modifier</button>
+      <button class="btn btn-1" id="ia_ok"${R.lignes.length ? '' : ' disabled'}>Ajouter à la saisie</button>
+    </div>
+    ${R.reste != null ? `<div class="src" style="margin-top:8px">${R.reste} analyse${
+      R.reste > 1 ? 's' : ''} restante${R.reste > 1 ? 's' : ''} aujourd’hui.</div>` : ''}`);
+
+  const sh = $('#sheet');
+  sh.querySelectorAll('[data-iam]').forEach(b => b.onclick = () => { IA.meal = b.dataset.iam; iaPaint(); });
+  sh.querySelectorAll('[data-iad]').forEach(b => b.onclick = () => { IA.date = b.dataset.iad; iaPaint(); });
+  sh.querySelectorAll('[data-iag]').forEach(inp => inp.onchange = () => {
+    const v = Math.round(+inp.value);
+    R.lignes[+inp.dataset.iag].g = v >= 1 ? Math.min(2000, v) : 1;
+    iaPaint();
+  });
+  sh.querySelectorAll('[data-ias]').forEach(sel => sel.onchange = () => { R.lignes[+sel.dataset.ias].svc = sel.value; });
+  sh.querySelectorAll('[data-iax]').forEach(b => b.onclick = () => { R.lignes.splice(+b.dataset.iax, 1); iaPaint(); });
+  $('#ia_back').onclick = () => { IA.res = null; iaPaint(); };
+  $('#ia_ok').onclick = iaAppliquer;
+}
+
+/* Le brouillon est posé comme si l'utilisateur l'avait composé lui-même :
+   déjeuner et dîner arrivent sur l'écran de fin (« Le repas est-il complet ? »),
+   avec leurs services ; petit-déjeuner et en-cas sur le composeur, où tout est
+   rangé en « plat » comme le fait la saisie manuelle de ces repas. */
+function iaAppliquer(){
+  const R = IA.res, m = IA.meal, courses = m === 'dej' || m === 'din';
+  const L = R.lignes.filter(l => l.g >= 1);
+  if(!L.length) return toast('Aucune ligne à ajouter');
+  S.editId = null; S.wiz = null;
+  S.meal = m; S.entryDate = IA.date || today();
+  S.pdjNew = true; S.pdjSave = false; S.pdjEdit = false;
+  S.platLarge = false; S.modeFrom = null;
+  setMealMode('frais');
+  S.draft = L.map(l => [l.s, l.g, courses ? l.svc : 'plat', 'frais']);
+  if(courses){ S.step = 'finish'; }
+  else { S.step = 'saisie'; S.comCat = 'plat'; S.path = 'compose'; S.dishQ = ''; }
+  IA.res = null; IA.txt = '';
+  save(); closeSheet(); go('saisie');
+  toast(`${L.length} aliment${L.length > 1 ? 's' : ''} ajouté${L.length > 1 ? 's' : ''} · vérifie et enregistre`, {ok:true});
+}
+
 function renderSaisie(){
   topbar();
   /* Un brouillon vide s'écrit aussi : c'est ce qui purge la reprise dès qu'un
@@ -9945,7 +10178,13 @@ function renderSaisie(){
           <span class="ht">Modifier un repas</span>
           <span class="hs">${S.hist.length} repas enregistré${S.hist.length>1?'s':''}</span>
         </button>
-      </div>`;
+      </div>
+      <button class="iacard" data-co="7" id="hIA">
+        <span class="ii" aria-hidden="true">✨</span>
+        <span><span class="it">Décrire mon repas</span>
+          <span class="is">À l’écrit ou à la voix · l’IA remplit la saisie</span></span>
+      </button>`;
+    $('#hIA').onclick = iaSheet;
     $('#hNew').onclick = () => { S.step = 'meal'; S.draft = []; S.wiz = null; renderSaisie(); };
     $('#hEdit').onclick = editSheet;
     return;
