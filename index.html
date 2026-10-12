@@ -152,6 +152,11 @@ button{font-family:inherit;font-size:inherit;color:inherit;background:none;borde
    de police. Rien à voir avec un réglage de viewport. */
 input,select,textarea{font-family:inherit; font-size:16px; color:inherit}
 :focus-visible{outline:2px solid var(--forest); outline-offset:2px; border-radius:4px}
+/* Contrôles natifs (date, scrollbars, select) alignés sur le thème choisi */
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+select{background-color:var(--paper); color:var(--ink)}
+h1,h2,h3{text-wrap:balance}
 
 /* ---------------- topbar ---------------- */
 .topbar{
@@ -1519,7 +1524,7 @@ svg.spark{width:100%; height:96px; display:block; overflow:visible}
 .sheet{
   position:fixed; left:50%; bottom:0; width:100%; max-width:430px; transform:translate(-50%,102%);
   background:var(--paper); z-index:50; border-radius:20px 20px 0 0; padding:18px 18px 30px;
-  transition:transform .22s var(--ease-drawer); max-height:82vh; overflow-y:auto;
+  transition:transform .22s var(--ease-drawer); max-height:82vh; overflow-y:auto; overscroll-behavior:contain;
 }
 .sheet.on{transform:translate(-50%,0); transition-duration:.32s}
 .sheet.drag{transition:none}
@@ -2579,7 +2584,7 @@ html[data-gate="1"] .phone{display:none}
 <div class="zoom" id="zoom" role="dialog" aria-modal="true" aria-label="Badge"></div>
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div id="spin" aria-hidden="true"><div class="m"></div><div class="t"></div></div>
 <div id="fxbg" aria-hidden="true"></div>
 <canvas id="fxsp" aria-hidden="true"></canvas>
@@ -3847,6 +3852,14 @@ function carteAxeGrande(o){
   </div>`;
 }
 
+/* Les blocs cliquables qui ne sont pas des <button> (role="button") répondent à
+   Entrée et Espace comme un vrai bouton — sauf ceux qui gèrent déjà leur clavier. */
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if(!(el instanceof HTMLElement) || el.tagName === 'BUTTON' || el.onkeydown) return;
+  if(el.getAttribute('role') !== 'button') return;
+  if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); el.click(); }
+});
 function toast(msg){
   const t = $('#toast'); t.textContent = msg; t.classList.add('on');
   clearTimeout(toast.t); toast.t = setTimeout(()=>t.classList.remove('on'), 2100);
@@ -5297,7 +5310,7 @@ function recipeSheet(){
 
       <div class="rqpers">
         <span class="small">Recette pour</span>
-        <input id="rq_n" type="number" inputmode="numeric" min="1" max="30" value="${pers}">
+        <input id="rq_n" aria-label="Nombre de personnes" type="number" inputmode="numeric" min="1" max="30" value="${pers}">
         <span class="small">personne${pers > 1 ? 's' : ''}</span>
       </div>
 
@@ -5323,7 +5336,7 @@ function recipeSheet(){
       ${q.ing.length ? q.ing.map((l, k) => `<div class="rqline">
           <span class="nm">${esc(F.get(l[0]).n)}${
             l[2] ? `<i>${esc(l[2])}</i>` : ''}</span>
-          <input type="number" inputmode="numeric" min="1" max="5000" value="${l[1]}" data-rqg="${k}">
+          <input type="number" inputmode="numeric" min="1" max="5000" value="${l[1]}" data-rqg="${k}" aria-label="Grammes de ${esc(F.get(l[0]).n)}">
           <span class="kg">${n2(kgOf([l]))}</span>
           <button class="rm" data-rqrm="${k}" aria-label="Retirer">×</button>
         </div>`).join('')
@@ -5643,7 +5656,7 @@ function recSaveBody(b){
     </div>
     ${autres.length ? `<div class="src" style="margin-top:10px">Non repris, faute d’exister dans la base :
       ${autres.map(a => esc(a)).join(' · ')}.</div>` : ''}
-    <input class="search" id="rs_n" style="margin-top:12px" maxlength="70" value="${esc(nomDef)}">
+    <input class="search" id="rs_n" aria-label="Nom de la recette" style="margin-top:12px" maxlength="70" value="${esc(nomDef)}">
     <div class="actions">
       <button class="btn btn-1" id="rs_ok">Ajouter à mes plats types</button>
       <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
@@ -6813,7 +6826,7 @@ function feedDefis(ctx){
               <i class="small mute" style="font-style:normal">  ·  de ${esc((ch.aut||{}).username || '?')}
                 · ${dLabel(ch.starts)} → ${dLabel(ch.ends)}</i></span>
             <button class="rm" data-cyes="${i}" style="color:var(--accent);font-size:13px">Rejoindre</button>
-            <button class="rm" data-cno="${i}">×</button>
+            <button class="rm" data-cno="${i}" aria-label="Refuser l’invitation">×</button>
           </div>`).join('')}
       </div>` : ''}
 
@@ -6909,7 +6922,7 @@ function feedAmis(ctx){
       <h2 class="sec">Demandes envoyées · ${F.out.length}</h2>
       <div class="card">
         ${F.out.map((x,i) => ligne(x.dst.username, x.dst.username_slug,
-          `<span class="q">en attente</span><button class="rm" data-cancel="${i}">×</button>`)).join('')}
+          `<span class="q">en attente</span><button class="rm" data-cancel="${i}" aria-label="Annuler la demande à ${esc(x.dst.username)}">×</button>`)).join('')}
         <div class="src" style="margin-top:10px">Elles restent en attente jusqu’à la réponse
           de l’intéressé. Vous pouvez les annuler.</div>
       </div>` : ''}
@@ -6920,7 +6933,7 @@ function feedAmis(ctx){
         ? F.friends.map((x,i) => { const a = frAutre(x);
             return ligne(a.username, a.username_slug,
               `<button class="rm" data-fiche="${i}" style="color:var(--accent);font-size:13px">Fiche</button>
-               <button class="rm" data-un="${i}">×</button>`); }).join('')
+               <button class="rm" data-un="${i}" aria-label="Retirer ${esc(a.username)} de mes amis">×</button>`); }).join('')
         : `<p class="small mute">Personne pour l’instant. Cherchez un pseudo ci-dessus et envoyez
             une demande.</p>`}
       ${(F.refuses || []).length ? `<div class="src" style="margin-top:10px">${F.refuses.length}
@@ -6935,7 +6948,7 @@ function feedAmis(ctx){
           Elles n’ont jamais été prévenues. Envoyez-leur une vraie demande, ou retirez-les.</p>
         ${S.people.map((p,i) => ligne(p.username, p.slug,
           `<button class="rm" data-mig="${i}" style="color:var(--accent);font-size:13px">Demander</button>
-           <button class="rm" data-old="${i}">×</button>`)).join('')}
+           <button class="rm" data-old="${i}" aria-label="Retirer ${esc(p.username)}">×</button>`)).join('')}
       </div>` : ''}
 
     <h2 class="sec">La suite</h2>
@@ -7064,7 +7077,11 @@ function renderFeed(){
   view.querySelectorAll('[data-yes]').forEach(b => b.onclick = () => frDecide(F.in[+b.dataset.yes], 'accepted'));
   view.querySelectorAll('[data-no]').forEach(b => b.onclick = () => frDecide(F.in[+b.dataset.no], 'declined'));
   view.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => frDrop(F.out[+b.dataset.cancel], 'Demande annulée'));
-  view.querySelectorAll('[data-un]').forEach(b => b.onclick = () => frDrop(F.friends[+b.dataset.un], 'Ami retiré'));
+  view.querySelectorAll('[data-un]').forEach(b => b.onclick = () => {
+    const x = F.friends[+b.dataset.un];
+    if(!confirm(`Retirer ${frAutre(x).username} de vos amis ? Il faudra une nouvelle demande pour vous retrouver.`)) return;
+    frDrop(x, 'Ami retiré');
+  });
   view.querySelectorAll('[data-fiche]').forEach(b => b.onclick = () => {
     const x = F.friends[+b.dataset.fiche], a = frAutre(x);
     tasteSheet(x.requester === SESS.uid ? x.addressee : x.requester, a.username);
@@ -7081,6 +7098,7 @@ function renderFeed(){
     S.people.splice(+b.dataset.mig, 1); save(); renderFeed();
   });
   view.querySelectorAll('[data-old]').forEach(b => b.onclick = () => {
+    if(!confirm(`Retirer ${S.people[+b.dataset.old].username} de vos contacts ?`)) return;
     S.people.splice(+b.dataset.old, 1); save(); renderFeed(); toast('Retiré');
   });
 }
@@ -8805,7 +8823,7 @@ function saveCourse(c){
     <h3>Enregistrer cette ${label.toLowerCase()}</h3>
     <div class="small mute" style="margin-bottom:8px">${lines.length} ingrédients ·
       ${n2(kgOf(lines))} kg CO₂e. Le plat rejoindra vos favoris, en tête de la liste.</div>
-    <input class="search" id="cname" value="${esc(label)} ${esc(base.toLowerCase())}">
+    <input class="search" id="cname" aria-label="Nom du plat" value="${esc(label)} ${esc(base.toLowerCase())}">
     <div class="actions">
       <button class="btn btn-1" id="cok">Enregistrer</button>
       <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
@@ -9014,7 +9032,7 @@ function renderFinish(D, isToday, draftKg){
   $('#favMeal').onclick = () => openSheet(`
     <h3>Garder en favori</h3>
     <p class="small mute">Ce repas réapparaîtra dans la liste, étoilé et en tête.</p>
-    <input class="search" id="favname" value="${esc(MEAL[S.meal].l)} type" style="margin-top:6px">
+    <input class="search" id="favname" aria-label="Nom du favori" value="${esc(MEAL[S.meal].l)} type" style="margin-top:6px">
     <div class="actions">
       <button class="btn btn-1" id="favok">Enregistrer</button>
       <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
@@ -9747,7 +9765,7 @@ function partAddSheet(){
     <div class="unit">Nouveau lieu</div>
     <h3 style="margin:2px 0 4px">Ajouter une adresse</h3>
     <p class="small mute">Une cantine, un traiteur, une chaîne, le restaurant d’en bas.</p>
-    <input class="search" id="pa_n" maxlength="40" placeholder="Nom du lieu" autocomplete="off">
+    <input class="search" id="pa_n" aria-label="Nom du lieu" maxlength="40" placeholder="Nom du lieu" autocomplete="off">
     <div class="unit" style="margin:10px 0 6px">Provenance appliquée</div>
     ${Object.entries(MODE).map(([k, m], i) => `
       <button class="qopt" data-pamode="${k}" aria-pressed="${i === 2}">
@@ -9873,7 +9891,7 @@ function renderSaisie(){
     view.innerHTML = `
       <button class="backlink" id="sBack">‹ Retour</button>
       <div class="daterow">
-        <input type="date" id="edate" value="${D}" max="${today()}">
+        <input type="date" id="edate" value="${D}" max="${today()}" aria-label="Date du journal">
         <button id="dToday" aria-pressed="${isToday}">Aujourd’hui</button>
         <button id="dYest" aria-pressed="${D === yesterday()}">Hier</button>
       </div>
@@ -10490,7 +10508,7 @@ function renderSaisie(){
   if(fv && !fv.disabled) fv.onclick = () => openSheet(`
       <h3>Garder en favori</h3>
       <p class="small mute">Ce repas réapparaîtra dans la liste, étoilé et en tête.</p>
-      <input class="search" id="favname" value="${esc(MEAL[S.meal].l)} type" style="margin-top:6px">
+      <input class="search" id="favname" aria-label="Nom du favori" value="${esc(MEAL[S.meal].l)} type" style="margin-top:6px">
       <div class="actions">
         <button class="btn btn-1" id="favok">Enregistrer</button>
         <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
@@ -10640,9 +10658,9 @@ function recoverSheet(pseudo){
     <h3>Code de récupération</h3>
     <p class="small mute">Saisissez le pseudo, le code noté à l'inscription, puis un nouveau
       mot de passe. Cinq tentatives, puis blocage d'un quart d'heure.</p>
-    <input class="search" id="rv_p" placeholder="Pseudo" value="${esc(pseudo || '')}">
-    <input class="search" id="rv_c" placeholder="Code de récupération" style="margin-top:7px;font-family:var(--mono)">
-    <input class="search" id="rv_m" type="password" placeholder="Nouveau mot de passe" style="margin-top:7px">
+    <input class="search" id="rv_p" aria-label="Pseudo" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Pseudo" value="${esc(pseudo || '')}">
+    <input class="search" id="rv_c" aria-label="Code de récupération" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Code de récupération" style="margin-top:7px;font-family:var(--mono)">
+    <input class="search" id="rv_m" type="password" aria-label="Nouveau mot de passe" autocomplete="new-password" placeholder="Nouveau mot de passe" style="margin-top:7px">
     <div class="actions">
       <button class="btn btn-1" id="rv_go">Réinitialiser</button>
       <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
@@ -11076,8 +11094,8 @@ function legacySheet(){
     <h3>Connexion par pseudo</h3>
     <p class="small mute">Pour les comptes créés avant l’arrivée de l’e-mail. Une fois connecté,
       reliez une adresse : elle remplacera le pseudo pour vous connecter.</p>
-    <input class="search" id="lg_p" placeholder="Pseudo" autocomplete="username" autocapitalize="none">
-    <input class="search" id="lg_m" type="password" placeholder="Mot de passe"
+    <input class="search" id="lg_p" aria-label="Pseudo" spellcheck="false" placeholder="Pseudo" autocomplete="username" autocapitalize="none">
+    <input class="search" id="lg_m" type="password" aria-label="Mot de passe" placeholder="Mot de passe"
            autocomplete="current-password" style="margin-top:7px">
     <div class="actions">
       <button class="btn btn-1" id="lg_go">Se connecter</button>
@@ -11112,7 +11130,7 @@ function lierEmailSheet(){
     <p class="small mute">Elle servira à vous connecter — avec votre mot de passe actuel, ou avec
       Google si c’est une adresse Gmail — et à récupérer le compte par lien. Votre pseudo, vos
       repas et vos amis ne changent pas.</p>
-    <input class="search" id="le_e" type="email" autocapitalize="none" placeholder="vous@exemple.fr">
+    <input class="search" id="le_e" type="email" aria-label="Adresse e-mail" autocomplete="email" spellcheck="false" autocapitalize="none" placeholder="vous@exemple.fr">
     <div class="actions">
       <button class="btn btn-1" id="le_go">Envoyer le lien de confirmation</button>
       <button class="btn btn-2" onclick="closeSheet()">Plus tard</button>
@@ -11629,7 +11647,7 @@ function profQuiz(i){
     const val = cur != null ? cur : profDefault(q);
     corps = `
       <div class="qbig" id="q_out"></div>
-      <input class="qrange" type="range" id="q_rng"
+      <input class="qrange" type="range" id="q_rng" aria-label="Protéines visées, en g par kg de poids"
              min="${q.range.min}" max="${q.range.max}" step="${q.range.step}" value="${val}">
       <div class="qends"><span id="q_lo"></span><span id="q_hi"></span></div>
       <div class="src" id="q_hint" style="margin-top:10px"></div>`;
@@ -11645,7 +11663,7 @@ function profQuiz(i){
     corps = protPoids
       ? `<div class="qbig" id="q_out"></div>
          ${protAjuste
-           ? `<input class="qrange" type="range" id="q_rng" min="0.6" max="2.2" step="0.05" value="${gkg}">
+           ? `<input class="qrange" type="range" id="q_rng" aria-label="Protéines visées, en g par kg de poids" min="0.6" max="2.2" step="0.05" value="${gkg}">
               <div class="qends"><span id="q_lo">0,6 g/kg</span><span id="q_hi">2,2 g/kg</span></div>`
            : `<button class="backlink" id="q_adj" style="margin-top:6px">Ajuster la quantité par kilo ›</button>`}
          <div class="src" id="q_hint" style="margin-top:10px"></div>
@@ -12566,7 +12584,7 @@ function persoSheet(nomInit){
   openSheet(`<h3>Créer un aliment</h3>
     <div class="small mute">Remplir depuis un produit</div>
     <div style="display:flex;gap:8px;margin-top:6px">
-      <input class="search" id="pfU" type="text" inputmode="url" placeholder="Lien Carrefour… ou code-barres" style="flex:1;min-width:0">
+      <input class="search" id="pfU" type="text" inputmode="url" aria-label="Lien produit ou code-barres" autocomplete="off" spellcheck="false" placeholder="Lien Carrefour… ou code-barres" style="flex:1;min-width:0">
       <button class="btn btn-2" id="pfCam" type="button" aria-label="Photographier le code-barres">📷</button>
       <button class="btn btn-2" id="pfLire" type="button">Lire</button>
       <input id="pfPhoto" type="file" accept="image/*" capture="environment" hidden>
@@ -12576,7 +12594,7 @@ function persoSheet(nomInit){
       <input class="search" id="pfN" type="text" maxlength="80" placeholder="ex. Cottage cheese Nordica" style="width:100%"></label>
     <div class="small mute" style="margin-top:14px">Ingrédients principaux · 1 à 3, du plus au moins présent</div>
     ${[0, 1, 2].map(i => `<div style="display:flex;gap:8px;margin-top:6px">
-      <input class="search" id="pfI${i}" list="pfList" placeholder="${i ? 'Ingrédient ' + (i + 1) + ' (facultatif)' : 'ex. Lait de vache'}" style="flex:1;min-width:0">
+      <input class="search" id="pfI${i}" list="pfList" aria-label="Ingrédient ${i + 1}" placeholder="${i ? 'Ingrédient ' + (i + 1) + ' (facultatif)' : 'ex. Lait de vache'}" style="flex:1;min-width:0">
       <input class="search" id="pfW${i}" type="text" inputmode="decimal" placeholder="%" style="width:64px" aria-label="Part de l’ingrédient ${i + 1} en %">
     </div>`).join('')}
     <datalist id="pfList">${base.map(f => `<option value="${esc(f.n)}"></option>`).join('')}</datalist>
@@ -14851,7 +14869,7 @@ function coachChartHTML(data, t, selKey, selIdx, moyVal){
      de repère. Même largeurs de colonne, même gap, donc toujours alignés
      avec leur barre malgré le défilement horizontal partagé. */
   const days = data.map((d, i) =>
-    `<div class="coachnu-day" data-cnd="${i}" style="width:${colW}px">${coachJourLabel(d.d)}</div>`).join('');
+    `<div class="coachnu-day" data-cnd="${i}" role="button" tabindex="0" style="width:${colW}px">${coachJourLabel(d.d)}</div>`).join('');
   /* La ligne pointillée reste dans le contenu défilant (elle doit traverser
      tous les jours) ; le libellé, lui, sort du flux défilant et vit dans un
      bandeau fixe au-dessus, aligné à droite — il ne peut plus scroller sous
@@ -15185,7 +15203,7 @@ function coachModeDepuisSheet(){
   openSheet(`
     <h3>Depuis quand \u00eates-vous en ${esc(MODES_ENTR[mode].l)} ?</h3>
     <div class="small mute" style="margin-bottom:10px">Les moyennes et les courbes du Coach Nutrition ne regarderont pas avant cette date, pour ne pas m\u00e9langer cette phase avec la pr\u00e9c\u00e9dente. Laissez vide pour ne poser aucune borne.</div>
-    <input type="date" id="cnDepuisDate" value="${depuis}" max="${today()}" style="width:100%">
+    <input type="date" id="cnDepuisDate" aria-label="Date de début de la phase" value="${depuis}" max="${today()}" style="width:100%">
     <div class="actions" style="margin-top:14px">
       <button class="btn btn-1" id="cnDepuisOk">Enregistrer</button>
       ${depuis ? `<button class="btn btn-2" id="cnDepuisClear">Retirer la borne</button>` : ''}
@@ -15352,7 +15370,7 @@ function courseSheet(view){
     ${c.cat && EFFORT_SPORTS[c.sport].cats[c.cat] ? `<div class="src" style="margin-top:8px">${esc(EFFORT_SPORTS[c.sport].cats[c.cat].note)}</div>` : ''}
     ` : ''}
     <div class="small" style="font-weight:700; margin:14px 0 6px">Date de la course</div>
-    <input type="date" id="crdate" value="${c.date || ''}" min="${iso(new Date())}" style="width:100%">
+    <input type="date" id="crdate" aria-label="Date de la course" value="${c.date || ''}" min="${iso(new Date())}" style="width:100%">
     ${c.date ? `<button class="btn" id="crClear" style="margin-top:16px; width:100%">Retirer cette course</button>` : ''}
     <button class="btn btn-2" id="crFermer" style="margin-top:10px; width:100%">Fermer</button>
   `;
@@ -15442,10 +15460,10 @@ function jourJProduitSheet(){
   openSheet(`
     <h3>Ajouter un produit</h3>
     <div class="small mute" style="margin-bottom:12px">Les valeurs sont sur l\u2019emballage, \u00e0 c\u00f4t\u00e9 de \u00ab valeurs nutritionnelles \u00bb.</div>
-    <input type="text" id="jjNom" placeholder="Marque + nom (ex: Overstim.s Gel Boost)" style="width:100%; margin-bottom:8px">
-    <input type="text" id="jjPortion" placeholder="Portion (ex: 1 sachet de 30 g)" style="width:100%; margin-bottom:8px">
-    <input type="number" id="jjGluc" placeholder="Glucides par portion (g)" style="width:100%; margin-bottom:8px">
-    <input type="number" id="jjSodium" placeholder="Sodium par portion (mg)" style="width:100%; margin-bottom:14px">
+    <input type="text" id="jjNom" aria-label="Marque et nom du produit" placeholder="Marque + nom (ex: Overstim.s Gel Boost)" style="width:100%; margin-bottom:8px">
+    <input type="text" id="jjPortion" aria-label="Portion" placeholder="Portion (ex: 1 sachet de 30 g)" style="width:100%; margin-bottom:8px">
+    <input type="number" id="jjGluc" inputmode="decimal" aria-label="Glucides par portion, en g" placeholder="Glucides par portion (g)" style="width:100%; margin-bottom:8px">
+    <input type="number" id="jjSodium" inputmode="numeric" aria-label="Sodium par portion, en mg" placeholder="Sodium par portion (mg)" style="width:100%; margin-bottom:14px">
     <button class="btn" id="jjSaveProd" style="width:100%">Ajouter</button>
   `);
   const save2 = $('#jjSaveProd');
@@ -16122,7 +16140,7 @@ function cxBloc(){
   const flags = (fibBad?1:0) + (ferBad?1:0) + (selBad?1:0) + (alaBad?1:0) + (epaBad?1:0) + (redBad?1:0) + (charcBad?1:0);
 
   return `<div class="cx-wrap${CX_OPEN ? ' open' : ''}" id="cxWrap">
-    <div class="cx-head" id="cxHead">
+    <div class="cx-head" id="cxHead" role="button" tabindex="0" aria-expanded="${CX_OPEN ? 'true' : 'false'}">
       <div>
         <div class="cx-title"><span class="cx-name">Carences & excès</span></div>
         <div class="cx-sub">${flags ? `${flags} point${flags>1?'s':''} d’attention` : 'Tout est dans la cible'} · ${periode} ${periode===1?'jour':'jours'}</div>
@@ -16151,7 +16169,7 @@ function cxBloc(){
       </div>
 
       <div class="card">
-        <div class="n-top" data-cxcard="1">
+        <div class="n-top" data-cxcard="1" role="button" tabindex="0">
           <div class="n-name">🌾 Fibres <span class="chevron">▾</span></div>
           ${fibPill}
         </div>
@@ -16172,7 +16190,7 @@ function cxBloc(){
       </div>
 
       <div class="card">
-        <div class="n-top" data-cxcard="1">
+        <div class="n-top" data-cxcard="1" role="button" tabindex="0">
           <div class="n-name">🩸 Fer <span class="chevron">▾</span></div>
           ${ferPill}
         </div>
@@ -16193,7 +16211,7 @@ function cxBloc(){
       </div>
 
       <div class="card">
-        <div class="n-top" data-cxcard="1">
+        <div class="n-top" data-cxcard="1" role="button" tabindex="0">
           <div class="n-name">🌰 Oméga-3 (ALA) <span class="chevron">▾</span></div>
           ${alaPill}
         </div>
@@ -16210,7 +16228,7 @@ function cxBloc(){
       </div>
 
       <div class="card">
-        <div class="n-top" data-cxcard="1">
+        <div class="n-top" data-cxcard="1" role="button" tabindex="0">
           <div class="n-name">🐟 Oméga-3 (EPA/DHA) <span class="chevron">▾</span></div>
           ${epaPill}
         </div>
@@ -16231,7 +16249,7 @@ function cxBloc(){
       </div>
 
       <div class="card">
-        <div class="n-top" data-cxcard="1">
+        <div class="n-top" data-cxcard="1" role="button" tabindex="0">
           <div class="n-name">🧂 Sel <span class="chevron">▾</span></div>
           ${selPill}
         </div>
@@ -16254,7 +16272,7 @@ function cxBloc(){
       </div>
 
       ${redVisible ? `<div class="card">
-        <div class="n-top" data-cxcard="1">
+        <div class="n-top" data-cxcard="1" role="button" tabindex="0">
           <div class="n-name">🥩 Viande rouge <span class="chevron">▾</span></div>
           ${redPill}
         </div>
@@ -16277,7 +16295,7 @@ function cxBloc(){
       </div>` : ''}
 
       <div class="card">
-        <div class="n-top" data-cxcard="1">
+        <div class="n-top" data-cxcard="1" role="button" tabindex="0">
           <div class="n-name">🥓 Charcuterie <span class="chevron">▾</span></div>
           ${charcPill}
         </div>
@@ -17096,7 +17114,7 @@ function entrySheet(id, back){
       <div class="gp" style="font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute)">
         ${MEAL[e.m].l} · ${dLabel(e.d)}</div>
       ${renommer
-        ? `<input class="search" id="es_nom" maxlength="70" value="${esc(e.n)}" style="margin:4px 0 8px">`
+        ? `<input class="search" id="es_nom" aria-label="Nom du repas" maxlength="70" value="${esc(e.n)}" style="margin:4px 0 8px">`
         : `<h3>${esc(e.n)}</h3>`}
       <div class="small mute" style="margin-bottom:10px">${n2(kgOf(e.l))} kg CO₂e · ${e.l.length} aliment${e.l.length>1?'s':''}</div>
       ${compoHTML(e.l, 'kg', {tout:true})}
@@ -18992,13 +19010,13 @@ function impSheet(){
       ${P.ing.map((x,i) => `
         <div class="improw${x.slug === '__ignore' ? ' ign' : x.sur === 2 ? '' : x.sur === 1 ? ' douteux' : ' absent'}">
           <div class="impt">${esc(x.txt)}
-            <select data-imp="${i}">
+            <select data-imp="${i}" aria-label="Aliment correspondant dans la base">
               <option value="">— non trouvé —</option>
               <option value="__ignore"${x.slug === '__ignore' ? ' selected' : ''}>· ignorer (herbe, épice) ·</option>
               ${opts(x.slug)}
             </select>
           </div>
-          <div class="impg">${x.g != null ? x.g : '<input data-impg="' + i + '" placeholder="?" inputmode="numeric">'}
+          <div class="impg">${x.g != null ? x.g : '<input data-impg="' + i + '" placeholder="?" inputmode="numeric" aria-label="Quantité en grammes">'}
             ${x.slug && x.slug !== '__ignore' && x.g
               ? `<i>${n2(F.get(x.slug).t * x.g / 1000)} kg</i>` : ''}</div>
         </div>`).join('')}
