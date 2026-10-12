@@ -2051,7 +2051,52 @@ button.tip:active{transform:scale(.995)}
 .btn:active,.btn-go:active,.mcard:active,.hcard:active,.dcard:active,.ctile:active,.hub:active,
 .panier:active,.saisbtn:active,.qopt:active,.dayscard:active,.gback:active,.wcard:active{transform:scale(.97)}
 .mcard[disabled]:active{transform:none}
+/* ---------------- micro-interactions ----------------
+   Petites réponses aux gestes : l'app doit sentir qu'on l'a touchée. Toutes
+   tombent sous la règle prefers-reduced-motion juste en dessous. */
+
+/* Changement d'onglet : le contenu fond et remonte de quelques pixels, l'en-tête
+   et la barre d'onglets restent immobiles (chacun son groupe de transition). */
+.topbar{view-transition-name:topbar}
+.tabbar{view-transition-name:tabbar}
+::view-transition-old(root){animation:vtOut .12s var(--ease-out) both}
+::view-transition-new(root){animation:vtIn .26s var(--ease-out) both}
+@keyframes vtOut{to{opacity:0}}
+@keyframes vtIn{from{opacity:0; transform:translateY(8px)}}
+
+/* L'icône de l'onglet choisi rebondit à peine en s'allumant. */
+.tabbar button[aria-current="page"] .ic{animation:tabPop .38s cubic-bezier(.34,1.56,.64,1)}
+@keyframes tabPop{from{transform:scale(.84)}}
+
+/* Étoile des favoris : elle gonfle puis se pose. */
+.star.pop svg{animation:starPop .45s cubic-bezier(.34,1.56,.64,1); transform-box:fill-box; transform-origin:center}
+@keyframes starPop{0%{transform:scale(.5)} 55%{transform:scale(1.3)} 100%{transform:scale(1)}}
+
+/* Toast de réussite : une pastille verte dont la coche se dessine. */
+.toast .tk{display:inline-block; width:16px; height:16px; margin:-3px 8px -3px -4px; vertical-align:middle}
+.toast .tk circle{fill:#4FA78A; transform-box:fill-box; transform-origin:center}
+.toast .tk path{fill:none; stroke:#fff; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:12; stroke-dashoffset:12}
+.toast.on .tk circle{animation:tkPop .32s cubic-bezier(.34,1.56,.64,1) both}
+.toast.on .tk path{animation:tkDraw .3s .14s var(--ease-out) forwards}
+@keyframes tkPop{from{transform:scale(.3)}}
+@keyframes tkDraw{to{stroke-dashoffset:0}}
+
+/* Souris et trackpad : un survol qui soulève d'un pixel. Le tactile n'a pas de
+   survol, il garde l'enfoncement du :active. */
+@media (hover:hover) and (pointer:fine){
+  .hcard,.mcard,.dcard,.ctile,.hub,.mblock,.badge,.rcp-carte{
+    transition:transform .16s var(--ease-out), filter .16s var(--ease-out)}
+  .btn,.btn-go{transition:transform .16s var(--ease-out), filter .16s var(--ease-out)}
+  .btn:not([disabled]):hover,.btn-go:hover{filter:brightness(1.07)}
+  .hcard:hover,.mcard:not([disabled]):hover,.dcard:hover,.ctile:hover,.hub:hover,
+  .mblock:hover,.badge:hover,.rcp-carte:not([disabled]):hover{transform:translateY(-2px)}
+  .hcard:active,.mcard:active,.dcard:active,.ctile:active,.hub:active,.mblock:active,
+  .btn:active,.btn-go:active{transform:scale(.97)}
+  .tabbar button:not([aria-current="page"]):hover{color:var(--ink-soft)}
+}
 @media(prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+@media(prefers-reduced-motion:reduce){.toast .tk path{stroke-dashoffset:0}}
 
 /* La barre de recherche logée dans le cadre du service visé. Elle hérite des
    styles du composeur ; il n'y a qu'à la détacher du bord du cadre et à retenir
@@ -3860,8 +3905,26 @@ document.addEventListener('keydown', e => {
   if(el.getAttribute('role') !== 'button') return;
   if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); el.click(); }
 });
-function toast(msg){
-  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+/* Petite vibration de confirmation. Android seulement : iOS n'expose pas
+   l'API, et l'appel est alors simplement sans effet. */
+function haptic(ms){ if(navigator.vibrate) try{ navigator.vibrate(ms || 12); }catch(e){} }
+/* Fondu entre deux onglets, là où le navigateur sait le faire (View Transitions).
+   Ailleurs, ou si l'utilisateur a réduit les animations, le changement reste sec. */
+function vt(fn){
+  if(!document.startViewTransition ||
+     (window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches)) return fn();
+  document.startViewTransition(fn);
+}
+/* toast(msg) — information ; toast(msg, {ok:true}) — réussite, avec la coche. */
+function toast(msg, opt){
+  const t = $('#toast');
+  if(opt && opt.ok){
+    t.innerHTML = '<svg class="tk" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="8"/>' +
+                  '<path d="M4.6 8.3l2.3 2.3 4.5-4.8"/></svg>';
+    t.append(document.createTextNode(msg));
+    haptic();
+  } else t.textContent = msg;
+  t.classList.add('on');
   clearTimeout(toast.t); toast.t = setTimeout(()=>t.classList.remove('on'), 2100);
 }
 /* Normalisation partagée : accents, casse et ligature œ. Elle n'existait qu'en
@@ -8767,7 +8830,7 @@ function commitMeal(){
            e.c = e.c || CLIENT_ID; e.u = new Date().toISOString(); }
     S.editId = null; S.draft = []; S.wiz = null; S.step = 'home'; save();
     if(SESS) syncNow(true);
-    go('tracker'); return toast('Repas mis à jour');
+    go('tracker'); return toast('Repas mis à jour', {ok:true});
   }
   /* L'habitude est posée à l'enregistrement, jamais avant : elle doit être
      exactement ce qui a été validé, pas ce qui était en cours de composition. */
@@ -8806,8 +8869,9 @@ function commitMeal(){
     if(habNouvelle || !pluie)
       toast(habNouvelle
         ? `Petit-déjeuner enregistré · ${n2(kg)} kg · c’est votre nouvelle habitude`
-        : `${MEAL[S.meal].l} enregistré · ${n2(kg)} kg`);
+        : `${MEAL[S.meal].l} enregistré · ${n2(kg)} kg`, {ok:true});
   };
+  haptic(15);
   pluie = fxJoue(fxLignes, kg, fxDe, fxLabel, suite);
   if(!pluie) suite();
 }
@@ -10396,13 +10460,15 @@ function renderSaisie(){
               revient vide, prête pour l'aliment suivant, et la pastille du
               panier fait la confirmation. */
            S.dishQ = '';
-           renderSaisie(); versValider(); toast(`${d.n} ajouté`); } });
+           renderSaisie(); versValider(); toast(`${d.n} ajouté`, {ok:true}); } });
   view.querySelectorAll('[data-star]').forEach(b => b.onclick = () => {
     const n = b.dataset.star, fi = S.favs.findIndex(f => f.n === n);
     if(fi >= 0){ S.favs.splice(fi, 1); toast(`${n} retiré des favoris`); }
     else if(S.starred.includes(n)){ S.starred = S.starred.filter(x => x !== n); }
-    else { S.starred.push(n); toast(`${n} mis en favori`); }
-    save(); renderSaisie(); });
+    else { S.starred.push(n); toast(`${n} mis en favori`, {ok:true}); }
+    save(); renderSaisie();
+    const nb = $('#view').querySelector(`[data-star="${CSS.escape(n)}"]`);
+    if(nb && nb.classList.contains('on')) nb.classList.add('pop'); });
   view.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
     S.draft.splice(+b.dataset.rm, 1); renderSaisie(); });
 
@@ -19395,7 +19461,8 @@ function go(tab){
   if(tab === 'feed' && SESS && SB.ready()){ frLoad(true); frPosts(); chalLoad(true); }
   paintAlertes();
 }
-document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () => go(b.dataset.tab));
+document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () =>
+  b.dataset.tab === S.tab ? go(b.dataset.tab) : vt(() => go(b.dataset.tab)));
 /* La marque ramène au Tracker. C'est la convention du web depuis toujours — le
    logo est le chemin du retour — et elle manquait ici : depuis le fond d'une
    fiche de recette ou d'un panneau de partenaires, revenir à l'écran principal
