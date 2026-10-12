@@ -2055,14 +2055,15 @@ button.tip:active{transform:scale(.995)}
    Petites réponses aux gestes : l'app doit sentir qu'on l'a touchée. Toutes
    tombent sous la règle prefers-reduced-motion juste en dessous. */
 
-/* Changement d'onglet : le contenu fond et remonte de quelques pixels, l'en-tête
-   et la barre d'onglets restent immobiles (chacun son groupe de transition). */
+/* Changement d'onglet : simple fondu enchaîné du contenu, sans déplacement —
+   les vues ont souvent leurs propres animations d'entrée, un mouvement de plus
+   les doublerait. L'en-tête et la barre d'onglets restent immobiles. */
 .topbar{view-transition-name:topbar}
 .tabbar{view-transition-name:tabbar}
 ::view-transition-old(root){animation:vtOut .12s var(--ease-out) both}
 ::view-transition-new(root){animation:vtIn .26s var(--ease-out) both}
 @keyframes vtOut{to{opacity:0}}
-@keyframes vtIn{from{opacity:0; transform:translateY(8px)}}
+@keyframes vtIn{from{opacity:0}}
 
 /* L'icône de l'onglet choisi rebondit à peine en s'allumant. */
 .tabbar button[aria-current="page"] .ic{animation:tabPop .38s cubic-bezier(.34,1.56,.64,1)}
@@ -19461,8 +19462,10 @@ function go(tab){
   if(tab === 'feed' && SESS && SB.ready()){ frLoad(true); frPosts(); chalLoad(true); }
   paintAlertes();
 }
+/* Pas de fondu vers le Tracker : chiffres, cadrans et barres y ont déjà leur
+   propre entrée animée, le fondu s'y ajoutait et l'animation paraissait double. */
 document.querySelectorAll('#tabbar button').forEach(b => b.onclick = () =>
-  b.dataset.tab === S.tab ? go(b.dataset.tab) : vt(() => go(b.dataset.tab)));
+  (b.dataset.tab === S.tab || b.dataset.tab === 'tracker') ? go(b.dataset.tab) : vt(() => go(b.dataset.tab)));
 /* La marque ramène au Tracker. C'est la convention du web depuis toujours — le
    logo est le chemin du retour — et elle manquait ici : depuis le fond d'une
    fiche de recette ou d'un panneau de partenaires, revenir à l'écran principal
