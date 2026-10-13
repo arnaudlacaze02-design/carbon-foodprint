@@ -255,7 +255,9 @@ h1,h2,h3{text-wrap:balance}
   --p-bord:#C69361; --p-bol:#9A6A3E; --p-ombre:#7E5530;
 }
 :root[data-theme="dark"]{ --b-clair:#5E9C7F; --b-ombre:#477F67; --b-base:#2E6152; }
-.bal{width:100%; flex:1 1 auto; min-height:0; display:block; overflow:visible}
+.duo .dcell{min-height:0}
+.bal{width:100%; flex:1 1 0; min-height:0; display:block; overflow:visible}
+.bal-tot{flex:0 0 auto}
 .bal-tot{font-family:var(--display); font-weight:800; font-size:19px; line-height:1;
   font-variant-numeric:tabular-nums; color:var(--ink)}
 .bal-tot.over{color:var(--cn-red)}
@@ -2708,6 +2710,33 @@ html[data-gate="1"] .phone{display:none}
 <symbol id="c-oeuf" viewBox="0 0 40 40">
   <path d="M20 4 C29 4 34 18 34 25 C34 33 28 37 20 37 C12 37 6 33 6 25 C6 18 11 4 20 4 Z" fill="#FFF6E5" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/>
   <ellipse cx="14" cy="15" rx="2.5" ry="3.5" fill="#fff"/><circle cx="16.4" cy="25" r="1.5" fill="#16211E"/><circle cx="23.6" cy="25" r="1.5" fill="#16211E"/><circle cx="16.8" cy="24.5" r=".5" fill="#fff"/><circle cx="24" cy="24.5" r=".5" fill="#fff"/><path d="M17.8 28 Q20 30 22.2 28" fill="none" stroke="#16211E" stroke-width="1.3" stroke-linecap="round"/><ellipse cx="13.7" cy="27.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/><ellipse cx="26.3" cy="27.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/></symbol>
+
+<symbol id="c-aubergine" viewBox="0 0 40 40">
+  <path d="M13 13 C6 19 6 32 15 36.5 C24 40 34 33 32 23 C30.5 15 21 9 13 13 Z" fill="#7E4CB0" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/>
+  <ellipse cx="13.5" cy="22" rx="2" ry="4" fill="#9A6BC8" transform="rotate(20 13.5 22)"/>
+  <path d="M9 12 Q13 8 18 10 Q20 6 23 9 Q21 12 22 15 Q17 14 14 17 Q12 13 9 12 Z" fill="#4E8F3A" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M17 9 Q16 5 18 3" fill="none" stroke="#16211E" stroke-width="2" stroke-linecap="round"/><circle cx="16.4" cy="25" r="1.5" fill="#16211E"/><circle cx="23.6" cy="25" r="1.5" fill="#16211E"/><circle cx="16.8" cy="24.5" r=".5" fill="#fff"/><circle cx="24" cy="24.5" r=".5" fill="#fff"/><path d="M17.8 28 Q20 30 22.2 28" fill="none" stroke="#16211E" stroke-width="1.3" stroke-linecap="round"/><ellipse cx="13.7" cy="27.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/><ellipse cx="26.3" cy="27.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/></symbol>
+<symbol id="c-citron" viewBox="0 0 40 40">
+  <path d="M4 23 Q6 20 8.5 19.5 C11 12 29 12 31.5 19.5 Q34 20 36 23 Q34 26 31.5 26.5 C29 34 11 34 8.5 26.5 Q6 26 4 23 Z" fill="#F7D547" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/>
+  <ellipse cx="14" cy="19" rx="3" ry="1.6" fill="#FBE88A"/>
+  <path d="M21 13 Q25 6 31 8 Q28 13 21 13 Z" fill="#4E8F3A" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/><circle cx="16.4" cy="23" r="1.5" fill="#16211E"/><circle cx="23.6" cy="23" r="1.5" fill="#16211E"/><circle cx="16.8" cy="22.5" r=".5" fill="#fff"/><circle cx="24" cy="22.5" r=".5" fill="#fff"/><path d="M17.8 26 Q20 28 22.2 26" fill="none" stroke="#16211E" stroke-width="1.3" stroke-linecap="round"/><ellipse cx="13.7" cy="25.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/><ellipse cx="26.3" cy="25.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/></symbol>
+<symbol id="c-fraise" viewBox="0 0 40 40">
+  <path d="M20 37 C11 31 5 23 7 16 C9 11 15 10 20 12 C25 10 31 11 33 16 C35 23 29 31 20 37 Z" fill="#E8384A" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/>
+  <g fill="#FBE18A"><circle cx="12" cy="18" r=".9"/><circle cx="28" cy="18" r=".9"/><circle cx="14" cy="27" r=".9"/><circle cx="26" cy="27" r=".9"/><circle cx="20" cy="32" r=".9"/></g>
+  <path d="M20 12 L13 9 L16 13 L11 15 L18 15 L20 18 L22 15 L29 15 L24 13 L27 9 Z" fill="#4E8F3A" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M20 12 V6" stroke="#16211E" stroke-width="2" stroke-linecap="round"/><circle cx="16.4" cy="22" r="1.5" fill="#16211E"/><circle cx="23.6" cy="22" r="1.5" fill="#16211E"/><circle cx="16.8" cy="21.5" r=".5" fill="#fff"/><circle cx="24" cy="21.5" r=".5" fill="#fff"/><path d="M17.8 25 Q20 27 22.2 25" fill="none" stroke="#16211E" stroke-width="1.3" stroke-linecap="round"/><ellipse cx="13.7" cy="24.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/><ellipse cx="26.3" cy="24.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/></symbol>
+<symbol id="c-pomme" viewBox="0 0 40 40">
+  <path d="M20 13 C12 8 4 14 5 23 C6 33 13 38 20 35.5 C27 38 34 33 35 23 C36 14 28 8 20 13 Z" fill="#7BC24A" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/>
+  <ellipse cx="12" cy="19" rx="2.6" ry="3.6" fill="#A3DB72"/>
+  <path d="M20 13 Q19 8 21 5" fill="none" stroke="#16211E" stroke-width="2" stroke-linecap="round"/>
+  <path d="M21 8 Q27 3 31 7 Q26 11 21 8 Z" fill="#4E8F3A" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/><circle cx="16.4" cy="24" r="1.5" fill="#16211E"/><circle cx="23.6" cy="24" r="1.5" fill="#16211E"/><circle cx="16.8" cy="23.5" r=".5" fill="#fff"/><circle cx="24" cy="23.5" r=".5" fill="#fff"/><path d="M17.8 27 Q20 29 22.2 27" fill="none" stroke="#16211E" stroke-width="1.3" stroke-linecap="round"/><ellipse cx="13.7" cy="26.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/><ellipse cx="26.3" cy="26.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/></symbol>
+<symbol id="c-piment" viewBox="0 0 40 40">
+  <path d="M10 13 C16 11 19 15 22 21 C26 28 30 32 36 35 C27 37 18 33 13 27 C8.5 21 7 16 10 13 Z" fill="#E2342F" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M13 17 C14 21 16 24 19 27" fill="none" stroke="#F2716A" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M5 11 Q8 7 12 9 Q13 12 10 14 Q6 14 5 11 Z" fill="#4E8F3A" stroke="#16211E" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M7 9 Q5 5 8 3" fill="none" stroke="#16211E" stroke-width="2" stroke-linecap="round"/>
+  <path d="M14.5 17.2 l3 1.2 M22 19.6 l-3 .6" stroke="#16211E" stroke-width="1.3" stroke-linecap="round"/>
+  <circle cx="14.9" cy="21" r="1.5" fill="#16211E"/><circle cx="22.1" cy="21" r="1.5" fill="#16211E"/><circle cx="15.3" cy="20.5" r=".5" fill="#fff"/><circle cx="22.5" cy="20.5" r=".5" fill="#fff"/><path d="M16.3 24 Q18.5 26 20.7 24" fill="none" stroke="#16211E" stroke-width="1.3" stroke-linecap="round"/><ellipse cx="12.2" cy="23.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/><ellipse cx="24.8" cy="23.6" rx="1.8" ry="1.1" fill="#F79FD0" opacity=".9"/></symbol>
 </defs></svg>
   <nav class="tabbar" id="tabbar">
     <button data-tab="tracker">
@@ -14551,55 +14580,25 @@ const BAL_LINE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQQAAAFgCAYAAABd
 const BAL_FILL = 'data:image/png;base64,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';
 let BAL_VOLS = [];                       // ids de repas à faire voler à la prochaine ouverture
 const BAL_PIV = {x:100, y:102}, BAL_L = 62, BAL_MAXA = 10;
-const BAL_SLOTS = [[-23,-13],[0,-14],[23,-13],[-11.5,-35],[11.5,-35],[0,-56]];
 const BAL_REDUIT = () => window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches;
 
 /* Cible : l'objectif personnel s'il existe, sinon le budget 2050, sur 7 jours. */
 function balCible(week){ return week.obj != null ? week.obj : week.bud; }
 
-/* Personnage d'un repas : celui de son ingrédient le plus émetteur. */
-function balPerso(e){
-  let top = null, kg = -1;
-  (e.l || []).forEach(l => { const k = kgOf([l]); if(k > kg){ kg = k; top = l[0]; } });
-  return balPersoAliment(top, 0);
-}
-function balPersoAliment(slug, prof){
-  const f = slug && F.get(slug);
-  if(!f) return 'brocoli';
-  const s = f.s, g = f.g || '';
-  if(g === 'Viandes') return /poulet|dinde|canard|lapin/.test(s) ? 'poulet' : 'steak';
-  if(g.startsWith('Poissons')) return 'poisson';
-  if(g.startsWith('Laitiers')) return /oeuf/.test(s) ? 'oeuf' : 'fromage';
-  // légumineuses : du côté des légumes ; céréales, pain et en-cas : le pain
-  if(g === 'Céréales & légumineuses' && /lentille|pois|haricot|feve|soja/.test(s)) return ['brocoli', 'carotte'][s.length % 2];
-  if(g === 'Céréales & légumineuses' || g === 'En-cas & boulangerie') return 'pain';
-  if(g === 'Plats préparés'){
-    if(f.c && f.c.length && prof < 2){
-      const c = f.c.slice().sort((x, y) => (F.has(y[0]) ? F.get(y[0]).t * y[1] : 0) - (F.has(x[0]) ? F.get(x[0]).t * x[1] : 0))[0];
-      return balPersoAliment(c[0], prof + 1);
-    }
-    if(/burger|kebab|boeuf|steak/.test(s)) return 'steak';
-    if(/sushi|saumon|thon|poisson|cabillaud/.test(s)) return 'poisson';
-    if(/poulet/.test(s)) return 'poulet';
-    return 'pain';
-  }
-  if(g === 'Fruits & légumes'){
-    if(/tomate/.test(s)) return 'tomate';
-    if(/carotte/.test(s)) return 'carotte';
-    if(/brocoli|chou/.test(s)) return 'brocoli';
-    // les autres prennent l'un des trois, toujours le même pour un aliment donné
-    let h = 0; for(const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0;
-    return ['brocoli', 'carotte', 'tomate'][Math.abs(h) % 3];
-  }
-  return 'brocoli';
-}
+/* Un fruit ou légume par jour saisi, toujours le même pour un jour donné de
+   la semaine, pour que la pile se lise comme un calendrier coloré. */
+const BAL_VEG = ['carotte', 'tomate', 'brocoli', 'aubergine', 'citron', 'fraise', 'pomme'];
+const BAL_SLOTS7 = [[-28.5,-12],[-9.5,-12],[9.5,-12],[28.5,-12],[-19,-32],[0,-32],[19,-32]];
 
-/* Repas de la semaine en cours, dans l'ordre où ils ont été mangés. */
-function balRepas(){
-  const wk = weekDays(), t = today(), ord = Object.fromEntries(MEALS.map((m, i) => [m.k, i]));
-  return S.hist.filter(e => wk.includes(e.d) && e.d <= t)
-    .sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : (ord[a.m] || 0) - (ord[b.m] || 0))
-    .map(e => ({id:e.id, p:balPerso(e), kg:kgOf(e.l || [])}));
+/* Jours saisis de la semaine en cours, avec leur poids carbone. `sauf` : ids de
+   repas à ignorer (ceux qui n'ont pas encore volé jusqu'à la coupelle). */
+function balJours(sauf, cibleJ){
+  const wk = weekDays(), t = today(), par = {};
+  S.hist.forEach(e => {
+    if(!wk.includes(e.d) || e.d > t || (sauf && sauf.has(e.id))) return;
+    par[e.d] = (par[e.d] || 0) + kgOf(e.l || []);
+  });
+  return wk.filter(d => d in par).map(d => ({d, dow:wk.indexOf(d), kg:par[d], over:par[d] > cibleJ}));
 }
 
 function balanceSVG(){
@@ -14649,16 +14648,15 @@ function balanceBind(a){
   const svg = $('#bal');
   if(!svg) return;
   const {week} = duoData(a);
-  const cible = balCible(week) || 1;
+  const cible = balCible(week) || 1, cibleJ = cible / 7;
   const reduit = BAL_REDUIT();
-  const tous = balRepas();
-  // les repas en attente de vol ne sont pas encore sur la coupelle
-  const attente = new Set(BAL_VOLS.filter(id => tous.some(r => r.id === id)));
+  // les repas en attente de vol ne sont pas encore comptés sur la coupelle
+  const attente = new Set(BAL_VOLS.filter(id => S.hist.some(e => e.id === id)));
   BAL_VOLS = [];
-  let pile = tous.filter(r => !attente.has(r.id));
-  let total = pile.reduce((x, r) => x + r.kg, 0), aff = total;
-  const vols = reduit ? [] : tous.filter(r => attente.has(r.id));
-  if(reduit){ pile = tous; total = aff = tous.reduce((x, r) => x + r.kg, 0); }
+  const apres = balJours(null, cibleJ);
+  let jours = reduit ? apres.map(j => ({...j})) : balJours(attente, cibleJ);
+  const somme = () => jours.reduce((x, j) => x + j.kg, 0);
+  let total = somme(), aff = total;
 
   const q = sel => svg.querySelector(sel);
   q('#balCibleTxt').textContent = n1(cible) + ' kg';
@@ -14689,14 +14687,20 @@ function balanceBind(a){
     if(totEl) totEl.classList.toggle('over', r > 1);
   };
   const compteur = () => { if(totEl) totEl.firstChild.nodeValue = n1(aff); };
-  const dessinerPile = (neuf) => {
-    const g = q('#balPile'), vis = pile.slice(-BAL_SLOTS.length);
-    g.innerHTML = vis.map((r, i) => {
-      const [x, y] = BAL_SLOTS[i];
-      return `<g transform="translate(${x} ${y})"><g${r.id === neuf ? ' class="bal-pose"' : ''}>
-        <g class="wig"><use href="#c-${r.p}" x="-16" y="-16" width="32" height="32"/></g></g></g>`;
+  /* Pile : un personnage par jour saisi, en pyramide 4 + 3. Le piment se
+     couche en travers du fruit ou légume de sa journée. `neuf` : 'v'+date ou
+     'p'+date, pour faire rebondir ce qui vient d'atterrir. */
+  const dessinerPile = neuf => {
+    q('#balPile').innerHTML = jours.map((j, i) => {
+      const [x, y] = BAL_SLOTS7[i];
+      const pose = id => neuf === id ? ' class="bal-pose"' : '';
+      return `<g transform="translate(${x} ${y})"><g class="wig">
+        <g${pose('v' + j.d)}><use href="#c-${BAL_VEG[j.dow]}" x="-13" y="-13" width="26" height="26"/></g>
+        ${j.over ? `<g transform="translate(5 -9) rotate(22)"><g${pose('p' + j.d)}>
+          <use href="#c-piment" x="-10" y="-10" width="20" height="20"/></g></g>` : ''}
+      </g></g>`;
     }).join('');
-    q('#balPlus').textContent = pile.length > BAL_SLOTS.length ? '+' + (pile.length - BAL_SLOTS.length) : '';
+    q('#balPlus').textContent = '';
   };
 
   /* ressort amorti du fléau + compteur */
@@ -14724,47 +14728,75 @@ function balanceBind(a){
       const rot = Math.sin(t * 1.3 + 1) * (3 + p * 9);
       const sq = 1 - Math.max(0, Math.sin(t)) * p * .1;
       const hop = -Math.max(0, Math.sin(t * 2.1 + i)) * (.6 + p * 1.6);
-      w.setAttribute('transform', `translate(${dx.toFixed(2)} ${hop.toFixed(2)}) rotate(${rot.toFixed(2)} 0 15) scale(${sq.toFixed(3)} ${(2 - sq).toFixed(3)})`);
+      w.setAttribute('transform', `translate(${dx.toFixed(2)} ${hop.toFixed(2)}) rotate(${rot.toFixed(2)} 0 13) scale(${sq.toFixed(3)} ${(2 - sq).toFixed(3)})`);
     });
     requestAnimationFrame(gigoter);
   };
 
-  /* un repas qui s'envole de la barre d'onglets jusqu'à la coupelle */
-  const voler = r => new Promise(fin => {
+  /* un personnage qui s'envole de la barre d'onglets jusqu'à sa place */
+  const voler = (perso, slotDe, taille, atterrir) => new Promise(fin => {
     const btn = document.querySelector('#tabbar button[data-tab="tracker"]');
     const rb = btn ? btn.getBoundingClientRect() : null;
     const a0 = rb ? {x:rb.left + rb.width / 2, y:rb.top + rb.height / 2}
                   : {x:innerWidth / 2, y:innerHeight - 60};
-    const slot = BAL_SLOTS[Math.min(pile.length, BAL_SLOTS.length - 1)];
     const v = document.createElement('div');
     v.className = 'bal-vol';
-    v.innerHTML = `<svg viewBox="0 0 40 40" width="40" height="40"><use href="#c-${r.p}"/></svg>`;
+    v.innerHTML = `<svg viewBox="0 0 40 40" width="40" height="40"><use href="#c-${perso}"/></svg>`;
     document.body.appendChild(v);
     const t0 = performance.now(), dur = 820;
     const pas = now => {
       if(!svg.isConnected){ v.remove(); return fin(); }
       const k = Math.min(1, (now - t0) / dur), ez = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       const m = q('#balPlatD').getScreenCTM(), pt = svg.createSVGPoint();
-      pt.x = slot[0]; pt.y = slot[1];
+      [pt.x, pt.y] = slotDe();
       const b = pt.matrixTransform(m);
       const cx = a0.x + (b.x - a0.x) * ez, cy = a0.y + (b.y - a0.y) * ez - Math.sin(Math.PI * ez) * 140;
-      const sc = (1.3 - .5 * ez) * (m.a || 1) * 32 / 40;
+      const sc = (1.3 - .5 * ez) * (m.a || 1) * taille / 40;
       v.style.transform = `translate(${cx - 20}px, ${cy - 20}px) scale(${sc.toFixed(3)}) rotate(${(Math.sin(k * Math.PI * 2) * 14).toFixed(1)}deg)`;
       if(k < 1) return requestAnimationFrame(pas);
-      v.remove();
-      pile.push(r); total += r.kg;
-      dessinerPile(r.id); teinte();
-      vit += 2.2; relancer(); fin();
+      v.remove(); atterrir();
+      teinte(); vit += 2.2; relancer(); fin();
     };
     requestAnimationFrame(pas);
   });
 
+  /* Ce qui doit voler : le fruit ou légume d'une journée qui apparaît, puis
+     le piment d'une journée qui passe hors budget. Un repas ajouté à une
+     journée déjà présente et qui reste dans le budget ne fait rien voler :
+     la coupelle accuse juste le poids. */
+  const etapes = [];
+  if(!reduit) apres.forEach(j => {
+    const avant = jours.find(x => x.d === j.d);
+    if(!avant) etapes.push({t:'v', j});
+    if(j.over && !(avant && avant.over)) etapes.push({t:'p', j});
+  });
+  const rang = d => jours.filter(x => x.d < d).length;
+
   dessinerPile(); teinte(); compteur(); peindre();
   if(!reduit) requestAnimationFrame(gigoter);
-  if(vols.length){
+  if(attente.size && !reduit){
     (async () => {
       await new Promise(res => setTimeout(res, 350));
-      for(const r of vols){ await voler(r); await new Promise(res => setTimeout(res, 300)); }
+      for(const e of etapes){
+        if(e.t === 'v'){
+          await voler(BAL_VEG[e.j.dow], () => BAL_SLOTS7[rang(e.j.d)], 26, () => {
+            jours.push({...e.j, over:false}); jours.sort((x, y) => x.d < y.d ? -1 : 1);
+            total = somme(); dessinerPile('v' + e.j.d);
+          });
+        } else {
+          await voler('piment', () => { const [x, y] = BAL_SLOTS7[rang(e.j.d)]; return [x + 5, y - 9]; }, 20, () => {
+            const j = jours.find(x => x.d === e.j.d);
+            if(j){ j.over = true; j.kg = e.j.kg; }
+            total = somme(); dessinerPile('p' + e.j.d);
+          });
+        }
+        await new Promise(res => setTimeout(res, 280));
+      }
+      if(!svg.isConnected) return;
+      // poids des repas ajoutés aux journées déjà présentes
+      jours = apres.map(j => ({...j}));
+      const avantTot = total; total = somme();
+      if(Math.abs(total - avantTot) > .001){ teinte(); vit += etapes.length ? 0 : 1.6; relancer(); }
     })();
   }
 }
