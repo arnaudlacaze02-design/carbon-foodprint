@@ -1784,6 +1784,14 @@ button.tip:active{transform:scale(.995)}
   background:none; color:var(--ink); font:inherit; font-size:14px}
 .iares i{font-style:normal; font-family:var(--mono); font-size:10px; color:var(--mute); white-space:nowrap}
 .iares:active{background:var(--active)}
+.iaoff{margin-top:12px; padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--card)}
+.iaprod{display:flex; gap:10px; align-items:center; width:100%; text-align:left; padding:8px 2px;
+  border:0; border-bottom:1px solid var(--line-soft); background:none; color:var(--ink); font:inherit; font-size:13.5px}
+.iaprod img,.iaprod .ph{width:44px; height:44px; flex:0 0 44px; border-radius:8px; object-fit:contain;
+  background:#fff; display:flex; align-items:center; justify-content:center}
+.iaprod b{display:block; font-weight:600; line-height:1.25}
+.iaprod i{display:block; font-style:normal; font-family:var(--mono); font-size:10px; color:var(--mute); margin-top:2px}
+.iaprod:active{background:var(--active)}
 .iainfo summary{display:inline-flex; align-items:center; gap:7px; cursor:pointer; list-style:none;
   font-family:var(--mono); font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:var(--mute)}
 .iainfo summary::-webkit-details-marker{display:none}
@@ -9972,7 +9980,7 @@ function versValider(){
    La liste des noms est envoyée à chaque appel plutôt que figée côté serveur :
    la base vit dans ce fichier, et un aliment ajouté ici doit être proposable
    par l'IA sans redéployer la fonction. */
-const IA = {txt:'', occupe:false, res:null, err:null, meal:null, date:null, rec:null, info:false, addQ:null};
+const IA = {txt:'', occupe:false, res:null, err:null, meal:null, date:null, rec:null, info:false, addQ:null, off:null};
 
 const iaHeure = () => { const d = new Date();
   return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
@@ -10024,7 +10032,7 @@ function iaMapper(b){
 
 function iaSheet(){
   IA.res = null; IA.err = null; IA.occupe = false;
-  IA.meal = null; IA.date = today(); IA.addQ = null;
+  IA.meal = null; IA.date = today(); IA.addQ = null; IA.off = null;
   iaPaint();
 }
 
@@ -10134,10 +10142,14 @@ function iaPaintRelecture(){
           <input class="search" id="ia_q" type="search" autocomplete="off" placeholder="Chercher un aliment…"
             value="${esc(IA.addQ)}" aria-label="Chercher un aliment à ajouter">
           <div id="ia_res"></div>
+          <button class="btn btn-2" id="ia_off1" style="width:100%;margin-top:8px">🛒 Chercher dans les produits du commerce</button>
           <button class="backlink" id="ia_addx" style="margin-top:4px">Fermer la recherche</button>
         </div>`}
-    ${R.rates.length ? `<div class="src" style="margin-top:10px">Pas trouvé dans la base :
-      ${R.rates.map(esc).join(', ')}. Ajoute l’équivalent le plus proche avec la recherche.</div>` : ''}
+    ${IA.off ? iaOffHTML() : ''}
+    ${R.rates.length ? `<div class="src" style="margin-top:10px">Pas trouvé dans la base. Touche-le pour
+      le chercher parmi les produits du commerce :</div>
+      <div class="chips" style="flex-wrap:wrap">${R.rates.map((x, i) =>
+        `<button class="chip" data-iarate="${i}">🛒 ${esc(x)}</button>`).join('')}</div>` : ''}
     <div class="actions" style="margin-top:12px">
       <button class="btn btn-2" id="ia_back">‹ Modifier</button>
       <button class="btn btn-1" id="ia_ok"${R.lignes.length ? '' : ' disabled'}>Ajouter à la saisie</button>
@@ -10155,7 +10167,7 @@ function iaPaintRelecture(){
   });
   sh.querySelectorAll('[data-ias]').forEach(sel => sel.onchange = () => { R.lignes[+sel.dataset.ias].svc = sel.value; });
   sh.querySelectorAll('[data-iax]').forEach(b => b.onclick = () => { R.lignes.splice(+b.dataset.iax, 1); iaPaint(); });
-  $('#ia_back').onclick = () => { IA.res = null; IA.addQ = null; iaPaint(); };
+  $('#ia_back').onclick = () => { IA.res = null; IA.addQ = null; IA.off = null; iaPaint(); };
   $('#ia_ok').onclick = iaAppliquer;
 
   /* Ajout manuel, dans la même feuille. La liste de résultats est la seule
@@ -10200,6 +10212,98 @@ function iaPaintRelecture(){
   }
   const ax = $('#ia_addx');
   if(ax) ax.onclick = () => { IA.addQ = null; iaPaint(); };
+
+  const o1 = $('#ia_off1');
+  if(o1) o1.onclick = () => { const t = ($('#ia_q') || {}).value || '';
+    IA.addQ = null; iaOffOuvrir(t); };
+  sh.querySelectorAll('[data-iarate]').forEach(b => b.onclick = () => iaOffOuvrir(R.rates[+b.dataset.iarate]));
+  iaOffBind(courses);
+}
+
+/* ---------- produits du commerce (Open Food Facts) ----------
+   La recherche passe par l'Edge Function « chercher-produit » (l'API de
+   recherche d'OFF refuse les appels directs du navigateur). Le produit choisi
+   ouvre le formulaire « Créer un aliment » déjà pré-lu : empreinte AGRIBALYSE
+   de sa catégorie, valeurs pour 100 g, ingrédients. Une fois validé, il
+   rejoint la base de l'utilisateur et la file de revue admin, et revient ici
+   comme une ligne du repas. */
+function iaOffOuvrir(q){
+  IA.off = {q:String(q || '').trim(), res:null, busy:false, err:null, rate:String(q || '').trim()};
+  if(IA.off.q.length >= 2) return iaOffChercher();
+  iaPaint();
+  setTimeout(() => { const i = $('#ia_offq'); if(i) try{ i.focus(); }catch(e){} }, 60);
+}
+async function iaOffChercher(){
+  const O = IA.off; if(!O) return;
+  if(O.q.length < 2){ O.err = 'Tape au moins deux lettres'; return iaPaint(); }
+  O.busy = true; O.err = null; O.res = null; iaPaint();
+  const tok = SB.ready() ? await SB.fresh() : null;
+  if(!tok){ O.busy = false; O.err = 'Connecte-toi pour chercher un produit'; return iaPaint(); }
+  const r = await SB.call('/functions/v1/chercher-produit', {method:'POST',
+    headers:{Authorization:'Bearer ' + tok}, body:JSON.stringify({q:O.q})});
+  if(IA.off !== O) return;                     /* fermé ou relancé entre-temps */
+  O.busy = false;
+  const b = r.body || {};
+  if(r.status === 0) O.err = 'Pas de réseau';
+  else if(!r.ok || !b.ok) O.err = b.error || ('Recherche impossible · ' + r.status +
+    (r.status === 404 ? ' · fonction chercher-produit non déployée' : ''));
+  else O.res = b.produits || [];
+  iaPaint();
+}
+function iaOffHTML(){
+  const O = IA.off;
+  return `<div class="iaoff">
+    <div class="unit">Produits du commerce</div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <input class="search" id="ia_offq" type="search" autocomplete="off" value="${esc(O.q)}"
+        placeholder="ex. skyr coco Carrefour" aria-label="Produit à chercher" style="flex:1;min-width:0">
+      <button class="btn btn-2" id="ia_offgo" style="flex:0 0 auto"${O.busy ? ' disabled' : ''}>${O.busy ? '…' : 'Chercher'}</button>
+    </div>
+    ${O.err ? `<div class="pastwarn" style="margin-top:8px">${esc(O.err)}</div>` : ''}
+    ${O.busy ? `<div class="src" style="margin-top:8px">Recherche dans Open Food Facts…</div>` : ''}
+    ${O.res ? (O.res.length ? O.res.map((p, i) => `
+      <button class="iaprod" data-iaoff="${i}">
+        ${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span class="ph">🛒</span>'}
+        <span><b>${esc(p.nom)}</b><i>${esc([p.marque, p.qte].filter(Boolean).join(' · '))}</i></span>
+      </button>`).join('')
+      : `<div class="src" style="margin-top:8px">Aucun produit trouvé. Essaie avec la marque, ou moins de mots.</div>`) : ''}
+    <div class="src" style="margin-top:8px">Données Open Food Facts (licence ODbL). Le produit choisi passe
+      par « Créer un aliment » : tu vérifies, puis il rejoint ta base et la revue.</div>
+    <button class="backlink" id="ia_offx" style="margin-top:4px">Fermer</button>
+  </div>`;
+}
+function iaOffBind(courses){
+  const O = IA.off; if(!O) return;
+  const q = $('#ia_offq'), go = $('#ia_offgo');
+  if(q){ q.oninput = () => { O.q = q.value; };
+         q.onkeydown = e => { if(e.key === 'Enter'){ e.preventDefault(); O.q = q.value.trim(); iaOffChercher(); } }; }
+  if(go) go.onclick = () => { O.q = (q ? q.value : O.q).trim(); iaOffChercher(); };
+  const x = $('#ia_offx'); if(x) x.onclick = () => { IA.off = null; iaPaint(); };
+  document.querySelectorAll('#sheet [data-iaoff]').forEach(b => b.onclick = () => {
+    const p = O.res[+b.dataset.iaoff]; if(!p) return;
+    const nom = (p.marque && !nrmQ(p.nom).includes(nrmQ(p.marque)) ? p.nom + ' · ' + p.marque : p.nom).slice(0, 80);
+    /* Portion tirée du conditionnement : « 4 x 100 g » → 100, « 150 g » → 150.
+       Un paquet familial (au-delà de 400 g) ne dit rien de la portion : on
+       laisse alors le formulaire à sa valeur par défaut. */
+    const mq = String(p.qte || '').toLowerCase().replace(',', '.')
+      .match(/(?:(\d+)\s*[x×]\s*)?(\d+(?:\.\d+)?)\s*(kg|g|cl|ml|l)\b/);
+    let portion = null;
+    if(mq){ const k = {kg:1000, g:1, cl:10, ml:1, l:1000}[mq[3]];
+      const v = Math.round(+mq[2] * k); if(v >= 10 && v <= 400) portion = v; }
+    persoSheet(nom, {
+      ean: p.ean, portion,
+      annule: () => iaPaint(),
+      fait: sl => {
+        const f = F.get(sl), R = IA.res;
+        if(f && R){
+          R.lignes.push({s:sl, g:f.p || 100, svc:'plat', txt:'produit du commerce', dout:false});
+          if(O.rate) R.rates = R.rates.filter(r => r !== O.rate);
+        }
+        IA.off = null; haptic(); iaPaint();
+        toast(`${f ? f.n : 'Produit'} créé et ajouté`, {ok:true});
+      },
+    });
+  });
 }
 
 /* Le brouillon est posé comme si l'utilisateur l'avait composé lui-même :
@@ -12960,7 +13064,11 @@ async function eanDePhoto(file){
     return null;
   }finally{ URL.revokeObjectURL(url); }
 }
-function persoSheet(nomInit){
+/* `opt` (facultatif) : {ean, fait(slug), annule()} — utilisé par la saisie
+   express pour pré-lire un produit choisi dans Open Food Facts et revenir
+   ensuite à la relecture au lieu de la page de saisie. */
+function persoSheet(nomInit, opt){
+  opt = opt || {};
   const base = DB.foods.filter(f => !f.perso).slice().sort((a, b) => a.n.localeCompare(b.n, 'fr'));
   const champ = (id, lab, ph) => `<label style="display:block"><span class="small mute">${lab}</span>
     <input class="search" id="${id}" type="text" inputmode="decimal" placeholder="${ph}" style="width:100%"></label>`;
@@ -12992,8 +13100,9 @@ function persoSheet(nomInit){
     <div id="pfOut" class="small" style="margin-top:12px;min-height:2.6em"></div>
     <div class="actions">
       <button class="btn btn-1" id="pfOk">Valider</button>
-      <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
+      <button class="btn btn-2" id="pfNo">${opt.annule ? '‹ Retour' : 'Annuler'}</button>
     </div>`);
+  $('#pfNo').onclick = () => opt.annule ? opt.annule() : closeSheet();
   const byName = new Map(base.map(f => [nrmQ(f.n), f]));
   /* Produit lu sur Open Food Facts : {ean, ag, t, na}. Son empreinte AGRIBALYSE
      remplace le calcul par ingrédients tant que la case reste cochée. */
@@ -13111,6 +13220,8 @@ function persoSheet(nomInit){
   };
   $('#sheet').querySelectorAll('input').forEach(x => x.oninput = apercu);
   apercu();
+  if(opt.portion) $('#pfQ').value = String(opt.portion);
+  if(opt.ean){ $('#pfU').value = opt.ean; $('#pfLire').click(); }
   $('#pfOk').onclick = () => {
     const r = lire();
     if(!r.n) return toast('Donnez un nom à l’aliment');
@@ -13133,6 +13244,7 @@ function persoSheet(nomInit){
     try{ localStorage.setItem(PERSO_KEY, JSON.stringify([...new Set([...persoListe(), sl])])); }catch(e){}
     persoEnvoyer(sl).then(ok => { if(!ok && SESS) toast('Aliment créé, mais pas encore transmis à l’équipe · ' + persoErr); })
       .catch(e => { persoErr = String(e && e.message || e); toast('Envoi à l’équipe impossible · ' + persoErr); });
+    if(opt.fait){ opt.fait(sl); return; }
     closeSheet();
     /* Depuis la saisie, on relance la recherche sur le nouvel aliment : il
        apparaît aussitôt sous le doigt, prêt à être ajouté au repas. */
