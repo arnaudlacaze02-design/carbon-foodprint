@@ -10093,7 +10093,9 @@ async function iaAnalyser(texte){
   const r = await SB.call('/functions/v1/analyser-repas', {
     method:'POST',
     headers:{Authorization:'Bearer ' + tok},
-    body: JSON.stringify({texte, heure:iaHeure(), aliments:DB.foods.map(f => [f.n, f.p])}),
+    /* [identifiant, nom, portion, famille] : le modèle rend l'identifiant, plus
+       sûr à recopier qu'un nom long, et la famille range le catalogue. */
+    body: JSON.stringify({texte, heure:iaHeure(), aliments:DB.foods.map(f => [f.s, f.n, f.p, f.g])}),
   });
   if(r.status === 0) return {err:'Pas de réseau'};
   const b = r.body || {};
@@ -10117,7 +10119,7 @@ function iaMapper(b){
     lignes.push({s, g:Math.round(l.g), svc, txt:l.texte || '', dout});
   };
   (b.lignes || []).forEach(l => {
-    const s = noms.get(l.nom);
+    const s = l.id && F.has(l.id) ? l.id : noms.get(l.nom);
     s && F.has(s) ? ajoute(s, l, false) : rates.push(l.nom);
   });
   (b.approx || []).forEach(l => {
