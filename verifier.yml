@@ -1,0 +1,22 @@
+name: Vérifier l'app
+# Lint + tests à chaque dépôt sur GitHub. Un ✖ rouge à côté du commit = un bug
+# certain détecté : regarder le détail dans l'onglet Actions.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint (doublons globaux, variables inconnues…)
+        run: npm run lint
+      - name: Tests (calculs, base d'aliments, fichiers)
+        run: npm test

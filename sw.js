@@ -1,33 +1,71 @@
 /* Carbon FOODprint — service worker.
 
    Deux stratégies distinctes :
-   - la page elle-même est cherchée sur le réseau d'abord, avec repli sur le cache. Une nouvelle
-     version déposée sur GitHub arrive donc automatiquement au prochain lancement connecté,
-     sans rien avoir à incrémenter ici.
-   - les icônes et le manifeste sont servis depuis le cache d'abord, ils ne changent jamais.
+   - la page et la base d'aliments (data/db.js) sont cherchées sur le réseau d'abord, avec
+     repli sur le cache. Une nouvelle version déposée sur GitHub arrive donc automatiquement
+     au prochain lancement connecté, sans rien avoir à incrémenter ici.
+   - les images (img/), icônes et le manifeste sont servis depuis le cache d'abord : ils ne
+     changent pas. Pour modifier une image, change son nom plutôt que son contenu.
 
    VERSION ne sert qu'à purger l'ancien cache : à incrémenter si tu ajoutes ou renommes un
-   fichier dans ASSETS. */
-const VERSION = 'cfp-3.44.0';
-const ASSETS = [
-  './', './index.html', './manifest.json',
+   fichier dans CORE ou EXTRA. */
+const VERSION = 'cfp-3.45.0';
+/* Le cœur de l'app : sans ces fichiers elle ne démarre pas hors ligne, donc
+   l'installation échoue (et réessaiera) si l'un d'eux manque. */
+const CORE = ['./', './index.html', './data/db.js', './manifest.json'];
+/* Tout le reste : précaché fichier par fichier, sans que l'absence de l'un
+   bloque les autres. C'est la leçon des b-*.png jamais déposés : avec un seul
+   `cache.addAll()` sur toute la liste, un 404 suffisait à vider tout le cache.
+   À compléter quand une image est ajoutée dans img/. */
+const EXTRA = [
   './icon-180.png', './icon-192.png', './icon-512.png', './icon-512-maskable.png',
-  './logo-mark.png', './logo-wide.png'
+  './logo-mark.png', './logo-wide.png',
+  './img/badges/b-aou.png',
+  './img/badges/b-avr.png',
+  './img/badges/b-bebe.webp',
+  './img/badges/b-brocoli.webp',
+  './img/badges/b-carotte.webp',
+  './img/badges/b-dec.png',
+  './img/badges/b-fev.png',
+  './img/badges/b-france.webp',
+  './img/badges/b-jan.png',
+  './img/badges/b-jerrycan.webp',
+  './img/badges/b-jul.png',
+  './img/badges/b-jun.png',
+  './img/badges/b-mai.png',
+  './img/badges/b-mar.png',
+  './img/badges/b-nov.png',
+  './img/badges/b-ny.webp',
+  './img/badges/b-oct.png',
+  './img/badges/b-rome.webp',
+  './img/badges/b-semaine.svg',
+  './img/badges/b-sep.png',
+  './img/badges/b-tomate.webp',
+  './img/badges/b-vache.webp',
+  './img/badges/m-argent.webp',
+  './img/badges/m-bronze.webp',
+  './img/badges/m-or.webp',
+  './img/balance-remplie.png',
+  './img/balance-trait.png',
+  './img/marque-large.png',
+  './img/marque.png',
+  './img/planche-aliments.webp',
+  './img/tuto/etape-1.jpg',
+  './img/tuto/etape-2.jpg',
+  './img/tuto/etape-3.jpg',
+  './img/tuto/etape-4.jpg',
+  './img/tuto/etape-5.jpg',
+  './img/tuto/etape-6.jpg'
 ];
-/* Les illustrations de badges ne figurent plus ici : elles sont désormais
-   intégrées à index.html en base64, donc mises en cache avec la page et
-   disponibles hors ligne sans fichier voisin.
-
-   Ce n'était pas qu'un nettoyage. `cache.addAll()` échoue en bloc dès qu'une
-   seule de ses URL répond 404 : les six fichiers b-*.png listés ici n'ayant
-   jamais été déposés, l'installation du worker échouait à chaque fois et le
-   cache restait vide. L'app fonctionnait quand même — la page est cherchée sur
-   le réseau d'abord — mais elle n'a jamais eu de repli hors ligne. */
+/* Fichiers qui changent avec les versions de l'app : cherchés sur le réseau
+   d'abord, comme la page, pour ne jamais servir une base d'aliments périmée. */
+const enDirect = url => url.pathname.endsWith('.html') || url.pathname.includes('/data/');
 
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(VERSION)
-      .then(c => c.addAll(ASSETS))
+      .then(c => c.addAll(CORE).then(() =>
+        Promise.allSettled(EXTRA.map(u => c.add(u)))))
       .then(() => self.skipWaiting())
   );
 });
@@ -83,7 +121,19 @@ self.addEventListener('fetch', e => {
     );
     return;
   }
-  /* cache d'abord pour le reste */
+  /* la base d'aliments : réseau d'abord, même raison que la page */
+  if(enDirect(new URL(e.request.url))){
+    e.respondWith(
+      fetch(e.request, {cache: 'no-store'})
+        .then(res => {
+          if(res.ok){ const copy = res.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); }
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+  /* cache d'abord pour le reste (images, icônes, manifeste) */
   e.respondWith(caches.match(e.request).then(hit => hit || fresh(e.request)));
 });
 

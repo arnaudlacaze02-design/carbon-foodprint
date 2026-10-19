@@ -1,12 +1,14 @@
 # Carbon FOODprint
 
 Comptabilité carbone alimentaire personnelle. Application web autonome, sans dépendance
-externe : le référentiel de facteurs d'émission — 240 aliments, 326 plats types — est embarqué dans `index.html`.
+externe : le référentiel de facteurs d'émission (aliments et plats types) est dans `data/db.js`,
+les images dans `img/`, le code dans `index.html`.
 
 ## Mise en ligne sur GitHub Pages
 
 1. Créer un dépôt **public** (les Pages d'un dépôt privé exigent un compte payant).
-2. Déposer à la racine : `index.html`, `manifest.json`, `sw.js`, les quatre `icon-*.png`.
+2. Déposer à la racine : `index.html`, `manifest.json`, `sw.js`, les `icon-*.png` et `logo-*.png`,
+   et les dossiers `data/` et `img/`.
 3. Onglet **Settings → Pages**, source **Deploy from a branch**, branche `main`, dossier `/ (root)`.
 4. Attendre une minute, puis ouvrir `https://<compte>.github.io/<dépôt>/` dans Safari sur iPhone.
 5. **Partager → Ajouter à l'écran d'accueil.**
@@ -16,8 +18,28 @@ un sous-dossier de dépôt.
 
 ## Mettre à jour l'app
 
-Remplacer `index.html`, **puis incrémenter `VERSION` dans `sw.js`**. Sans cela, les appareils
-déjà installés continueront de servir la version mise en cache.
+- **Code** (`index.html`) ou **base d'aliments** (`data/db.js`) : remplacer le fichier, c'est tout.
+  Le service worker les cherche sur le réseau d'abord ; les appareils reçoivent la nouvelle
+  version au prochain lancement connecté.
+- **Nouvelle image** : la déposer dans `img/`, l'ajouter à la liste `EXTRA` de `sw.js`, **puis
+  incrémenter `VERSION`**. Pour modifier une image existante, lui donner un nouveau nom : les
+  images sont servies depuis le cache et un même nom ne serait jamais rechargé.
+
+## Vérifier avant de publier
+
+```
+npm install      # une seule fois
+npm run check    # lint + tests, ~5 s
+```
+
+- `npm run lint` signale les bugs certains, en premier lieu deux fonctions ou variables
+  globales du même nom (le bug `reglette` : la seconde écrase la première sans erreur visible).
+- `npm test` charge la vraie app sans réseau et vérifie qu'elle démarre sans erreur, que les
+  calculs carbone et nutrition donnent les chiffres attendus, que chaque ingrédient de plat
+  existe dans la base et que chaque image est bien présente et précachée.
+
+Les mêmes vérifications tournent sur GitHub à chaque dépôt (onglet **Actions**). Un ✖ rouge ne
+bloque pas la mise en ligne : il prévient qu'un bug certain vient d'être publié.
 
 ## Notifications app fermée
 
