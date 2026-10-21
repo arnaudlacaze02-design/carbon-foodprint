@@ -77,3 +77,31 @@ test("esc : le texte saisi par l'utilisateur ne peut pas injecter de HTML", () =
 test('iso : date locale, pas UTC', () => {
   assert.equal(A.app('iso(new Date(2026, 0, 5, 23, 30))'), '2026-01-05');
 });
+
+test('gluten : table pour les aliments simples, recette pour les composés', () => {
+  proche(A.app('glutenDe("ble")'), 9.6, 'blé');
+  assert.equal(A.app('glutenDe("riz")'), 0, 'riz');
+  assert.equal(A.app('glutenDe("quinoa")'), 0, 'quinoa : son proxy carbone (boulgour) ne doit pas lui donner de gluten');
+  assert.equal(A.app('glutenDe("sarrasin")'), 0, 'sarrasin : son proxy carbone (blé) ne doit pas lui donner de gluten');
+  proche(A.app('glutenDe("gnocchi")'), 0.25 * 9.6, 'gnocchi = 25 % de blé');
+  assert.ok(A.app('glutenDe("moussaka")') > 0, 'moussaka : la béchamel (ingrédient auxiliaire) est comptée');
+  assert.equal(A.app('glutenDe("merveilleux")'), 0, 'merveilleux : pas de gluten');
+  assert.equal(A.app('glutenInfo("avoine").tr'), true, 'avoine : traces');
+  assert.equal(A.app('glutenInfo("galettesarrasin").tr'), true, 'galette de sarrasin : traces');
+});
+
+test('gluten : moyenne sur les jours saisis, jours sans', () => {
+  const hier = A.app('yesterday()'), auj = A.app('today()');
+  A.app(`S.hist = [
+    {d:'${auj}', m:'dej', l:[['pates', 100], ['tomate', 100]]},
+    {d:'${auj}', m:'din', l:[['baguette', 50]]},
+    {d:'${hier}', m:'dej', l:[['riz', 100], ['avoine', 40]]},
+  ]`);
+  const J = A.app('cxGlutenJours(7)');
+  assert.equal(J.length, 2, 'deux jours saisis');
+  proche(J[0].g, 9.6 + 6.6 * 0.5, 'aujourd’hui : pâtes + baguette');
+  assert.equal(J[1].g, 0); assert.equal(J[1].tr, true, 'hier : sans gluten mais avoine');
+  const html = A.app('cxGlutenCarte(7)');
+  assert.match(html, /Moy\. 7j : 6,4 g\/j · 1 jour sans gluten sur 2/);
+  A.app('S.hist = []');
+});

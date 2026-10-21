@@ -2579,6 +2579,13 @@ html[data-gate="1"] .phone{display:none}
    ou nommées .cx-* pour ne rien croiser avec le reste de l'app — .note en
    particulier est déjà pris par le centre de notifications, d'où .cx-note. */
 .cx-wrap{margin-top:12px}
+.cx-gl-days{display:flex; flex-direction:column; gap:5px; margin:6px 0 4px}
+.cx-gl-day{display:grid; grid-template-columns:96px 1fr 64px; align-items:center; gap:8px; font-size:12px}
+.cx-gl-d{color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.cx-gl-bar{height:8px; border-radius:4px; background:var(--line-soft); overflow:hidden}
+.cx-gl-bar i{display:block; height:100%; border-radius:4px; background:var(--straw)}
+.cx-gl-v{font-family:var(--mono); font-size:11px; text-align:right; color:var(--ink)}
+
 .cx-head{display:flex; align-items:center; justify-content:space-between; cursor:pointer;
   background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px}
 .cx-head:active{background:var(--active)}
@@ -3546,7 +3553,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-110';
+const BUILD = 'cfp-111';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -17114,6 +17121,100 @@ function cxCouleurMin(val, cible){
   return (val < cible && c === 'var(--cn-good)') ? 'var(--cn-orange)' : c;
 }
 
+/* ---- Gluten ----
+   Teneur en g/100 g : la table DB.gluten (data/db.js) pour les aliments
+   simples, et pour ceux qui sont une vraie recette (`c` à plusieurs
+   ingrédients, ou aliment créé par l'utilisateur) la somme pondérée de leurs
+   ingrédients, comme pour le carbone. Un `c` à un seul ingrédient est le plus
+   souvent un proxy carbone (le sarrasin y pointe vers le blé, l'avoine aussi) :
+   on ne le suit pas, sans quoi ces aliments sans gluten en hériteraient.
+   Mémoïsé : la table ne change pas en cours de session, sauf création d'un
+   aliment, et un aliment nouveau n'a pas encore d'entrée en cache. */
+const GL_CACHE = new Map();
+function glutenInfo(slug, pile){
+  if(GL_CACHE.has(slug)) return GL_CACHE.get(slug);
+  const T = DB.gluten || {g:{}, traces:[]};
+  const f = F.get(slug) || (DB.aux || {})[slug];
+  let r = {g:0, tr:T.traces.includes(slug)};
+  if(slug in T.g) r = {g:T.g[slug], tr:r.tr};
+  else if(f && f.c && (f.c.length > 1 || f.perso)){
+    pile = pile || new Set();
+    if(pile.has(slug)) return {g:0, tr:false};   // garde-fou contre une boucle de recettes
+    pile.add(slug);
+    for(const [s2, frac] of f.c){
+      const x = glutenInfo(s2, pile);
+      r.g += frac * x.g;
+      r.tr = r.tr || x.tr;
+    }
+    pile.delete(slug);
+  }
+  GL_CACHE.set(slug, r);
+  return r;
+}
+const glutenDe = slug => glutenInfo(slug).g;
+
+/* Par jour rempli de la période : grammes de gluten, et si le jour en est
+   exempt, s'il a tout de même contenu un aliment à risque de traces. Un jour
+   sans saisie n'est ni « avec » ni « sans » gluten : il est muet, et sort de
+   la moyenne comme ailleurs dans Carences & excès. */
+function cxGlutenJours(periode){
+  const jours = [];
+  for(let i = 0; i < periode; i++){
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const iso_ = iso(d);
+    const es = S.hist.filter(e => e.d === iso_);
+    if(!es.length) continue;
+    let g = 0, tr = false;
+    es.forEach(e => e.l.forEach(([slug, gr]) => {
+      const x = glutenInfo(slug);
+      g += x.g * gr / 100;
+      tr = tr || x.tr;
+    }));
+    jours.push({d:iso_, g, tr});
+  }
+  return jours;
+}
+const CX_GLUTEN_MOY = 10; // g/j, moyenne mesurée chez l'adulte (Danemark, Hoppe et al. 2017)
+
+function cxGlutenCarte(periode){
+  const J = cxGlutenJours(periode);
+  const n = J.length;
+  const moy = n ? J.reduce((a, j) => a + j.g, 0) / n : 0;
+  /* Seuil d'un « jour sans » : sous 0,05 g, ce sont les traces d'une bière ou
+     d'une cuillère de sauce soja, pas un repas avec du gluten. */
+  const SANS = 0.05;
+  const sans = J.filter(j => j.g < SANS);
+  const sansTr = sans.filter(j => j.tr).length;
+  const pill = !n ? `<span class="pill" style="background:var(--mute)">Pas de saisie</span>`
+    : sans.length === n ? `<span class="pill" style="background:var(--cn-good)">Sans gluten</span>`
+    : `<span class="pill" style="background:var(--mute)">Information</span>`;
+  const vus = J.slice(0, 14);
+  const mx = Math.max(...vus.map(j => j.g), CX_GLUTEN_MOY);
+  const barres = vus.map(j => `<div class="cx-gl-day">
+      <span class="cx-gl-d">${esc(dLabel(j.d))}</span>
+      <span class="cx-gl-bar">${j.g >= SANS ? `<i style="width:${Math.max(2, j.g / mx * 100)}%"></i>` : ''}</span>
+      <span class="cx-gl-v"${!(j.g >= SANS) && j.tr ? ' title="Sans gluten mesurable, mais un aliment à risque de traces"' : ''}>${j.g >= SANS ? n1(j.g) + ' g' : (j.tr ? 'traces ?' : 'sans')}</span>
+    </div>`).join('');
+  return `<div class="card">
+        <div class="n-top" data-cxcard="1" role="button" tabindex="0">
+          <div class="n-name">🍞 Gluten <span class="chevron">▾</span></div>
+          ${pill}
+        </div>
+        <div class="n-ref">Moy. ${periode}j : ${n1(moy)} g/j · ${sans.length} jour${sans.length > 1 ? 's' : ''} sans gluten sur ${n}</div>
+        ${n ? `<div class="fs-label">Jour par jour${n > 14 ? ' · 14 derniers jours saisis' : ''}</div>
+        <div class="cx-gl-days">${barres}</div>
+        <div class="small mute" style="margin:6px 0 4px">Repère : un adulte en consomme en moyenne une dizaine de grammes par jour.</div>` : ''}
+        ${sansTr ? `<div class="small" style="margin:6px 0 4px">${sansTr} jour${sansTr > 1 ? 's' : ''} sans gluten mesurable, mais avec un aliment à risque de traces (avoine, sarrasin, sauce soja…).</div>` : ''}
+        <div class="cx-src-box">
+          <div class="fs-label">Aliments concernés sur la période</div>
+          ${cxSourcesNutrimentHtml(cxSourcesNutriment(periode, (f, g) => { const v = glutenDe(f.s) * g / 100; return v >= 0.05 ? v : 0; }), 'glu', '🍞', 'g')}
+        </div>
+        <div class="n-detail">Il n’existe pas de repère à atteindre ou à ne pas dépasser : sans maladie cœliaque, allergie au blé ou sensibilité diagnostiquée, manger du gluten ne pose pas de problème. Les quantités sont estimées à partir des protéines des céréales (blé, seigle, orge). Pour une personne cœliaque, c’est la présence, même en traces, qui compte : cette carte ne remplace pas la lecture des étiquettes, et il ne faut pas arrêter le gluten avant d’avoir fait le dépistage.
+          <span class="src">Source : facteurs de conversion et moyenne adulte, Hoppe et al., enquête nationale danoise (2017)</span>
+        </div>
+      </div>`;
+}
+
 function cxBloc(){
   const periode = CX_PERIODES.includes(S.cxPeriode) ? S.cxPeriode : 14;
   S.cxPeriode = periode;
@@ -17311,6 +17412,8 @@ function cxBloc(){
           <span class="src">Source : ANSES, repère max ; OMS, moins de 5g/j</span>
         </div>
       </div>
+
+      ${cxGlutenCarte(periode)}
 
       ${redVisible ? `<div class="card">
         <div class="n-top" data-cxcard="1" role="button" tabindex="0">

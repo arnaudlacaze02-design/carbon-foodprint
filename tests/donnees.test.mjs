@@ -48,3 +48,16 @@ test('chaque ingrédient de plat existe dans la base', () => {
 test("les aliments auxiliaires ne doublonnent pas la base principale", () => {
   assert.deepEqual(Object.keys(DB.aux || {}).filter(s => slugs.has(s)), []);
 });
+
+test('table gluten : aliments existants, teneurs plausibles', () => {
+  const T = DB.gluten;
+  assert.ok(T && T.g && Array.isArray(T.traces), 'DB.gluten manquant');
+  const inconnus = [...Object.keys(T.g), ...T.traces].filter(s => !connus.has(s));
+  assert.deepEqual(inconnus, []);
+  // le gluten ne peut pas dépasser les protéines de l'aliment
+  const trop = Object.entries(T.g).filter(([s, g]) => {
+    const f = DB.foods.find(x => x.s === s) || DB.aux[s];
+    return !(g >= 0) || (f && f.nu && g > f.nu[1]);
+  }).map(([s]) => s);
+  assert.deepEqual(trop, []);
+});
