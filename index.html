@@ -2069,6 +2069,13 @@ button.tip:active{transform:scale(.995)}
 .setrow{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 0;
   border-bottom:1px solid var(--line-soft)}
 .setrow:last-child{border-bottom:0}
+.ptrow{display:flex; align-items:center; gap:8px; padding:7px 0; border-top:1px solid var(--line-soft)}
+.ptrow:first-child{border-top:0}
+.ptmain{flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+  background:none; border:0; padding:2px 0; text-align:left; color:inherit; font:inherit; cursor:pointer}
+.ptmain .ptn{font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%}
+.ptx{flex:0 0 auto; padding:4px 10px}
+.ptx.on{color:var(--brick); border-color:var(--brick)}
 .setrow .l{font-size:14px}
 .setrow .l i{font-style:normal; display:block; font-size:11.5px; color:var(--mute); margin-top:2px}
 .themeseg{display:flex; background:var(--seg-bg); border-radius:9px; padding:3px; gap:3px; flex:0 0 auto}
@@ -3539,7 +3546,7 @@ function stamp(){
 /* Repère de version, affiché dans le diagnostic. Sans lui, impossible de
    savoir si l'app qui tourne est bien celle qu'on croit avoir déployée — ce
    doute a coûté plusieurs allers-retours. */
-const BUILD = 'cfp-109';
+const BUILD = 'cfp-110';
 
 /* Clé publique VAPID. Publique au sens propre : elle est destinée à être
    embarquée dans le client, elle n'ouvre rien. C'est la clé PRIVÉE, qui reste
@@ -12696,6 +12703,9 @@ function renderProfil(){
     <h2 class="sec">Notifications</h2>
     <div class="card">${notesRow()}${notifBlock()}</div>
 
+    <h2 class="sec">Mes plats types</h2>
+    <div class="card">${platsTypesBlock()}</div>
+
     <h2 class="sec">Petit-déjeuner</h2>
     <div class="card">${sansFilet(pdjBlock())}</div>
 
@@ -12748,6 +12758,8 @@ function renderProfil(){
     renderProfil();
     toast(ok ? 'Rappel du soir armé, même app fermée' : 'Abonnement toujours refusé');
   };
+
+  bindPlatsTypes();
 
   const pj = $('#pf_pdj');
   if(pj) pj.onclick = () => {
@@ -13058,6 +13070,131 @@ const P_TV = {
    la valeur par défaut de son rang (les étiquettes listent les ingrédients par
    poids décroissant), puis le tout est ramené à 100 %. */
 const PERSO_DEF = [[1], [0.7, 0.3], [0.6, 0.25, 0.15]];
+/* « Mes plats types » du profil : la liste de S.favs, chaque plat se modifie
+   (nom, ingrédients, grammages) ou se supprime.
+   Le petit-déjeuner habituel (`hab`) en est exclu : il a sa propre carte juste
+   en dessous, et son propre parcours de modification par la saisie.
+   L'index dans S.favs sert d'identifiant le temps d'un affichage : chaque
+   modification repeint le profil, il ne peut donc pas devenir périmé.
+   Renommer un plat ne touche pas l'historique : un repas enregistré garde le
+   nom qu'il portait ce jour-là (5e champ de ses lignes), comme une photo. */
+const platsTypesUser = () => S.favs.map((f, i) => ({f, i})).filter(x => !x.f.hab);
+
+function platsTypesBlock(){
+  const L = platsTypesUser();
+  if(!L.length) return `<p class="small mute" style="margin:0">Aucun plat type pour l’instant. Composez un plat
+    dans la saisie, puis « Enregistrer dans les plats types » : il apparaîtra ici.</p>`;
+  return `<div class="small mute" style="margin-bottom:4px">${L.length} plat${L.length > 1 ? 's' : ''} ·
+      touchez un plat pour le modifier</div>
+    ${L.map(({f, i}) => `<div class="ptrow">
+      <button class="ptmain" type="button" data-ptedit="${i}" aria-label="Modifier ${esc(f.n)}">
+        <span class="ptn">${esc(f.n)}</span>
+        <span class="small mute">${f.l.length} ingrédient${f.l.length > 1 ? 's' : ''} · ${n2(kgOf(f.l))} kg CO₂e</span>
+      </button>
+      <button class="btn btn-2 ptx" type="button" data-ptdel="${i}" aria-label="Supprimer ${esc(f.n)}">✕</button>
+    </div>`).join('')}`;
+}
+
+function bindPlatsTypes(){
+  view.querySelectorAll('[data-ptedit]').forEach(b => b.onclick = () => platTypeSheet(+b.dataset.ptedit));
+  /* Deux touchers pour supprimer : le premier transforme la croix en
+     « Supprimer ? », le second supprime. Une croix isolée sur une ligne qu'on
+     touche par ailleurs pour l'ouvrir se presse trop facilement par erreur. */
+  view.querySelectorAll('[data-ptdel]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.ptdel, f = S.favs[i];
+    if(!f) return;
+    if(!b.dataset.ok){
+      view.querySelectorAll('[data-ptdel][data-ok]').forEach(x => { delete x.dataset.ok; x.textContent = '✕'; x.classList.remove('on'); });
+      b.dataset.ok = '1'; b.textContent = 'Supprimer ?'; b.classList.add('on');
+      return;
+    }
+    S.favs.splice(i, 1); save(); renderProfil();
+    toast(`« ${f.n} » supprimé`);
+  });
+}
+
+function platTypeSheet(i){
+  const f = S.favs[i];
+  if(!f) return;
+  /* Copie de travail : rien n'est écrit dans S.favs avant « Enregistrer ». */
+  const lignes = f.l.map(l => [...l]);
+  const tous = DB.foods.slice().sort((a, b) => a.n.localeCompare(b.n, 'fr'));
+  const parNom = new Map(tous.map(x => [nrmQ(x.n), x]));
+  const nomAlim = sl => (F.get(sl) || {}).n || sl;
+  const grammes = v => { const n = +String(v).trim().replace(',', '.'); return isFinite(n) && n > 0 ? Math.round(n) : null; };
+
+  openSheet(`<div class="unit">Plat type</div>
+    <h3 style="margin:2px 0 10px">Modifier le plat</h3>
+    <label style="display:block"><span class="small mute">Nom</span>
+      <input class="search" id="ptN" type="text" maxlength="80" value="${esc(f.n)}" style="width:100%"></label>
+    <div class="small mute" style="margin-top:14px">Ingrédients</div>
+    <div id="ptRows"></div>
+    <div class="small mute" style="margin-top:12px">Ajouter un ingrédient</div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <input class="search" id="ptAdd" list="ptList" aria-label="Ingrédient à ajouter" placeholder="ex. Courgette" style="flex:1;min-width:0">
+      <input class="search" id="ptAddG" type="text" inputmode="decimal" placeholder="g" aria-label="Grammes" style="width:64px">
+      <button class="btn btn-2" id="ptAddOk" type="button">Ajouter</button>
+    </div>
+    <datalist id="ptList">${tous.map(x => `<option value="${esc(x.n)}"></option>`).join('')}</datalist>
+    <div id="ptMsg" class="small" style="margin-top:8px;min-height:1.3em"></div>
+    <div class="actions">
+      <button class="btn btn-1" id="ptOk">Enregistrer</button>
+      <button class="btn btn-2" onclick="closeSheet()">Annuler</button>
+    </div>`);
+
+  const msg = (t, err) => { const m = $('#ptMsg'); m.textContent = t; m.style.color = err ? 'var(--brick)' : ''; };
+  const total = () => msg(lignes.length
+    ? `${lignes.length} ingrédient${lignes.length > 1 ? 's' : ''} · ${n2(kgOf(lignes))} kg CO₂e`
+    : 'Aucun ingrédient');
+  const dessine = () => {
+    $('#ptRows').innerHTML = lignes.map(([sl, g], k) => `<div class="ptrow">
+      <span style="flex:1;min-width:0">${esc(nomAlim(sl))}</span>
+      <input class="search" data-ptg="${k}" type="text" inputmode="decimal" value="${g}" aria-label="Grammes de ${esc(nomAlim(sl))}" style="width:64px;text-align:right">
+      <span class="small mute">g</span>
+      <button class="btn btn-2 ptx" type="button" data-ptrm="${k}" aria-label="Retirer ${esc(nomAlim(sl))}">✕</button>
+    </div>`).join('');
+    $('#ptRows').querySelectorAll('[data-ptg]').forEach(inp => inp.oninput = () => {
+      const g = grammes(inp.value);
+      if(g != null){ lignes[+inp.dataset.ptg][1] = g; total(); }
+      else msg('Indiquez un poids en grammes.', true);
+    });
+    $('#ptRows').querySelectorAll('[data-ptrm]').forEach(b => b.onclick = () => {
+      lignes.splice(+b.dataset.ptrm, 1); dessine();
+    });
+    total();
+  };
+  dessine();
+
+  /* Choisir dans la liste préremplit la portion habituelle de l'aliment. */
+  $('#ptAdd').oninput = () => {
+    const x = parNom.get(nrmQ($('#ptAdd').value.trim()));
+    if(x && !$('#ptAddG').value) $('#ptAddG').value = x.p || 100;
+  };
+  $('#ptAddOk').onclick = () => {
+    const brut = $('#ptAdd').value.trim();
+    const x = parNom.get(nrmQ(brut));
+    if(!brut) return msg('Tapez un aliment, puis choisissez-le dans la liste.', true);
+    if(!x) return msg(`« ${brut} » n’est pas dans la base : choisissez une proposition de la liste.`, true);
+    const g = grammes($('#ptAddG').value || x.p || 100);
+    if(g == null) return msg('Indiquez un poids en grammes.', true);
+    const k = lignes.findIndex(l => l[0] === x.s);
+    if(k >= 0) lignes[k][1] += g; else lignes.push([x.s, g]);
+    $('#ptAdd').value = ''; $('#ptAddG').value = '';
+    dessine();
+  };
+
+  $('#ptOk').onclick = () => {
+    const nom = $('#ptN').value.trim();
+    if(!nom) return msg('Donnez un nom au plat.', true);
+    if(S.favs.some((x, j) => j !== i && x.n === nom)) return msg('Un autre plat type porte déjà ce nom.', true);
+    if(!lignes.length) return msg('Gardez au moins un ingrédient, ou supprimez le plat depuis la liste.', true);
+    if(lignes.some(l => !(l[1] > 0))) return msg('Chaque ingrédient doit avoir un poids en grammes.', true);
+    S.favs[i] = {...f, n:nom, l:lignes};
+    save(); closeSheet(); renderProfil();
+    toast(`« ${nom} » enregistré`, {ok:true});
+  };
+}
+
 function persoCarte(){
   const mes = DB.foods.filter(f => f.perso && persoListe().includes(f.s));
   return `<h2 class="sec">Votre aliment n’existe pas ?</h2>
