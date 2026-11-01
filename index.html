@@ -1802,6 +1802,7 @@ button.tip:active{transform:scale(.995)}
 .ialigne .nm{font-weight:600; font-size:14px; line-height:1.25}
 .ialigne .nm i{display:block; font-style:normal; font-size:11px; color:var(--mute); font-weight:400}
 .ialigne .nm .dout{color:var(--warn, #b26b00)}
+.ialigne .nm .iasub{display:block; margin-top:2px; color:var(--warn, #b26b00)}
 .ialigne input{width:64px; padding:7px 6px; border:1px solid var(--line); border-radius:8px;
   background:var(--card); color:var(--ink); font:inherit; text-align:right}
 .ialigne select{grid-column:1 / -1; justify-self:start; padding:5px 6px; border:1px solid var(--line);
@@ -10126,20 +10127,23 @@ async function iaAnalyser(texte){
 function iaMapper(b){
   const noms = new Map(DB.foods.map(f => [f.n, f.s]));
   const lignes = [], rates = [...(b.inconnus || [])];
-  const ajoute = (s, l, dout) => {
+  /* `sub` : l'ingrédient réellement mangé, quand la base ne l'a pas et que
+     l'aliment retenu n'en est qu'un proche, signalé par le modèle
+     (a_la_place_de). */
+  const ajoute = (s, l, dout, sub) => {
     const svc = IA_SVC[l.service] ? l.service : 'plat';
     const ex = lignes.find(x => x.s === s && x.svc === svc);
-    if(ex){ ex.g = Math.min(2000, ex.g + l.g); return; }
-    lignes.push({s, g:Math.round(l.g), svc, txt:l.texte || '', dout});
+    if(ex){ ex.g = Math.min(2000, ex.g + l.g); if(sub && !ex.sub) ex.sub = sub; return; }
+    lignes.push({s, g:Math.round(l.g), svc, txt:l.texte || '', dout, sub:sub || ''});
   };
   (b.lignes || []).forEach(l => {
     const s = l.id && F.has(l.id) ? l.id : noms.get(l.nom);
-    s && F.has(s) ? ajoute(s, l, false) : rates.push(l.nom);
+    s && F.has(s) ? ajoute(s, l, false, String(l.remplace || '').slice(0, 60)) : rates.push(l.nom);
   });
   (b.approx || []).forEach(l => {
     let s;
     try{ s = rqSlug(rqNorm(l.nom)); }catch(e){ s = undefined; }
-    s && F.has(s) ? ajoute(s, l, true) : rates.push(l.texte || l.nom);
+    s && F.has(s) ? ajoute(s, l, true, String(l.remplace || '').slice(0, 60)) : rates.push(l.texte || l.nom);
   });
   return {lignes, rates:[...new Set(rates.filter(Boolean))]};
 }
@@ -10242,7 +10246,8 @@ function iaPaintRelecture(){
       ${R.lignes.map((l, i) => { const f = F.get(l.s); return `
         <div class="ialigne">
           <span class="nm">${esc(f.n)}<i>${l.dout ? '<span class="dout">à vérifier · </span>' : ''}${
-            l.txt ? '« ' + esc(l.txt) + ' »' : ''}</i></span>
+            l.txt ? '« ' + esc(l.txt) + ' »' : ''}${l.sub ? `<span class="iasub">↪ « ${esc(l.sub)} » n’existe pas dans la base :
+              remplacé par ${esc(f.n)}</span>` : ''}</i></span>
           <label><input type="number" inputmode="numeric" min="1" max="2000" step="5"
             data-iag="${i}" value="${l.g}" aria-label="Grammes de ${esc(f.n)}"> g</label>
           <button class="x" data-iax="${i}" aria-label="Retirer ${esc(f.n)}">×</button>
