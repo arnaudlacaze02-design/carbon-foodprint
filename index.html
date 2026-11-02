@@ -30,7 +30,7 @@
      plus bas, qui dit ce que chaque graisse signifie. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Comfortaa:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Comfortaa:wght@400;500;600;700&family=Bagel+Fat+One&family=Martian+Mono:wght@400;600;800&display=swap">
 <style>
 :root{
   /* Courbes de mouvement (Emil Kowalski) : les easings CSS natifs sont trop mous. */
@@ -836,7 +836,43 @@ h1,h2,h3{text-wrap:balance}
 .today{font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--on-topbar-mute); text-align:right}
 .today b{display:block; font-family:var(--display); font-weight:800; font-size:17px; color:var(--on-topbar-strong); letter-spacing:0; text-transform:none; font-variant-numeric:tabular-nums}
 
-main{flex:1; padding:16px 16px calc(120px + env(safe-area-inset-bottom))} /* la tabbar flotte à 10px + safe-area : sans cette marge, le bas de page restait dessous sur iPhone */
+main{flex:1; padding:16px 16px calc(120px + env(safe-area-inset-bottom))}
+/* ================= style « Disco » : accueil en damier =================
+   Un seul damier : la grille fonctionnelle (6 colonnes, cases carrées, sans
+   gouttière) est posée exactement sur le damier du fond, si bien qu'une case
+   sans fonction laisse voir le fond. Sur l'accueil et l'écran des trois
+   options, la page EST le menu : en-tête et barre du bas disparaissent. */
+body.dz-home .topbar, body.dz-home .tabbar{display:none}
+body.dz-home main{padding:0}
+.dz{--dzc:calc(min(100vw, 430px) / 6); --dzg:#EDCBB6; --dzv:#7B2431; --dzo:#34402E; --dzs:#A3B5A4;
+  --dzm:#D6A23C; --dzt:#B65A3E; --dzk:#F7EBDD; --dzi:#2E3727;
+  min-height:100vh; background:var(--dzg); padding-top:env(safe-area-inset-top);
+  font-family:'Martian Mono', ui-monospace, monospace; color:var(--dzo)}
+.dz-grid{display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); grid-auto-rows:var(--dzc); min-height:100vh;
+  align-content:start; box-sizing:border-box;
+  background-color:var(--dzg); background-size:calc(var(--dzc) * 2) calc(var(--dzc) * 2);
+  background-image:conic-gradient(rgba(150,70,40,.13) 25%, transparent 0 50%, rgba(150,70,40,.13) 0 75%, transparent 0);
+  padding-bottom:env(safe-area-inset-bottom)}
+.dz-t{border:0; margin:0; font:inherit; color:inherit; text-align:left; cursor:pointer; min-width:0; overflow:hidden;
+  display:flex; flex-direction:column; justify-content:space-between; padding:12px; -webkit-tap-highlight-color:transparent}
+.dz-t:active{filter:brightness(.94)}
+.dz-t.sq{padding:8px; align-items:center; justify-content:center}
+.dz-t.r1{border-radius:10px} .dz-t.r2{border-radius:16px} .dz-t.r4{border-radius:24px}
+.dz-d{font-family:'Bagel Fat One', system-ui; font-weight:400; line-height:.9; letter-spacing:-.01em}
+.dz-l{font-size:8.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase}
+.dz-s{font-size:8.5px; line-height:1.4}
+.dz-t svg{flex:0 0 auto}
+.dz-h1{grid-column:1 / 5; grid-row:1; margin:0; align-self:center; padding-left:14px;
+  font-family:'Bagel Fat One', system-ui; font-weight:400; font-size:27px; line-height:.88; color:#A9BCAB;
+  text-shadow:1px 1px 0 var(--dzo), 2px 2px 0 var(--dzo), 3px 3px 0 var(--dzo), 4px 4px 0 var(--dzo)}
+.dz-date{grid-column:5 / 7; grid-row:1; margin:0; align-self:center; padding-right:14px; text-align:right;
+  font-size:9px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#6B2A1F; line-height:1.5}
+.dz-badge{position:absolute; top:9px; right:9px; min-width:16px; height:16px; padding:0 4px; box-sizing:border-box;
+  border-radius:8px; background:#E0896A; color:var(--dzo); font-size:8.5px; font-weight:800;
+  display:flex; align-items:center; justify-content:center}
+.dz-bar{position:relative; display:block; height:16px; background:var(--dzk); border-radius:8px}
+.dz-bar i{position:absolute; left:0; top:0; bottom:0; background:var(--dzv); border-radius:8px}
+.dz-bar b{position:absolute; top:-4px; bottom:-4px; width:3px; background:var(--dzi); border-radius:2px} /* la tabbar flotte à 10px + safe-area : sans cette marge, le bas de page restait dessous sur iPhone */
 
 /* ---------------- primitives ---------------- */
 .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px}
@@ -10620,7 +10656,207 @@ function iaAppliquer(){
   toast(`${L.length} aliment${L.length > 1 ? 's' : ''} ajouté${L.length > 1 ? 's' : ''} · vérifie et enregistre`, {ok:true});
 }
 
+/* ==================== style de l'app : Classique ou Disco ====================
+   Préférence de l'appareil, comme le thème : elle se lit avant le premier
+   rendu et ne voyage pas avec le compte. */
+const DA_KEY = 'cfp.style';
+function readDA(){ try{ return localStorage.getItem(DA_KEY) === 'disco' ? 'disco' : 'classique'; }catch(e){ return 'classique'; } }
+let daMode = readDA();
+const discoOn = () => daMode === 'disco';
+function applyDA(mode){
+  daMode = mode === 'disco' ? 'disco' : 'classique';
+  document.documentElement.setAttribute('data-da', daMode);
+  try{ localStorage.setItem(DA_KEY, daMode); }catch(e){}
+}
+applyDA(daMode);
+
+const DZ_IC = {
+  plus:'<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 4v16M4 12h16"/></svg>',
+  edit:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>',
+  mic:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>',
+  bolt:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+  bell:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>',
+  user:'<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="9" r="3.6"/><path d="M5 20c1.4-3.6 4-5 7-5s5.6 1.4 7 5"/></svg>',
+  feed:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="3"/><circle cx="16.5" cy="8" r="2.4"/><path d="M3.5 19c.9-3 3-4.5 5.5-4.5s4.6 1.5 5.5 4.5M15 14c2.4 0 4.2 1.2 5 3.8"/></svg>',
+  chart:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 20h16M7 17V9M12 17V5M17 17v-6"/></svg>',
+  target:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.8" fill="currentColor"/></svg>',
+  cup:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h13v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5c-.6 1 .6 1.6 0 2.6M12 3.5c-.6 1 .6 1.6 0 2.6"/></svg>',
+  back:'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>'
+};
+/* Brocoli de saisonnalité, version damier : silhouette pleine, niveau de
+   remplissage = part des fruits et légumes de saison. */
+function dzBrocoli(pct){
+  const y = Math.round(134 - Math.max(0, Math.min(100, pct || 0)) / 100 * 126);
+  const flo = '<circle cx="38" cy="40" r="17"/><circle cx="60" cy="28" r="20"/><circle cx="83" cy="40" r="17"/><circle cx="27" cy="60" r="14"/><circle cx="93" cy="60" r="14"/><circle cx="46" cy="58" r="17"/><circle cx="74" cy="58" r="17"/><circle cx="60" cy="48" r="18"/>';
+  const tige = '<path d="M43 66 C45 90 43 110 47 124 Q60 131 73 124 C77 110 75 90 77 66 Z"/>';
+  return `<svg width="52" height="61" viewBox="0 0 120 140" aria-hidden="true" style="align-self:flex-end">
+    <defs><clipPath id="dzBrc"><rect x="0" y="${y}" width="120" height="${140 - y}"/></clipPath></defs>
+    <g fill="#2E3727" stroke="#2E3727" stroke-width="6" stroke-linejoin="round">${flo}${tige}</g>
+    <g fill="#DCE4D9">${flo}${tige}</g>
+    <g clip-path="url(#dzBrc)"><g fill="#4F6A47">${flo}</g><g fill="#C9D5C7">${tige}</g></g>
+    <circle cx="53" cy="84" r="3" fill="#2E3727"/><circle cx="67" cy="84" r="3" fill="#2E3727"/>
+    <path d="M55 91 Q60 95 65 91" fill="none" stroke="#2E3727" stroke-width="2.4" stroke-linecap="round"/>
+  </svg>`;
+}
+const dzPos = (c, r) => `grid-column:${c};grid-row:${r};`;
+
+/* Accueil Disco. Les chiffres sont ceux du jour : carbone, calories et
+   macros de la saisie, part de saison des fruits et légumes. */
+function renderDiscoHome(){
+  document.body.classList.add('dz-home');
+  const T = today(), jour = S.hist.filter(e => e.d === T);
+  const lignes = jour.flatMap(e => e.l);
+  const kg = jour.reduce((a, e) => a + kgOf(e.l), 0);
+  const pct = BUDGET_J ? kg / BUDGET_J * 100 : 0;
+  const nu = (typeof nuParJour === 'function' ? nuParJour()[T] : null) || {kcal:0, prot:0, lip:0, gluc:0};
+  let cibleKcal = null;
+  try{ const t = coachTargets('prepa'); cibleKcal = t && t.kcal ? t.kcal.v : null; }catch(e){}
+  const sais = saisPart(lignes, new Date().getMonth() + 1);
+  const notes = notesNonLus(), st = logStreak();
+  let actu = 0; try{ actu = attentes().actu || 0; }catch(e){}
+  const nom = (SESS && SESS.username) || (S.prof && S.prof.nom) || '';
+  const quand = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+  const [jourSem, ...reste] = quand.split(' ');
+  /* Barre carbone : 0 → max(budget × 1,3, total du jour). Le trait marque le budget. */
+  const echelle = Math.max(BUDGET_J * 1.3, kg) || 1;
+  view.innerHTML = `<div class="dz"><div class="dz-grid">
+    <h1 class="dz-h1">Welcome<br>${esc(nom || 'à vous')}</h1>
+    <p class="dz-date">${esc(jourSem)}<br>${esc(reste.join(' '))}</p>
+
+    <button class="dz-t r4" id="dzNew" style="${dzPos('1 / 5', '2 / 6')}background:var(--dzv);color:var(--dzk);padding:20px">
+      <span style="width:58px;height:58px;border-radius:50%;background:var(--dzk);color:var(--dzv);display:flex;align-items:center;justify-content:center">${DZ_IC.plus}</span>
+      <span style="display:flex;flex-direction:column;gap:10px">
+        <span class="dz-d" style="font-size:46px">Nouveau<br>repas</span>
+        <span class="dz-l" style="font-size:9px;font-weight:600;color:#F2CDB9">Petit-déj · déj · en-cas · dîner</span>
+      </span>
+    </button>
+
+    <button class="dz-t" id="dzSais" style="${dzPos('5 / 7', '2 / 4')}background:var(--dzs);color:var(--dzi);flex-direction:row;align-items:stretch;gap:4px">
+      <span style="display:flex;flex-direction:column;justify-content:space-between">
+        <span class="dz-l">De saison</span>
+        <span style="display:flex;flex-direction:column;gap:3px">
+          <span class="dz-d" style="font-size:30px">${sais == null ? '—' : Math.round(sais)}${sais == null ? '' : '<span style="font-size:16px"> %</span>'}</span>
+          <span class="dz-s" style="font-size:8px;line-height:1.35">fruits et<br>légumes</span>
+        </span>
+      </span>
+      ${dzBrocoli(sais)}
+    </button>
+
+    <button class="dz-t sq" id="dzStreak" aria-label="Série de ${st} jour${st > 1 ? 's' : ''}" style="${dzPos(5, 4)}background:var(--dzm);color:var(--dzi);gap:2px">
+      ${DZ_IC.bolt}<span class="dz-d" style="font-size:19px;line-height:1">${st}</span>
+    </button>
+    <button class="dz-t sq r1" id="dzBell" aria-label="Notifications${notes ? ', ' + notes + ' non lue' + (notes > 1 ? 's' : '') : ''}" style="${dzPos(6, 4)}background:var(--dzo);color:var(--dzk);position:relative">
+      ${DZ_IC.bell}${notes ? `<span class="dz-badge">${notes > 9 ? '9+' : notes}</span>` : ''}
+    </button>
+    <button class="dz-t sq" id="dzProfil" aria-label="Profil" style="${dzPos(5, 5)}background:var(--dzk);color:var(--dzo)">${DZ_IC.user}</button>
+
+    <button class="dz-t" id="dzCal" style="${dzPos('3 / 5', '6 / 8')}background:var(--dzs);color:var(--dzi)">
+      <span class="dz-l">Calories</span>
+      <span class="dz-d" style="font-size:38px">${n0(nu.kcal)}</span>
+      <span class="dz-s">kcal${cibleKcal ? `<br>sur ${n0(cibleKcal)}` : ''}</span>
+    </button>
+    <div class="dz-t sq r1" style="${dzPos(1, 8)}background:var(--dzt);color:#FBEFE6;align-items:stretch;justify-content:space-between;cursor:default">
+      <span class="dz-l" style="font-size:7px;letter-spacing:.04em">Gluc.</span>
+      <span class="dz-d" style="font-size:18px;line-height:1">${n0(nu.gluc)}<span style="font-family:'Martian Mono',monospace;font-size:8px"> g</span></span>
+    </div>
+    <div class="dz-t sq r1" style="${dzPos(2, 8)}background:var(--dzo);color:var(--dzk);align-items:stretch;justify-content:space-between;cursor:default">
+      <span class="dz-l" style="font-size:7px;letter-spacing:.04em;color:#C9D5C7">Prot.</span>
+      <span class="dz-d" style="font-size:18px;line-height:1">${n0(nu.prot)}<span style="font-family:'Martian Mono',monospace;font-size:8px"> g</span></span>
+    </div>
+    <div class="dz-t sq" style="${dzPos(3, 8)}background:var(--dzk);color:var(--dzo);align-items:stretch;justify-content:space-between;cursor:default">
+      <span class="dz-l" style="font-size:7px;letter-spacing:.04em;color:var(--dzv)">Lip.</span>
+      <span class="dz-d" style="font-size:18px;line-height:1">${n0(nu.lip)}<span style="font-family:'Martian Mono',monospace;font-size:8px"> g</span></span>
+    </div>
+
+    <button class="dz-t r2" id="dzFeed" style="${dzPos('5 / 7', '6 / 8')}background:var(--dzo);color:var(--dzk)">
+      ${DZ_IC.feed}
+      <span style="display:flex;flex-direction:column;gap:4px">
+        <span class="dz-d" style="font-size:23px">Feed</span>
+        <span class="dz-s" style="color:#C9D5C7">${actu ? `${actu} nouveauté${actu > 1 ? 's' : ''}` : 'Vos amis'}</span>
+      </span>
+    </button>
+    <button class="dz-t" id="dzTracker" style="${dzPos('5 / 7', '8 / 10')}background:var(--dzk);color:var(--dzo)">
+      ${DZ_IC.chart}
+      <span style="display:flex;flex-direction:column;gap:4px">
+        <span class="dz-d" style="font-size:23px">Tracker</span>
+        <span class="dz-s" style="color:var(--dzv)">Santé, cumulé</span>
+      </span>
+    </button>
+    <button class="dz-t r2" id="dzTroph" style="${dzPos('5 / 7', '10 / 12')}background:var(--dzt);color:#FBEFE6">
+      ${DZ_IC.target}<span class="dz-d" style="font-size:23px">Trophées</span>
+    </button>
+    <button class="dz-t" id="dzCuisine" style="${dzPos('5 / 7', '12 / 14')}background:var(--dzs);color:var(--dzi)">
+      ${DZ_IC.cup}<span class="dz-d" style="font-size:21px">En cuisine</span>
+    </button>
+
+    <button class="dz-t" id="dzCarbone" style="${dzPos('1 / 5', '9 / 13')}background:var(--dzm);color:var(--dzi);padding:20px">
+      <span style="display:flex;justify-content:space-between;align-items:baseline;width:100%">
+        <span class="dz-l" style="font-size:9px;letter-spacing:.1em">Carbone</span>
+        <span class="dz-l" style="font-size:9px;font-weight:600;letter-spacing:.06em">Aujourd’hui</span>
+      </span>
+      <span style="display:flex;flex-direction:column;gap:2px">
+        <span class="dz-d" style="font-size:96px;line-height:.85;letter-spacing:-.02em">${n2(kg)}</span>
+        <span style="font-size:11px;font-weight:600">kg CO₂e</span>
+      </span>
+      <span style="display:flex;flex-direction:column;gap:7px;width:100%">
+        <span class="dz-bar"><i style="width:${Math.min(100, kg / echelle * 100).toFixed(1)}%"></i><b style="left:${(BUDGET_J / echelle * 100).toFixed(1)}%"></b></span>
+        <span style="display:flex;justify-content:space-between;font-size:8.5px;font-weight:600;letter-spacing:.04em">
+          <span>Budget du jour ${n2(BUDGET_J)} kg</span><span style="color:var(--dzv);font-weight:800">${Math.round(pct)} %</span>
+        </span>
+      </span>
+    </button>
+  </div></div>`;
+  $('#dzNew').onclick = () => { S.step = 'trio'; renderSaisie(); };
+  $('#dzSais').onclick = () => go('tracker');
+  $('#dzStreak').onclick = streakSheet;
+  $('#dzBell').onclick = () => notesSheet();
+  $('#dzProfil').onclick = () => go('profil');
+  $('#dzCal').onclick = () => { S.tv = 'sante'; go('tracker'); };
+  $('#dzFeed').onclick = () => go('feed');
+  $('#dzTracker').onclick = () => go('tracker');
+  $('#dzTroph').onclick = () => go('jeux');
+  $('#dzCuisine').onclick = () => go('biblio');
+  $('#dzCarbone').onclick = () => go('tracker');
+}
+
+/* Après « Nouveau repas » en Disco : les trois options de toujours,
+   dans le même damier. */
+function renderDiscoTrio(){
+  document.body.classList.add('dz-home');
+  view.innerHTML = `<div class="dz"><div class="dz-grid">
+    <button class="dz-t sq r1" id="dzBack" aria-label="Retour à l’accueil" style="${dzPos(1, 1)}background:var(--dzo);color:var(--dzk)">${DZ_IC.back}</button>
+    <p class="dz-date" style="grid-column:2 / 7;text-align:left;padding-left:12px">Ajouter<br>un repas</p>
+
+    <button class="dz-t r4" id="hNew" style="${dzPos('1 / 5', '2 / 6')}background:var(--dzv);color:var(--dzk);padding:20px">
+      <span style="width:58px;height:58px;border-radius:50%;background:var(--dzk);color:var(--dzv);display:flex;align-items:center;justify-content:center">${DZ_IC.plus}</span>
+      <span style="display:flex;flex-direction:column;gap:10px">
+        <span class="dz-d" style="font-size:46px">Nouveau<br>repas</span>
+        <span class="dz-l" style="font-size:9px;font-weight:600;color:#F2CDB9">Petit-déj · déj · en-cas · dîner</span>
+      </span>
+    </button>
+    <button class="dz-t" id="hEdit" style="${dzPos('5 / 7', '2 / 4')}background:var(--dzs);color:var(--dzi)">
+      ${DZ_IC.edit}
+      <span style="display:flex;flex-direction:column;gap:4px">
+        <span class="dz-d" style="font-size:20px">Modifier<br>un repas</span>
+        <span class="dz-l" style="font-weight:600;letter-spacing:.06em">${S.hist.length} enregistré${S.hist.length > 1 ? 's' : ''}</span>
+      </span>
+    </button>
+    <button class="dz-t" id="hIA" style="${dzPos('5 / 7', '4 / 6')}background:var(--dzm);color:var(--dzi)">
+      ${DZ_IC.mic}
+      <span style="display:flex;flex-direction:column;gap:4px">
+        <span class="dz-d" style="font-size:20px">Décrire<br>mon repas</span>
+        <span class="dz-l" style="font-weight:600;letter-spacing:.05em">Écrit ou voix</span>
+      </span>
+    </button>
+  </div></div>`;
+  $('#dzBack').onclick = () => { S.step = 'home'; renderSaisie(); };
+  $('#hIA').onclick = iaSheet;
+  $('#hNew').onclick = () => { S.step = 'meal'; S.draft = []; S.wiz = null; renderSaisie(); };
+  $('#hEdit').onclick = editSheet;
+}
+
 function renderSaisie(){
+  document.body.classList.remove('dz-home');
   topbar();
   /* Un brouillon vide s'écrit aussi : c'est ce qui purge la reprise dès qu'un
      repas est enregistré, sans avoir à l'effacer explicitement quelque part. */
@@ -10637,6 +10873,11 @@ function renderSaisie(){
   const draftKg = kgOf(S.draft);
 
   /* ================= 1. accueil : deux fenêtres carrées ================= */
+  if(S.step === 'trio' && !editing){
+    if(discoOn()) return renderDiscoTrio();
+    S.step = 'home';
+  }
+  if(S.step === 'home' && !editing && discoOn()) return renderDiscoHome();
   if(S.step === 'home' && !editing){
     view.innerHTML = `
       <i class="brandbig" role="img" aria-label="Carbon FOODprint"></i>
@@ -10685,7 +10926,7 @@ function renderSaisie(){
         entrée, plat, dessert, puis une boisson si besoin.
         Petit-déjeuner et en-cas vont droit à la saisie.</div>`;
     bindDateRow();
-    $('#sBack').onclick = () => { S.step = 'home'; renderSaisie(); };
+    $('#sBack').onclick = () => { S.step = discoOn() ? 'trio' : 'home'; renderSaisie(); };
     view.querySelectorAll('[data-meal]').forEach(b => b.onclick = () => {
       S.meal = b.dataset.meal;
       S.mode = null;                     /* un nouveau repas redemande le mode */
@@ -12754,6 +12995,13 @@ function themeBlock(){
       <div class="themeseg" id="tseg2">
         ${opts.map(([k,l,ic]) => `<button data-theme-opt="${k}" aria-pressed="${themeMode===k}">${ic}${l}</button>`).join('')}
       </div>
+    </div>
+    <div class="setrow">
+      <div class="l">Style<i>« Disco » : accueil en damier, couleurs terracotta.</i></div>
+      <div class="themeseg" id="daseg">
+        <button data-da-opt="classique" aria-pressed="${daMode==='classique'}"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>Classique</button>
+        <button data-da-opt="disco" aria-pressed="${daMode==='disco'}"><svg viewBox="0 0 24 24"><path d="M4 4h8v8H4zM12 12h8v8h-8z"/><path d="M12 4h8v8M4 12v8h8"/></svg>Disco</button>
+      </div>
     </div>`;
 }
 
@@ -12920,6 +13168,14 @@ function renderProfil(){
   if(pd) pd.onclick = diagSheet;
   const pnt = $('#pf_notes');
   if(pnt) pnt.onclick = () => notesSheet();
+
+  const dg = $('#daseg');
+  if(dg) dg.querySelectorAll('[data-da-opt]').forEach(btn => btn.onclick = () => {
+    applyDA(btn.dataset.daOpt);
+    dg.querySelectorAll('[data-da-opt]').forEach(x =>
+      x.setAttribute('aria-pressed', x.dataset.daOpt === daMode));
+    toast(daMode === 'disco' ? 'Style Disco · l’accueil passe en damier' : 'Style classique', {ok:true});
+  });
 
   const tg = $('#tseg2');
   if(tg) tg.querySelectorAll('[data-theme-opt]').forEach(btn => btn.onclick = () => {
@@ -20746,6 +21002,7 @@ function go(tab){
      s'afficher — sinon un bug cosmétique isolé bloquerait l'app entière,
      comme cela s'est produit une fois avec une constante mal placée. */
   S.tab = tab; tabSave();
+  document.body.classList.remove('dz-home');
   try{ topbar(); }catch(e){ console.error('topbar', e); }
   document.querySelectorAll('#tabbar button').forEach(b =>
     b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
