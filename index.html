@@ -13255,6 +13255,33 @@ const P_TV = {
    la valeur par défaut de son rang (les étiquettes listent les ingrédients par
    poids décroissant), puis le tout est ramené à 100 %. */
 const PERSO_DEF = [[1], [0.7, 0.3], [0.6, 0.25, 0.15]];
+/* Jusqu'à 8 ingrédients. Avec 3 seulement, puis ramenés à 100 %, un plat
+   préparé voyait son premier ingrédient gonflé : semoule au poulet, poulet
+   17,5 % sur l'étiquette compté 37 %, empreinte et fer quasi doublés. */
+const PERSO_NI = 8;
+/* Parts de chaque ingrédient, en fraction du produit ENTIER.
+   - Toutes saisies : prises telles quelles. Leur somme peut rester sous 100 % :
+     le reste (eau, sel, ingrédients sous 2 %) compte pour zéro au lieu d'être
+     réparti sur les ingrédients listés. Au-delà de 100 %, on ramène à 100.
+   - Aucune saisie : estimation d'après l'ordre, comme avant (somme = 1).
+   - Certaines seulement : le reste jusqu'à 100 % est partagé entre les
+     manquantes, en décroissant avec leur rang. */
+function persoParts(pcts){
+  const n = pcts.length;
+  if(!n) return [];
+  const conn = pcts.map(w => w != null && w > 0 ? w / 100 : null);
+  const somme = conn.reduce((a, w) => a + (w || 0), 0);
+  const manq = conn.map((w, i) => w == null ? i : -1).filter(i => i >= 0);
+  const decr = idx => { const r = idx.map(i => n - i); const t = r.reduce((a, b) => a + b, 0) || 1; return r.map(v => v / t); };
+  if(manq.length === n) return n <= 3 ? PERSO_DEF[n - 1].slice() : decr(conn.map((_, i) => i));
+  if(!manq.length) return somme > 1 ? conn.map(w => w / somme) : conn;
+  const reste = Math.max(0, 1 - somme);
+  const out = conn.slice();
+  if(reste > 0){ const d = decr(manq); manq.forEach((i, k) => { out[i] = reste * d[k]; }); }
+  else { manq.forEach(i => { out[i] = 0; }); }
+  const t = out.reduce((a, b) => a + b, 0);
+  return t > 1 ? out.map(w => w / t) : out;
+}
 /* « Mes plats types » du profil : la liste de S.favs, chaque plat se modifie
    (nom, ingrédients, grammages) ou se supprime.
    Le petit-déjeuner habituel (`hab`) en est exclu : il a sa propre carte juste
@@ -13506,14 +13533,16 @@ function persoSheet(nomInit, opt){
     <div id="pfMsg" class="small" style="margin:6px 0 12px"></div>
     <label style="display:block"><span class="small mute">Nom</span>
       <input class="search" id="pfN" type="text" maxlength="80" placeholder="ex. Cottage cheese Nordica" style="width:100%"></label>
-    <div class="small mute" style="margin-top:14px">Ingrédients principaux · 1 à 3, du plus au moins présent</div>
-    ${[0, 1, 2].map(i => `<div style="display:flex;gap:8px;margin-top:6px">
+    <div class="small mute" style="margin-top:14px">Ingrédients · 1 à ${PERSO_NI}, du plus au moins présent, avec le % de l’étiquette</div>
+    ${Array.from({length:PERSO_NI}, (_, i) => i).map(i => `<div class="pfrow" data-pfr="${i}" style="display:${i < 3 ? 'flex' : 'none'};gap:8px;margin-top:6px">
       <input class="search" id="pfI${i}" list="pfList" aria-label="Ingrédient ${i + 1}" placeholder="${i ? 'Ingrédient ' + (i + 1) + ' (facultatif)' : 'ex. Lait de vache'}" style="flex:1;min-width:0">
       <input class="search" id="pfW${i}" type="text" inputmode="decimal" placeholder="%" style="width:64px" aria-label="Part de l’ingrédient ${i + 1} en %">
     </div>`).join('')}
+    <button class="btn btn-2" id="pfPlus" type="button" style="margin-top:8px;padding:6px 12px;font-size:13px">+ Ingrédient</button>
     <datalist id="pfList">${base.map(f => `<option value="${esc(f.n)}"></option>`).join('')}</datalist>
-    <p class="small mute" style="margin:6px 0 0">Part laissée vide : estimée d’après l’ordre. Le sel, l’eau et
-    les additifs ne pèsent presque rien, inutile de les saisir.</p>
+    <p class="small mute" style="margin:6px 0 0">Recopiez les pourcentages de l’étiquette : ils comptent pour
+    le produit entier, sans être ramenés à 100 %. Part laissée vide : estimée d’après l’ordre. Le sel, l’eau
+    et les additifs ne pèsent presque rien, inutile de les saisir.</p>
     <div class="small mute" style="margin-top:14px">Pour 100 g (sur l’étiquette)</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
       ${champ('pfK', 'Calories (kcal)', '80')}${champ('pfP', 'Protéines (g)', '10,4')}
@@ -13526,6 +13555,12 @@ function persoSheet(nomInit, opt){
       <button class="btn btn-2" id="pfNo">${opt.annule ? '‹ Retour' : 'Annuler'}</button>
     </div>`);
   $('#pfNo').onclick = () => opt.annule ? opt.annule() : closeSheet();
+  $('#pfPlus').onclick = () => {
+    const cache = [...document.querySelectorAll('.pfrow')].find(r => r.style.display === 'none');
+    if(!cache) return toast(`${PERSO_NI} ingrédients au plus : le reste pèse peu`);
+    cache.style.display = 'flex';
+    const inp = cache.querySelector('input'); if(inp) inp.focus();
+  };
   const byName = new Map(base.map(f => [nrmQ(f.n), f]));
   /* Produit lu sur Open Food Facts : {ean, ag, t, na}. Son empreinte AGRIBALYSE
      remplace le calcul par ingrédients tant que la case reste cochée. */
@@ -13533,20 +13568,19 @@ function persoSheet(nomInit, opt){
   const agOn = () => !!(prod && prod.t != null && $('#pfAg') && $('#pfAg').checked);
   const num = id => { const v = String($('#' + id).value).trim().replace(',', '.'); return v === '' ? null : +v; };
   const lire = () => {
-    const ing = [0, 1, 2].map(i => ({f:byName.get(nrmQ($('#pfI' + i).value.trim())),
-                                    w:num('pfW' + i), brut:$('#pfI' + i).value.trim()}))
-                         .filter(x => x.brut);
+    const ing = Array.from({length:PERSO_NI}, (_, i) => i)
+                     .map(i => ({f:byName.get(nrmQ($('#pfI' + i).value.trim())),
+                                 w:num('pfW' + i), brut:$('#pfI' + i).value.trim()}))
+                     .filter(x => x.brut);
     const inconnu = ing.find(x => !x.f);
     const ok = ing.filter(x => x.f);
-    const def = PERSO_DEF[Math.max(0, ok.length - 1)] || [];
-    let ws = ok.map((x, i) => x.w != null && x.w > 0 ? x.w / 100 : def[i]);
-    const tot = ws.reduce((a, b) => a + b, 0) || 1;
-    ws = ws.map(w => w / tot);
+    const ws = persoParts(ok.map(x => x.w));
     const t = ok.reduce((a, x, i) => a + x.f.t * ws[i], 0);
     const nu2 = [0, 1, 2].map(k => +ok.reduce((a, x, i) => a + ((x.f.nu2 || [])[k] || 0) * ws[i], 0).toFixed(2));
     const nu = ['pfK', 'pfP', 'pfL', 'pfG', 'pfF'].map(num);
     if(prod && prod.na != null) nu2[1] = prod.na;
-    return {ing:ok, ws, t: agOn() ? prod.t : t, nu2, nu, inconnu, p:num('pfQ') || 100, n:$('#pfN').value.trim()};
+    const couv = ws.reduce((a, b) => a + b, 0);
+    return {ing:ok, ws, couv, t: agOn() ? prod.t : t, nu2, nu, inconnu, p:num('pfQ') || 100, n:$('#pfN').value.trim()};
   };
   const apercu = () => {
     const r = lire(), out = $('#pfOut');
@@ -13554,6 +13588,9 @@ function persoSheet(nomInit, opt){
     if(!r.ing.length) return out.innerHTML = '<span class="mute">Choisissez au moins un ingrédient.</span>';
     let html = `≈ <b>${fr2(r.t)} kg CO₂e/kg</b> · ${fr2(r.t * r.p / 1000)} par portion de ${r.p} g` +
       (agOn() ? ' <span class="mute">· AGRIBALYSE</span>' : '');
+    if(!agOn() && r.couv < 0.7)
+      html += `<br><span style="color:var(--brick)">Les ingrédients saisis ne couvrent que ${Math.round(r.couv * 100)} % du
+        produit : le reste compte pour zéro, l’empreinte est donc sous-estimée. Ajoutez les suivants de l’étiquette.</span>`;
     const [k, p, l, g, fi] = r.nu;
     if(k != null && p != null && l != null && g != null){
       const calc = 4 * p + 9 * l + 4 * g + 2 * (fi || 0);
@@ -13598,18 +13635,26 @@ function persoSheet(nomInit, opt){
 
     /* Ingrédients de premier niveau, dans l'ordre de l'étiquette, rapprochés de
        la base par le même moteur que le lecteur de recettes. */
-    const vus = new Set(), pris = [], ignores = [];
-    for(const x of (p.ingredients || []).slice(0, 10)){
+    /* Deux lignes d'étiquette qui tombent sur le même aliment (« tomate »,
+       « tomate pelée concassée ») additionnent leurs parts au lieu d'en perdre une. */
+    const pris = [], ignores = [];
+    for(const x of (p.ingredients || []).slice(0, 16)){
       const txt = String(x.text || '').trim(); if(!txt) continue;
       let sl;
       try{ sl = rqSlug(rqNorm(txt)); }catch(e){ sl = undefined; }
       const f = sl && F.get(sl);
-      if(!f || f.perso || vus.has(sl)){ if(!f) ignores.push(txt); continue; }
-      vus.add(sl);
-      if(pris.length < 3) pris.push({f, pct: +(x.percent != null ? x.percent : x.percent_estimate) || null});
+      if(!f || f.perso){ if(!f) ignores.push(txt); continue; }
+      const pct = +(x.percent != null ? x.percent : x.percent_estimate) || null;
+      const deja = pris.find(y => y.f.s === sl);
+      if(deja){ if(pct) deja.pct = (deja.pct || 0) + pct; continue; }
+      if(pris.length < PERSO_NI) pris.push({f, pct});
     }
-    [0, 1, 2].forEach(i => { $('#pfI' + i).value = pris[i] ? pris[i].f.n : '';
-      $('#pfW' + i).value = pris[i] && pris[i].pct ? String(Math.round(pris[i].pct)) : ''; });
+    for(let i = 0; i < PERSO_NI; i++){
+      $('#pfI' + i).value = pris[i] ? pris[i].f.n : '';
+      $('#pfW' + i).value = pris[i] && pris[i].pct ? String(Math.round(pris[i].pct * 10) / 10).replace('.', ',') : '';
+      const row = document.querySelector(`[data-pfr="${i}"]`);
+      if(row) row.style.display = i < Math.max(3, pris.length) ? 'flex' : 'none';
+    }
 
     const ag = (p.environmental_score_data || p.ecoscore_data || {}).agribalyse || {};
     const co2 = +ag.co2_total;
