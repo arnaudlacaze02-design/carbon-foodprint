@@ -9415,6 +9415,7 @@ function renderFinish(D, isToday, draftKg){
             : `${Math.round(draftKg/BUDGET_J*100)} % du budget du jour.`}</div></div>
         <div class="v">${n2(draftKg)} <span class="unit">kg</span></div>
       </div>
+      ${mealShareRow()}
     </div>
     <div class="actions" style="margin-top:12px">
       <button class="btn btn-2 btn-drink" id="addDrink" data-co="6">+ Ajouter une boisson</button>
@@ -9430,6 +9431,7 @@ function renderFinish(D, isToday, draftKg){
   $('#addDrink').onclick = drinkSheet;
   $('#toHub').onclick = () => { S.step = 'hub'; renderSaisie(); };
   $('#fin').onclick = commitMeal;
+  const mshF = $('#mshare'); if(mshF) mshF.onclick = mealShareSheet;
   $('#favMeal').onclick = () => openSheet(`
     <h3>Garder en favori</h3>
     <p class="small mute">Ce repas réapparaîtra dans la liste, étoilé et en tête.</p>

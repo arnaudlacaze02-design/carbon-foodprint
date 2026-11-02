@@ -83,3 +83,11 @@ test("l'auteur ne voit pas « Ajouter à mon journal » sur son propre repas", (
   assert.doesNotMatch(carte, /data-pmeal/);
   assert.match(carte, /Repas partagé ·/);
 });
+
+test('la main 👋 est aussi sur l’écran de fin d’un repas en plusieurs services', () => {
+  A.app(`S.meal = 'dej'; S.mode = 'frais'; S.entryDate = today(); S.editId = null; S.pdjEdit = false;
+         S.draft = [['riz', 80, 'entree', 'frais'], ['poulet', 150, 'plat', 'frais']];
+         go('saisie'); S.step = 'finish'; renderSaisie();`);
+  assert.equal(A.app(`!!document.querySelector('#fin')`), true, 'écran de fin affiché');
+  assert.equal(A.app(`!!document.querySelector('#mshare')`), true, 'bouton de partage présent');
+});
