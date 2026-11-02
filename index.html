@@ -2901,7 +2901,12 @@ function persoFood(slug){
       n: typeof k.n === 'string' && k.n ? k.n : o0.n,
       t: isFinite(k.t) ? +k.t : o0.t,
       p: isFinite(k.p) && k.p > 0 ? +k.p : o0.p,
-      nu: Array.isArray(k.nu) && k.nu.length >= 5 ? k.nu : o0.nu}) : o0;
+      nu: Array.isArray(k.nu) && k.nu.length >= 5 ? k.nu : o0.nu,
+      /* Fer, sodium, oméga-3 et composition : corrigeables eux aussi, sans quoi
+         une composition fausse laissait un fer faux même après correction. */
+      nu2: Array.isArray(k.nu2) && k.nu2.length >= 3 ? k.nu2 : o0.nu2,
+      c: Array.isArray(k.c) && k.c.length ? k.c : o0.c,
+      cn: k.cn && typeof k.cn === 'object' ? k.cn : o0.cn}) : o0;
   const parts = (o.c || []).map(([k, w]) => `${o.cn && o.cn[k] || k} ${Math.round(w * 100)} %`).join(', ');
   const f = {s:slug, n:String(o.n).slice(0, 80), g:o.g || 'Plats préparés', t:+o.t, p:+o.p || 100,
     x:1, perso:1, xs:o.xs || '', c:Array.isArray(o.c) ? o.c : [],
