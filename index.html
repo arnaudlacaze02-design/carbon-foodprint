@@ -1447,6 +1447,27 @@ a.lk{color:var(--accent); text-decoration:underline; text-underline-offset:2px; 
 .draft-line .rm{color:var(--brick); font-family:var(--mono); font-size:16px; padding:0 4px}
 .total{display:flex; align-items:baseline; justify-content:space-between; margin-top:12px}
 .total .v{font-family:var(--display); font-weight:800; font-size:30px; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+/* Partage d'un repas avec des amis : sous le total, une main bien ronde. Le
+   bouton ne publie rien par lui-même — il retient à qui envoyer, et c'est
+   « Enregistrer le repas » qui envoie, pour qu'on ne partage jamais un repas
+   encore en cours de composition. */
+.mshare{display:flex; align-items:center; gap:12px; width:100%; margin-top:12px; padding:9px 12px 9px 9px;
+  border:1px dashed var(--line); border-radius:16px; background:none; text-align:left; cursor:pointer}
+.mshare:active{background:var(--active)}
+.mshare.on{border-style:solid; border-color:var(--forest-2); background:var(--active)}
+.mshare .mh{flex:0 0 auto; width:46px; height:46px; border-radius:50%; background:var(--straw);
+  display:flex; align-items:center; justify-content:center; font-size:23px; line-height:1;
+  box-shadow:0 2px 6px rgba(0,0,0,.12)}
+.mshare .tx{min-width:0}
+.mshare .tx b{display:block; font-size:14px; font-weight:600; line-height:1.3}
+.mshare .tx span{display:block; font-family:var(--mono); font-size:10px; color:var(--mute); margin-top:2px; line-height:1.45}
+/* Repas partagé, dans Actu */
+.mealpost{padding:4px 13px 12px}
+.mealpost .k{font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--mute)}
+.mealpost h4{margin:5px 0 8px; font-family:var(--display); font-weight:800; font-size:18px; line-height:1.2; letter-spacing:-.012em}
+.mealpost ul{list-style:none; margin:0; padding:0}
+.mealpost li{display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-top:1px solid var(--line-soft); font-size:13px}
+.mealpost li i{font-style:normal; font-family:var(--mono); font-size:11px; color:var(--mute); white-space:nowrap}
 .actions{display:flex; gap:8px; margin-top:12px}
 /* Bouton « Ajouter une boisson » : même brun clair que la carte Rechercher,
    pour qu'il se voie sans voler la vedette à « Terminer le repas ». */
@@ -6796,6 +6817,8 @@ function pactBar(x){
     ${x.kind === 'recipe'
       ? `${recStruct(b) ? `<button class="pa keep" data-psave="${esc(x.id)}">Enregistrer le plat</button>` : ''}
          <button class="pa keep" data-pkeep="${esc(x.id)}">Ajouter à mes recettes</button>`
+      : x.kind === 'meal' && SESS && x.author !== SESS.uid
+        ? `<button class="pa keep" data-pmeal="${esc(x.id)}">Ajouter à mon journal</button>`
       : ''}
   </div>`;
 }
@@ -6832,6 +6855,22 @@ function postCard(x){
         </div>
         <div class="rmore">Voir la recette ›</div>
       </button>
+      ${pactBar(x)}
+    </div>`;
+  }
+
+  if(x.kind === 'meal'){
+    const L = Array.isArray(b.l) ? b.l : [];
+    const kg = +b.kg;
+    return `<div class="post">${tete}
+      <div class="mealpost">
+        <div class="k">${moi ? 'Repas partagé' : 'Repas partagé avec vous'} · ${
+          esc((MEAL[b.m] || {l:'Repas'}).l)}${isFinite(kg) && kg > 0 ? ` · ${n2(kg)} kg CO₂e` : ''}</div>
+        <h4>👋 ${esc(b.label || 'Repas')}</h4>
+        <ul>${L.slice(0, 8).map(l => `<li><span>${esc(String(l[2] || (F.get(l[0]) || {}).n || l[0]))}</span><i>${
+          n0(+l[1] || 0)} g</i></li>`).join('')}${
+          L.length > 8 ? `<li><span>+ ${L.length - 8} autre${L.length - 8 > 1 ? 's' : ''}</span></li>` : ''}</ul>
+      </div>
       ${pactBar(x)}
     </div>`;
   }
@@ -6928,7 +6967,7 @@ function postOpen(id, tab){
     const t = TROPHIES.find(y => y.s === b.key);
 
     openSheet(`
-      <div class="unit">${rec ? 'Idée de recette' : (t ? 'Trophée partagé' : 'Récap partagé')} · ${esc(qui)}</div>
+      <div class="unit">${rec ? 'Idée de recette' : x.kind === 'meal' ? 'Repas partagé' : (t ? 'Trophée partagé' : 'Récap partagé')} · ${esc(qui)}</div>
       <h3 style="margin:2px 0 3px">${esc(rec ? (b.title || 'Sans titre') : (b.label || b.key || (t ? 'Badge' : 'Récap')))}</h3>
       ${rec
         ? `<div class="small mute">${kg != null
@@ -7254,6 +7293,7 @@ function renderFeed(){
   view.querySelectorAll('[data-like]').forEach(b => b.onclick = () => postLike(b.dataset.like));
   view.querySelectorAll('[data-psave]').forEach(b => b.onclick = () => recSave(b.dataset.psave));
   view.querySelectorAll('[data-pkeep]').forEach(b => b.onclick = () => recKeep(b.dataset.pkeep));
+  view.querySelectorAll('[data-pmeal]').forEach(b => b.onclick = () => mealImport(b.dataset.pmeal));
 
   /* ---------- Défis ---------- */
   const cn = $('#ch_new');
@@ -9007,6 +9047,9 @@ function commitMeal(){
                d:S.entryDate, m:S.meal, n:label,
                l:S.draft.map(ligneHist)});
   BAL_VOLS.push(S.hist[S.hist.length - 1].id);
+  const aPartager = mealDst();
+  const entreeFaite = S.hist[S.hist.length - 1];
+  MEAL_DST = null; MEAL_DST_REF = null;
   const kg = kgOf(S.draft);
   /* Copie des lignes et position du bouton AVANT que le brouillon ne soit vidé
      et l'écran re-rendu : l'animation part du bouton qu'on vient de toucher, et
@@ -9041,6 +9084,128 @@ function commitMeal(){
   haptic(15);
   pluie = fxJoue(fxLignes, kg, fxDe, fxLabel, suite);
   if(!pluie) suite();
+  /* Envoi après l'animation : son toast passerait sinon sous celui de
+     l'enregistrement. Le repas, lui, est déjà sur disque. */
+  if(aPartager.length) setTimeout(() => mealSharePost(entreeFaite, aPartager), pluie ? 2600 : 900);
+}
+
+/* ==================== partager un repas avec des amis ====================
+   Les destinataires vivent hors de S, en mémoire, et sont attachés à CE
+   brouillon : `MEAL_DST_REF` retient le tableau S.draft pour lequel ils ont
+   été choisis. Tout ce qui recommence un repas remplace S.draft par un nouveau
+   tableau, si bien qu'un choix fait pour le déjeuner ne peut pas partir avec
+   le dîner sans qu'on l'ait refait. Une erreur dans ce sens-là — envoyer un
+   repas à quelqu'un sans le vouloir — ne se rattrape pas. */
+let MEAL_DST = null, MEAL_DST_REF = null;
+const mealDst = () => (MEAL_DST_REF === S.draft && Array.isArray(MEAL_DST)) ? MEAL_DST : [];
+
+function mealShareRow(){
+  if(!SESS || S.editId || S.pdjEdit || !S.draft.length) return '';
+  const dst = mealDst();
+  const noms = amisListe().filter(a => dst.includes(a.uid)).map(a => a.nom);
+  return `<button class="mshare${noms.length ? ' on' : ''}" id="mshare" type="button">
+      <span class="mh" aria-hidden="true">👋</span>
+      <span class="tx"><b>${noms.length ? 'Partagé avec ' + esc(noms.join(', ')) : 'Partager ce repas avec un ami'}</b>
+        <span>${noms.length ? 'Envoyé à l’enregistrement · toucher pour changer'
+          : 'Il pourra l’ajouter à son journal en un geste'}</span></span>
+    </button>`;
+}
+
+async function mealShareSheet(){
+  if(!SESS) return toast('Il faut un compte pour partager');
+  if(S.fr.state !== 'ok') await frLoad(true);
+  const amis = amisListe();
+  if(!amis.length) return toast('Ajoutez d’abord un ami, depuis le Feed');
+  let sel = mealDst().filter(u => amis.some(a => a.uid === u));
+  const peint = () => {
+    openSheet(`
+      <div class="unit">Partager ce repas</div>
+      <h3 style="margin:2px 0 6px">Avec qui ?</h3>
+      <p class="small mute" style="margin:0 0 6px">Seuls les amis cochés le reçoivent. Ils verront
+        vos quantités et pourront les ajuster avant de l’ajouter à leur journal.</p>
+      ${amis.map(a => `<button class="chk" data-msu="${esc(a.uid)}" role="checkbox"
+          aria-checked="${sel.includes(a.uid)}">
+        <span class="bx">\u2713</span>
+        <span class="tx"><b>${esc(a.nom)}</b><span>${esc(a.slug)}</span></span>
+      </button>`).join('')}
+      <div class="actions">
+        <button class="btn btn-1" id="ms_ok">${sel.length
+          ? `Valider · ${sel.length} ami${sel.length > 1 ? 's' : ''}` : 'Ne pas partager'}</button>
+        <button class="btn btn-2" id="ms_no">Annuler</button>
+      </div>`);
+    document.querySelectorAll('[data-msu]').forEach(b => b.onclick = () => {
+      const u = b.dataset.msu;
+      sel = sel.includes(u) ? sel.filter(x => x !== u) : [...sel, u];
+      peint();
+    });
+    $('#ms_ok').onclick = () => {
+      MEAL_DST = sel.length ? sel : null;
+      MEAL_DST_REF = sel.length ? S.draft : null;
+      closeSheet();
+      /* On ne repeint que la ligne : repeindre toute la saisie remonterait la
+         page alors qu'on est en bas, sur le récapitulatif. */
+      const el = $('#mshare');
+      if(el){ el.outerHTML = mealShareRow(); const n = $('#mshare'); if(n) n.onclick = mealShareSheet; }
+    };
+    $('#ms_no').onclick = closeSheet;
+  };
+  peint();
+}
+
+/* Corps d'un repas partagé : chaque ligne garde son nom en clair, pour que
+   la carte se lise même si l'aliment n'existe pas chez l'ami (aliment créé à
+   la main, base pas encore à jour). [slug, g, nom, service, plat?] */
+async function mealSharePost(e, dst){
+  const corps = {
+    label: e.n, m: e.m, kg: +kgOf(e.l).toFixed(3),
+    mode: (e.l[0] && e.l[0][3]) || 'frais',
+    l: e.l.map(l => { const f = F.get(l[0]);
+      const r = [l[0], l[1], f ? f.n : l[0], l[2] || 'plat'];
+      if(l[4]) r.push(l[4]);
+      return r; }),
+  };
+  const r = await postNew('meal', corps, dst);
+  if(!r.ok) return toast(/Type de publication refusé/.test(r.msg)
+    ? 'Repas enregistré, mais pas partagé : le serveur n’accepte pas encore les repas'
+    : 'Repas enregistré, mais pas partagé · ' + r.msg);
+  toast(`Repas partagé avec ${r.amis} ami${r.amis > 1 ? 's' : ''}`, {ok:true});
+  if(S.posts) frPosts();
+}
+
+/* Côté ami : le repas arrive dans la saisie, quantités modifiables, daté du
+   jour. Rien n'est enregistré tant qu'il n'a pas touché « Enregistrer ». */
+function mealImport(id){
+  const x = (S.posts || []).find(y => y.id === id);
+  if(!x) return;
+  const b = x.body || {};
+  const tout = Array.isArray(b.l) ? b.l : [];
+  const L = tout.filter(l => Array.isArray(l) && F.get(l[0]) && +l[1] > 0);
+  if(!L.length) return toast('Aucun aliment de ce repas n’est dans votre base');
+  const manque = tout.length - L.length;
+  const mode = ['frais', 'surgele', 'resto'].includes(b.mode) ? b.mode : 'frais';
+  const charge = () => {
+    S.draft = L.map(l => l[4] ? [l[0], +l[1], l[3] || 'plat', mode, l[4]]
+                              : [l[0], +l[1], l[3] || 'plat', mode]);
+    S.meal = MEAL[b.m] ? b.m : 'dej';
+    S.entryDate = today(); S.editId = null;
+    S.path = 'compose'; S.step = 'saisie'; S.wiz = null; S.comCat = 'plat'; S.mode = mode;
+    S.pdjSave = false; S.pdjNew = false; S.pdjEdit = false;
+    closeSheet(); save(); go('saisie');
+    toast(manque
+      ? `Repas chargé · ${manque} aliment${manque > 1 ? 's' : ''} absent${manque > 1 ? 's' : ''} de votre base`
+      : 'Repas chargé · ajustez les quantités puis enregistrez');
+  };
+  if(!S.draft.length) return charge();
+  openSheet(`
+    <h3>Remplacer la saisie en cours ?</h3>
+    <p class="small mute">Vous avez déjà ${S.draft.length} aliment${S.draft.length > 1 ? 's' : ''}
+      dans la saisie. Le repas partagé les remplacera.</p>
+    <div class="actions">
+      <button class="btn btn-1" id="mi_ok">Remplacer</button>
+      <button class="btn btn-2" id="mi_no">Annuler</button>
+    </div>`);
+  $('#mi_ok').onclick = charge;
+  $('#mi_no').onclick = closeSheet;
 }
 
 /* enregistre un service composé comme nouveau plat type */
@@ -10828,6 +10993,7 @@ function renderSaisie(){
           : `${Math.round(draftKg/BUDGET_J*100)} % du budget du jour.`}</div></div>
       <div class="v">${n2(step ? stepKg : draftKg)} <span class="unit">kg</span></div>
     </div>
+    ${step ? '' : mealShareRow()}
     ${step && !QUICK[step.k] && inStep.length >= 2 ? `<button class="btn btn-2" data-savecourse="${S.comCat}"
       style="margin-top:10px">Enregistrer ${step.label.toLowerCase()} dans les plats types</button>` : ''}
   </div>` : ''}
@@ -11112,6 +11278,7 @@ function renderSaisie(){
 
   const rec = $('#rec');
   if(rec && !rec.disabled) rec.onclick = commitMeal;
+  const msh = $('#mshare'); if(msh) msh.onclick = mealShareSheet;
   const fv = $('#fav');
   if(fv && !fv.disabled) fv.onclick = () => openSheet(`
       <h3>Garder en favori</h3>
