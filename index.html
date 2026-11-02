@@ -4159,13 +4159,15 @@ function carteAxeGrande(o){
         <div class="sous">${o.sous}</div>
       </div>
     </div>
-    <div class="gauge-legend" style="margin-top:12px">${vus.map(m =>
+    ${(() => { const inf = o.info ? infoCapParts(o.info) : null;
+      return `<div style="display:flex;align-items:flex-start;gap:8px;margin-top:12px">
+      <div class="gauge-legend" style="flex:1;min-width:0">${vus.map(m =>
       `<button data-gm="${m.k}" data-ax="${ax}"><i class="dot" style="background:${m.c}"></i>${
         m.l} ${o.fmt(o.par[m.k])}<span class="ar">\u203a</span></button>`).join('')
       || '<span>Aucune saisie pour l\u2019instant</span>'}
-    </div>
-    <div class="hr"></div>
-    <div class="small">${o.mot}</div>
+      </div>${inf ? inf.btn : ''}
+    </div>${inf ? inf.box : ''}`; })()}
+    ${o.mot ? `<div class="hr"></div><div class="small">${o.mot}</div>` : ''}
     ${o.suite || ''}
   </div>`;
 }
@@ -13202,6 +13204,9 @@ function renderProfil(){
     <h2 class="sec">Catalogues</h2>
     <div class="card">${sansFilet(marquesBlock())}</div>
 
+    <h2 class="sec">Sauvegarde locale</h2>
+    <div class="card">${sauvegardeBloc()}</div>
+
     ${compte}
     <div class="stagelist" style="margin-top:14px">
       <span class="unit">Version</span><span class="small">${BUILD}</span><span></span>
@@ -13211,6 +13216,7 @@ function renderProfil(){
   if(bk) bk.onclick = () => go(pfFrom === 'profil' ? 'tracker' : pfFrom);
 
   const avb = $('#pf_avaBtn'); if(avb) avb.onclick = avatarSheet;
+  bindSauvegarde();
 
   const aid = $('#pmAide'); if(aid) aid.onclick = aideSheet;
   bindAccount();
@@ -13732,12 +13738,14 @@ function persoCarte(){
       ${(() => { const n = persoListe().filter(x => !persoEnvoyes().includes(x)).length;
         return SESS && n ? `<p class="small" style="margin:8px 0 0">${n} en attente d’envoi${persoErr ? ' · ' + esc(persoErr) : ''}
           <button class="btn btn-2" id="persoRetry" style="padding:4px 10px;margin-left:6px">Réessayer</button></p>` : ''; })()}
-      ${mes.length ? `<div class="small mute" style="margin-top:12px">Vos aliments</div>
+      ${mes.length ? `<details class="persomes" style="margin-top:12px"${S.persoOuvert ? ' open' : ''}>
+        <summary class="small" style="cursor:pointer;font-weight:600">Vos aliments · ${mes.length}</summary>
         ${mes.map(f => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line, rgba(0,0,0,.08))">
           <span style="flex:1">${esc(f.n)}${f.corr ? ' <span class="small mute">· revu</span>' : ''}</span>
           <span class="small mute">${fr2(f.t)} kg/kg</span>
           <button class="btn btn-2" data-persodel="${f.s}" aria-label="Retirer ${esc(f.n)}" style="padding:4px 10px">✕</button>
-        </div>`).join('')}` : ''}
+        </div>`).join('')}
+      </details>` : ''}
     </div>`;
 }
 const fr2 = v => (Math.round(v * 100) / 100).toLocaleString('fr-FR');
@@ -13748,6 +13756,8 @@ function bindPerso(){
     for(const sl of persoListe()) await persoEnvoyer(sl);
     renderTracker(); toast(persoErr ? 'Toujours refusé · ' + persoErr : 'Envoyé');
   };
+  const pm = view.querySelector('details.persomes');
+  if(pm) pm.ontoggle = () => { S.persoOuvert = pm.open; };
   view.querySelectorAll('[data-persodel]').forEach(x => x.onclick = () => {
     const sl = x.dataset.persodel, f = F.get(sl);
     try{ localStorage.setItem(PERSO_KEY, JSON.stringify(persoListe().filter(y => y !== sl))); }catch(e){}
@@ -14147,15 +14157,6 @@ function renderTracker(){
       </button>`).join('')}</div>
     <div id="tv"></div>
     ${profRappel()}
-    <h2 class="sec">Sauvegarde locale</h2>
-    <div class="card">
-      <p class="small">${SESS ? 'Utile en complément du compte : une copie que vous gardez, indépendante du serveur.'
-        : 'Sans compte, vos saisies vivent dans ce navigateur et nulle part ailleurs. Copiez-les avant de changer d’appareil.'}</p>
-      <div class="actions">
-        <button class="btn btn-2" id="expo">Copier la sauvegarde</button>
-        <button class="btn btn-2" id="impo">Restaurer</button>
-      </div>
-    </div>
     ${persoCarte()}`;
   bindPerso();
   view.querySelectorAll('[data-tv]').forEach(b => b.onclick = () => { S.tv = b.dataset.tv; renderTracker(); });
@@ -14168,6 +14169,21 @@ function renderTracker(){
   view.querySelectorAll('[data-recette]').forEach(b =>
     b.onclick = () => recetteSheet(b.dataset.recette));
 
+}
+
+/* Sauvegarde locale : une copie de l'historique et des favoris, collée
+   ailleurs. Rangée dans le Profil, avec les autres réglages du compte. */
+function sauvegardeBloc(){
+  return `
+    <p class="small" style="margin-top:0">${SESS ? 'Utile en complément du compte : une copie que vous gardez, indépendante du serveur.'
+      : 'Sans compte, vos saisies vivent dans ce navigateur et nulle part ailleurs. Copiez-les avant de changer d’appareil.'}</p>
+    <div class="actions">
+      <button class="btn btn-2" id="expo">Copier la sauvegarde</button>
+      <button class="btn btn-2" id="impo">Restaurer</button>
+    </div>`;
+}
+function bindSauvegarde(){
+  if(!$('#expo')) return;
   const dump = () => JSON.stringify({v:1, favs:S.favs, hist:S.hist});
   $('#expo').onclick = () => {
     const d = dump();
@@ -14197,7 +14213,7 @@ function renderTracker(){
         const o = JSON.parse($('#imp').value);
         if(!Array.isArray(o.hist)) throw new Error('format');
         S.hist = o.hist; S.favs = Array.isArray(o.favs) ? o.favs : []; save();
-        closeSheet(); renderTracker(); toast(`${S.hist.length} repas restaurés`);
+        closeSheet(); renderProfil(); toast(`${S.hist.length} repas restaurés`);
       }catch(e){ toast('Sauvegarde illisible'); }
     };
   };
@@ -14914,14 +14930,20 @@ function frMoyenSheet(){
    Le compteur repart à chaque peinture complète : il ne sert qu'à relier un
    bouton à son panneau dans le document courant. */
 let INFO_N = 0;
+function infoCapParts(txt){
+  const id = 'inf' + (++INFO_N);
+  return {
+    btn:`<button class="ibtn" type="button" data-info="${id}" aria-expanded="false"
+        aria-controls="${id}" aria-label="Comment lire ce graphique">i</button>`,
+    box:`<div class="infox" id="${id}" hidden>${txt}</div>`};
+}
 function infoCap(txt){
   if(!txt) return '';
-  const id = 'inf' + (++INFO_N);
+  const p = infoCapParts(txt);
   return `<div class="info">
-      <button class="ibtn" type="button" data-info="${id}" aria-expanded="false"
-        aria-controls="${id}" aria-label="Comment lire ce graphique">i</button>
+      ${p.btn}
     </div>
-    <div class="infox" id="${id}" hidden>${txt}</div>`;
+    ${p.box}`;
 }
 
 function duoData(a){
@@ -18345,11 +18367,8 @@ function axesDuJour(a, t, opt){
      journée et le conseil du midi, qui n'ont de sens que pour le jour même. */
   const passe = t !== today();
   const quand = passe ? 'ce jour-là' : 'aujourd\u2019hui';
-  const conseil = !passe && opt.conseil !== false;
 
   /* --- carbone --- */
-  const restCO2 = BUDGET_J - j.kg;
-  const pctCO2  = Math.round(Math.abs(restCO2) / BUDGET_J * 100);
   const objJ = objDay();
   const carbone = carteAxeGrande({
     premier:true, titre:'Carbone', sous:rien ? 'Aucun repas saisi' : (passe || whenWord() === 'demain') ? 'journée close' : 'journée en cours',
@@ -18366,33 +18385,16 @@ function axesDuJour(a, t, opt){
       objJ != null ? {v:objJ, c:'var(--straw)'} : null,
     ].filter(Boolean),
     couleur:j.kg > BUDGET_J ? 'var(--cn-red)' : 'var(--axe-kg)',
-    mot: rien
-      ? `Rien d\u2019enregistré ${quand}. Budget du jour : ${n0(BUDGET_J*1000)} g CO\u2082e.`
-      : restCO2 >= 0
-        ? `Budget restant : <b>${n0(restCO2*1000)} g</b> CO\u2082e, soit <b>${pctCO2} %</b> de la journée.`
-        : `Budget dépassé de <b>${n0(-restCO2*1000)} g</b> CO\u2082e, soit <b>${pctCO2} %</b> au-delà de la limite.`,
-    suite: (() => {
-      /* Le conseil ne sort qu'une fois le déjeuner saisi. Avant, il n'a rien à
-         dire d'utile : le budget est presque intact et la phrase se réduirait à
-         « tout rentre », ce qui n'aide personne et use la formule. C'est le
-         déjeuner qui engage la journée, et c'est à partir de là que « ce qui
-         rentre encore » devient une information. Le dîner, lui, clôt la journée
-         et passe la parole à dayVerdict(). */
-      const midi = S.hist.some(e => e.d === t && e.m === 'dej');
-      const tip = (rien || !midi || !conseil) ? '' : (() => {
-        /* Seul le bilan de fin de journée reste. Le conseil de plat
-           (budgetTip) a été retiré du Tracker à la demande de l'utilisateur :
-           la fonction est gardée, mais plus affichée. */
-        const v = dayVerdict(a);
-        return v ? `<div class="tip ${v.c}"><span class="ic">${v.ic}</span><span class="tx">${v.tx}</span></div>` : '';
-      })();
-      return tip + regletteLegende({tot:j.kg, bud:BUDGET_J, obj:objJ, fr:FR_J,
-        cap:'Les traits verticaux du bandeau ci-dessus, dans l’ordre : budget 2050, objectif ' +
-            'personnel. La moyenne française n’y figure plus : elle est si loin au-dessus des deux ' +
-            'autres qu’elle écrasait le bandeau entier, au point de faire paraître raisonnable une ' +
-            'journée déjà proche du budget. Elle reste dans la légende juste en dessous, avec un ' +
-            'badge d’écart — touchez-le pour savoir pourquoi ce chiffre compte.'});
-    })(),
+    /* Plus de phrase « budget restant / dépassé » ni de bilan du soir : le
+       bandeau et son trait de budget le disent déjà, et la carte garde ainsi
+       la hauteur des cartes Calories et Protéines. Les repères (budget 2050,
+       objectif, Français moyen) et leur mode de lecture passent derrière le « i ». */
+    mot:'',
+    info: (`<div class="rgl" style="margin:0 0 8px"><div class="rgll">${
+        reglRefs({tot:j.kg, bud:BUDGET_J, obj:objJ, fr:FR_J}).map(r => reglRefLegend(r)).join('')}</div></div>` +
+      'Les traits verticaux du bandeau, dans l’ordre : budget 2050, objectif personnel. La moyenne ' +
+      'française n’y figure pas : elle est si loin au-dessus des deux autres qu’elle écraserait le ' +
+      'bandeau. Touchez son badge d’écart pour savoir pourquoi ce chiffre compte.'),
   });
 
   if(!nuOn()) return axesAssemble({kg:carbone}, false);
