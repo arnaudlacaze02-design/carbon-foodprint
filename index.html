@@ -836,7 +836,7 @@ h1,h2,h3{text-wrap:balance}
 .today{font-family:var(--mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--on-topbar-mute); text-align:right}
 .today b{display:block; font-family:var(--display); font-weight:800; font-size:17px; color:var(--on-topbar-strong); letter-spacing:0; text-transform:none; font-variant-numeric:tabular-nums}
 
-main{flex:1; padding:16px 16px 104px}
+main{flex:1; padding:16px 16px calc(120px + env(safe-area-inset-bottom))} /* la tabbar flotte à 10px + safe-area : sans cette marge, le bas de page restait dessous sur iPhone */
 
 /* ---------------- primitives ---------------- */
 .card{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:16px}
@@ -2633,7 +2633,8 @@ html[data-gate="1"] .phone{display:none}
 .cx-body .food-item{display:flex; align-items:center; justify-content:space-between; padding:7px 0;
   border-bottom:1px solid var(--line-soft); font-size:13px}
 .cx-body .food-item:last-child{border-bottom:none}
-.cx-body .fi-impact{font-family:var(--mono); font-size:11px; font-weight:700; color:var(--forest); margin:0 8px}
+.cx-body .fi-impact{font-family:var(--mono); font-size:11px; font-weight:700; color:var(--forest); margin:0 8px;
+  white-space:nowrap; display:inline-block} /* « 6,6 mg » ne se coupe plus en deux lignes sous un nom long */
 .cx-body .fi-add{font-family:inherit; font-size:10.5px; font-weight:700; color:var(--forest); background:var(--card);
   border:1px solid var(--forest-2); padding:4px 10px; border-radius:999px; cursor:pointer; flex:0 0 auto}
 
