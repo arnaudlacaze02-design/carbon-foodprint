@@ -62,11 +62,12 @@
      Le repli reste une pile sans serif : si Comfortaa n'est pas chargée — premier
      lancement hors ligne, réseau coupé —, mieux vaut la police système du reste
      de l'app qu'un Georgia qui trahirait la mise en page. */
-  --serif:"Comfortaa",var(--round);
+  --serif:"Martian Mono",ui-monospace,monospace;
   --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
-  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --round:ui-rounded,"SF Pro Rounded","Arial Rounded MT Bold","Trebuchet MS",var(--sans);
-  --display:"Baloo 2",var(--round);
+  /* Polices du style Disco, partagées par les deux styles. */
+  --display:"Bagel Fat One",var(--round);
   /* Les visuels de marque sont déclarés ici une seule fois et pointent vers
      img/ : un fichier séparé est mis en cache une fois pour toutes par le
      service worker, au lieu d'être retéléchargé avec chaque version de la page. */
@@ -899,7 +900,8 @@ body.dz-home main{padding:0}
   --sheet-scrim:rgba(46,55,39,.42); --shadow:0 10px 24px rgba(91,42,24,.16); --toast-bg:#34402E;
   color-scheme:light;
 }
-:root[data-da="disco"] body{font-synthesis:none; background:#EDCBB6}
+body{font-synthesis:none}
+:root[data-da="disco"] body{background:#EDCBB6}
 :root[data-da="disco"] .phone{background:var(--paper); box-shadow:none}
 /* En Disco, l'accueil EST le menu : plus de barre du bas, un carré pour y revenir. */
 :root[data-da="disco"] .tabbar{display:none}
